@@ -19,7 +19,8 @@
     "dashboard": "tsx src/dashboard.ts",
     "demo": "tsx src/demo.ts",
     "build:demo": "tsx scripts/build-demo.ts",
-    "copy:assets": "node scripts/copy-assets.mjs"
+    "copy:assets": "node scripts/copy-assets.mjs",
+    "apply": "tsx src/apply-once.ts"
   },
   "dependencies": {
     "discord.js": "^14.16.3",

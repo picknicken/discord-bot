@@ -397,6 +397,28 @@ Let op: zodra het dashboard van localhost af gaat, is inloggen verplicht — zie
 [Inloggen met Discord](#inloggen-met-discord). En de map `templates/` moet blijven bestaan
 tussen herstarts, anders ben je je templates kwijt bij elke deploy.
 
+### Zonder computer: via GitHub Actions
+
+Geen machine bij de hand? `.github/workflows/server-inrichten.yml` draait de bot op een
+GitHub-runner — dat is een computer met internet die je vanaf je telefoon start.
+
+Eenmalig, onder **Settings → Secrets and variables → Actions**: `DISCORD_TOKEN` en
+`DISCORD_CLIENT_ID`. Die staan daar versleuteld; ze horen niet in een chat of in de code.
+
+Daarna: **Actions → Server inrichten → Run workflow**, server-id invullen, template kiezen.
+Laat `mode` op `preview` om alleen te zien wat er zou gebeuren; zet hem op `apply` om het echt
+uit te voeren. De log toont regel voor regel wat er gebeurde.
+
+Handig voor een eerste test, en voor een server inrichten terwijl je onderweg bent. Het is
+geen vervanging van het dashboard: bewerken doe je daar, uitvoeren kan hier.
+
+Hetzelfde commando werkt ook gewoon in een terminal:
+
+```bash
+npm run apply -- --guild 123456789 --template community          # alleen tonen
+npm run apply -- --guild 123456789 --template community --apply  # uitvoeren
+```
+
 ### Naast andere diensten op een VPS
 
 In `deploy/` staan een systemd-unit en een nginx-serverblok. De aanpak:

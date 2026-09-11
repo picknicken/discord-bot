@@ -1,0 +1,82 @@
+# Een server inrichten zonder computer: start deze workflow vanaf je telefoon
+# (GitHub -> Actions -> Server inrichten -> Run workflow).
+#
+# Vooraf eenmalig, onder Settings -> Secrets and variables -> Actions:
+#   DISCORD_TOKEN      de token van je bot
+#   DISCORD_CLIENT_ID  het Application ID
+#
+# Zonder "apply" te kiezen verandert er niets: dan zie je alleen het plan.
+name: Server inrichten
+
+on:
+  workflow_dispatch:
+    inputs:
+      guild_id:
+        description: 'Server-id (Discord -> rechtermuisknop op de server -> ID kopieren)'
+        required: true
+        type: string
+      template:
+        description: 'Welke template'
+        required: true
+        default: community
+        type: choice
+        options: [community, gaming, bedrijf]
+      mode:
+        description: 'preview laat alleen zien wat er zou gebeuren'
+        required: true
+        default: preview
+        type: choice
+        options: [preview, apply]
+      prune:
+        description: 'Kanalen verwijderen die niet in de template staan (onomkeerbaar)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  inrichten:
+    name: ${{ inputs.mode }} ${{ inputs.template }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Controleer of de secrets ingesteld zijn
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+        run: |
+          if [ -z "$DISCORD_TOKEN" ] || [ -z "$DISCORD_CLIENT_ID" ]; then
+            echo "::error::Zet DISCORD_TOKEN en DISCORD_CLIENT_ID onder Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Template uitvoeren
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+          # Via de omgeving, niet in de commandoregel: invoer hoort nooit
+          # rechtstreeks in een shell-commando terecht te komen.
+          GUILD_ID: ${{ inputs.guild_id }}
+          TEMPLATE: ${{ inputs.template }}
+          MODE: ${{ inputs.mode }}
+          PRUNE: ${{ inputs.prune }}
+        run: |
+          args=(--guild "$GUILD_ID" --template "$TEMPLATE")
+          if [ "$MODE" = "apply" ]; then
+            args+=(--apply)
+            if [ "$PRUNE" = "true" ]; then
+              args+=(--prune)
+              echo "::warning::prune staat aan — kanalen buiten de template worden verwijderd."
+            fi
+          fi
+          node dist/apply-once.js "${args[@]}"
