@@ -14,5 +14,7 @@ export const config = {
   devGuildId: process.env.DISCORD_DEV_GUILD_ID || undefined,
   templatesDir: process.env.TEMPLATES_DIR || './templates',
   /** Weergavenaam van de bot. Wordt toegepast door `npm run configure-install`. */
-  botName: process.env.BOT_NAME?.trim() || 'Discord Setup Bot',
+  botName: process.env.BOT_NAME?.trim() || 'Setup Bot',
+  /** Poort van het lokale dashboard. Luistert alleen op 127.0.0.1. */
+  dashboardPort: Number(process.env.DASHBOARD_PORT ?? 4000),
 };

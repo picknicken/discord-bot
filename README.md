@@ -12,6 +12,9 @@ kanalen, permissie-overwrites en serverinstellingen — in een keer, reproduceer
 | `/setup apply template:<naam> bevestig:<servernaam>` | Voert het plan uit |
 | `/setup export` | Exporteert de huidige server als template-bestand (JSON-bijlage) |
 
+Hetzelfde kan lokaal via het dashboard (`npm run dashboard`), inclusief het bewerken van
+templates.
+
 Bij het joinen van een server controleert de bot zichzelf en post hij een kort bericht:
 of hij klaar is voor gebruik, of precies welk recht ontbreekt met een link die het herstelt.
 
@@ -81,14 +84,15 @@ De naam staat op drie plekken in Discord, en ze zijn niet allemaal hetzelfde:
 | **Applicatienaam** | de titel op het autorisatiescherm en in de App Directory | Developer Portal → General Information → Name |
 | **Servernickname** | per server aan te passen door beheerders | rechtermuisknop op de bot → Bijnaam wijzigen |
 
-Standaard is `BOT_NAME` **Discord Setup Bot**. `npm run configure-install` zet de
-gebruikersnaam en meldt het als de applicatienaam ervan afwijkt.
+Standaard is `BOT_NAME` **Setup Bot**. `npm run configure-install` zet de gebruikersnaam en
+meldt het als de applicatienaam ervan afwijkt.
 
 Twee dingen om te weten voordat je hem draait:
 
-- Discord weigert gebruikersnamen met **"discord"** of **"clyde"** erin. Wordt de naam
-  geweigerd, dan zegt het script precies wat Discord terugstuurt en laat het de rest van de
-  instellingen ongemoeid — kies dan een variant als `Setup Bot` of `Server Setup`.
+- Discord weigert gebruikersnamen met **"discord"** of **"clyde"** erin — vandaar `Setup Bot`
+  en niet `Discord Setup Bot`. De *applicatienaam* in het portal mag "Discord" wel bevatten.
+  Wordt een naam geweigerd, dan zegt het script precies wat Discord terugstuurt en laat het
+  de rest van de instellingen ongemoeid.
 - Een bot mag zijn gebruikersnaam **twee keer per uur** wijzigen. Daarna volgt een 429 tot
   het uur om is.
 
@@ -96,6 +100,35 @@ Voor de applicatienaam bestaat geen API; dat blijft handwerk in het portal.
 
 Zet `DISCORD_DEV_GUILD_ID` in `.env` tijdens het ontwikkelen: commands zijn dan direct
 actief in die ene server, in plaats van de globale registratie die tot een uur kan duren.
+
+## Dashboard
+
+```bash
+npm run dashboard   # http://127.0.0.1:4000
+```
+
+Een lokale werkplek voor je templates, naast de slash commands. Links je templates, in het
+midden de gekozen template, rechts de server waar je hem op loslaat.
+
+- **Structuur** toont de template zoals hij bedoeld is: rollen met hun kleur en aantal
+  rechten, categorieen met hun kanalen en het aantal permissie-overwrites.
+- **JSON** is dezelfde template als tekst. Opslaan gaat door dezelfde validatie als de bot:
+  een onbekende permissie of een overwrite naar een niet-bestaande rol wordt geweigerd en
+  het bestand op schijf blijft ongemoeid.
+- **Nieuw / Dupliceren / Verwijderen** beheert de bestanden in `templates/`.
+- **Preview** draait het echte plan tegen de gekozen server en toont regel voor regel wat er
+  zou gebeuren. **Toepassen** voert het uit, na bevestiging met de servernaam.
+- **Deze server opslaan als template** leest een bestaande server uit en zet hem als nieuwe
+  template in je lijst.
+
+Servers met een probleem vallen meteen op: ontbrekende rechten en rollen die boven de bot
+staan worden bij de serverkeuze getoond, niet pas als het toepassen halverwege vastloopt.
+
+Het dashboard luistert **alleen op 127.0.0.1** en gebruikt dezelfde ingelogde client als de
+bot: het praat namens je bot met Discord, dus het hoort niet naar buiten open te staan. De
+token blijft aan de serverkant — de browser krijgt hem nooit te zien. Poort aanpassen kan
+met `DASHBOARD_PORT`.
+
 
 ## Templates
 
@@ -179,6 +212,9 @@ src/
   botPermissions.ts     de enige lijst met rechten die de bot vraagt
   commands/setup.ts     /setup met list, preview, apply, export
   events/guildCreate.ts zelfcontrole en welkomstbericht bij het joinen
+  dashboard.ts          start de bot met het lokale dashboard ernaast
+  dashboard/server.ts   API voor templates, plannen en toepassen
+  dashboard/index.html  de dashboardpagina (geen buildstap, geen dependencies)
   types.ts              zod-schema en validatie van templates
   templates.ts          templates inlezen uit de map
   snapshot.ts           bestaande server -> platte structuur
@@ -187,7 +223,7 @@ src/
   exporter.ts           bestaande server -> template
   permissions.ts        permissienamen <-> bitfields
 templates/              meegeleverde templates
-tests/                  vitest-tests voor schema, planner en rechten
+tests/                  vitest-tests voor schema, planner, rechten en dashboard-API
 ```
 
 ## Ontwikkelen

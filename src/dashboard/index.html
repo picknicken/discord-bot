@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setup Bot — dashboard</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8; --panel: #ffffff; --line: #e2e4e9; --text: #1c1e22; --muted: #6b7280;
+    --accent: #5865f2; --ok: #2f9e5f; --warn: #c98a00; --bad: #d63c41; --code: #f0f1f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17181c; --panel: #1f2126; --line: #2e3138; --text: #e7e9ee; --muted: #9aa1ad;
+      --accent: #7d87f7; --ok: #4ec27c; --warn: #e0a52b; --bad: #ef5d62; --code: #16171b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+    background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5;
+  }
+  header img { width: 32px; height: 32px; border-radius: 50%; }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  .grid { display: grid; grid-template-columns: 260px minmax(0, 1fr) 320px; gap: 16px; padding: 16px; align-items: start; }
+  @media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  .panel > h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+    margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--line); font-weight: 600;
+  }
+  .panel > .body { padding: 12px 14px; }
+  .item {
+    display: block; width: 100%; text-align: left; padding: 10px 14px; border: 0; border-bottom: 1px solid var(--line);
+    background: none; color: inherit; cursor: pointer; font: inherit;
+  }
+  .item:hover { background: var(--code); }
+  .item[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+  .item strong { display: block; }
+  .item small { color: var(--muted); }
+  button, select, input[type="text"], textarea {
+    font: inherit; color: inherit; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px;
+  }
+  button { cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .row + .row { margin-top: 10px; }
+  label.check { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+  textarea {
+    width: 100%; min-height: 420px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px; background: var(--code); resize: vertical; tab-size: 2;
+  }
+  .tabs { display: flex; gap: 4px; padding: 8px 14px 0; }
+  .tabs button { border-radius: 7px 7px 0 0; border-bottom-color: transparent; }
+  .tabs button[aria-selected="true"] { background: var(--code); border-color: var(--line); border-bottom-color: var(--code); font-weight: 600; }
+  .note { padding: 8px 10px; border-radius: 7px; font-size: 13px; }
+  .note.ok { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+  .note.bad { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); white-space: pre-wrap; }
+  .note.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+  .muted { color: var(--muted); }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px;
+    background: var(--code); font-size: 12px; margin: 0 6px 6px 0;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .cat { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; }
+  .cat > h3 { margin: 0; padding: 8px 12px; font-size: 13px; background: var(--code); border-radius: 7px 7px 0 0; }
+  .cat ul { list-style: none; margin: 0; padding: 6px 12px 10px; }
+  .cat li { padding: 3px 0; display: flex; gap: 8px; align-items: baseline; }
+  .cat li .type { color: var(--muted); font-size: 11px; min-width: 78px; }
+  pre.actions {
+    background: var(--code); padding: 10px 12px; border-radius: 7px; max-height: 320px; overflow: auto;
+    font-size: 12.5px; margin: 10px 0 0; white-space: pre-wrap;
+  }
+  .add { color: var(--ok); } .del { color: var(--bad); } .mod { color: var(--warn); }
+</style>
+</head>
+<body>
+<header>
+  <img id="avatar" alt="">
+  <div>
+    <h1 id="botName">Dashboard laden…</h1>
+    <div class="sub" id="botSub"></div>
+  </div>
+</header>
+
+<div class="grid">
+  <section class="panel">
+    <h2>Templates</h2>
+    <div id="templateList"></div>
+    <div class="body">
+      <div class="row">
+        <button id="newTemplate">Nieuw</button>
+        <button id="dupTemplate" disabled>Dupliceren</button>
+        <button id="delTemplate" class="danger" disabled>Verwijderen</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2 id="editorTitle">Geen template gekozen</h2>
+    <div class="tabs">
+      <button id="tabTree" aria-selected="true">Structuur</button>
+      <button id="tabJson" aria-selected="false">JSON</button>
+    </div>
+    <div class="body">
+      <div id="treeView"><p class="muted">Kies links een template.</p></div>
+      <div id="jsonView" hidden>
+        <textarea id="editor" spellcheck="false"></textarea>
+        <div class="row">
+          <button id="save" class="primary">Opslaan</button>
+          <button id="revert">Herstellen</button>
+          <span id="saveNote" class="muted"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Toepassen</h2>
+    <div class="body">
+      <div class="row"><select id="guild" style="width:100%"></select></div>
+      <div id="guildInfo" class="muted" style="margin-top:8px"></div>
+
+      <div class="row" style="margin-top:12px">
+        <label class="check"><input type="checkbox" id="update" checked>
+          <span>Bestaande rollen en kanalen bijwerken</span></label>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="prune">
+          <span>Kanalen verwijderen die niet in de template staan
+            <br><small class="muted">Onomkeerbaar. Vraagt om bevestiging.</small></span></label>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <button id="preview">Preview</button>
+        <button id="apply" class="primary">Toepassen</button>
+      </div>
+
+      <div id="planResult"></div>
+
+      <div class="row" style="margin-top:16px; border-top:1px solid var(--line); padding-top:12px">
+        <button id="exportGuild">Deze server opslaan als template</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const state = { templates: [], guilds: [], selected: null, original: '' };
+const $ = (id) => document.getElementById(id);
+
+async function api(path, options = {}) {
+  const response = await fetch('/api' + path, {
+    ...options,
+    headers: options.body ? { 'content-type': 'application/json' } : {},
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || ('HTTP ' + response.status));
+  return data;
+}
+
+async function refresh() {
+  const data = await api('/state');
+  state.templates = data.templates;
+  state.guilds = data.guilds;
+
+  $('avatar').src = data.avatarUrl;
+  $('botName').textContent = data.botName;
+  $('botSub').textContent =
+    data.guilds.length + ' server(s) · ' + data.templates.length + ' templates · ' + data.templatesDir;
+
+  renderTemplates();
+  renderGuilds();
+}
+
+function renderTemplates() {
+  const list = $('templateList');
+  list.innerHTML = '';
+
+  for (const template of state.templates) {
+    const button = document.createElement('button');
+    button.className = 'item';
+    button.setAttribute('aria-selected', String(template.id === state.selected));
+    button.innerHTML = template.error
+      ? '<strong>' + escape(template.id) + '</strong><small class="bad">⚠ ' + escape(template.error.split('\n')[0]) + '</small>'
+      : '<strong>' + escape(template.id) + '</strong><small>' +
+        template.roles + ' rollen · ' + template.categories + ' cat · ' + template.channels + ' kanalen</small>';
+    button.onclick = () => select(template.id);
+    list.appendChild(button);
+  }
+
+  $('dupTemplate').disabled = !state.selected;
+  $('delTemplate').disabled = !state.selected;
+}
+
+function renderGuilds() {
+  const select = $('guild');
+  const previous = select.value;
+  select.innerHTML = '';
+
+  for (const guild of state.guilds) {
+    const option = document.createElement('option');
+    option.value = guild.id;
+    option.textContent = guild.name + (guild.missing.length ? '  ⚠ mist rechten' : '');
+    select.appendChild(option);
+  }
+
+  if (previous) select.value = previous;
+  renderGuildInfo();
+}
+
+function renderGuildInfo() {
+  const guild = state.guilds.find((candidate) => candidate.id === $('guild').value);
+  const info = $('guildInfo');
+  if (!guild) { info.textContent = 'De bot zit nog in geen enkele server.'; return; }
+
+  const parts = [guild.memberCount + ' leden · ' + guild.channelCount + ' kanalen · ' + guild.roleCount + ' rollen'];
+  info.innerHTML = '<div>' + escape(parts[0]) + '</div>';
+
+  if (guild.missing.length) {
+    info.innerHTML += '<div class="note bad" style="margin-top:8px">Mist rechten: ' +
+      escape(guild.missing.join(', ')) + '</div>';
+  }
+  if (guild.rolesAbove > 0) {
+    info.innerHTML += '<div class="note warn" style="margin-top:8px">' + guild.rolesAbove +
+      ' rol(len) staan boven de bot; die kan hij niet beheren.</div>';
+  }
+}
+
+async function select(id) {
+  state.selected = id;
+  const data = await api('/templates/' + id);
+  state.original = data.json;
+  $('editor').value = data.json;
+  $('editorTitle').textContent = id;
+  $('saveNote').textContent = '';
+  renderTemplates();
+  renderTree();
+}
+
+function renderTree() {
+  const view = $('treeView');
+  let template;
+  try {
+    template = JSON.parse($('editor').value);
+  } catch (error) {
+    view.innerHTML = '<div class="note bad">JSON is nu ongeldig: ' + escape(error.message) + '</div>';
+    return;
+  }
+
+  const chips = (template.roles || [])
+    .map((role) => '<span class="chip"><span class="dot" style="background:' +
+      escape(role.color || 'var(--muted)') + '"></span>' + escape(role.name) +
+      ' <span class="muted">' + (role.permissions || []).length + '</span></span>')
+    .join('');
+
+  const categories = (template.categories || []).map((category) => {
+    const channels = (category.channels || []).map((channel) =>
+      '<li><span class="type">' + escape(channel.type || 'text') + '</span><span>' +
+      escape(channel.name) + '</span>' +
+      ((channel.overwrites || []).length ? '<span class="muted">· ' + channel.overwrites.length + ' overwrites</span>' : '') +
+      '</li>').join('');
+    return '<div class="cat"><h3>' + escape(category.name) +
+      ((category.overwrites || []).length ? ' <span class="muted">· ' + category.overwrites.length + ' overwrites</span>' : '') +
+      '</h3><ul>' + (channels || '<li class="muted">geen kanalen</li>') + '</ul></div>';
+  }).join('');
+
+  const loose = (template.uncategorizedChannels || []).map((channel) =>
+    '<li><span class="type">' + escape(channel.type || 'text') + '</span>' + escape(channel.name) + '</li>').join('');
+
+  view.innerHTML =
+    '<p class="muted">' + escape(template.description || '') + '</p>' +
+    '<h3 style="font-size:13px">Rollen</h3><div>' + (chips || '<span class="muted">geen</span>') + '</div>' +
+    '<h3 style="font-size:13px;margin-top:16px">Kanalen</h3>' + categories +
+    (loose ? '<div class="cat"><h3>Zonder categorie</h3><ul>' + loose + '</ul></div>' : '');
+}
+
+function showTab(json) {
+  $('tabTree').setAttribute('aria-selected', String(!json));
+  $('tabJson').setAttribute('aria-selected', String(json));
+  $('treeView').hidden = json;
+  $('jsonView').hidden = !json;
+  if (!json) renderTree();
+}
+
+function escape(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+}
+
+function colorize(lines) {
+  return lines.map((line) => {
+    const cls = line.startsWith('+') ? 'add' : line.startsWith('-') ? 'del' : line.startsWith('~') ? 'mod' : '';
+    return '<span class="' + cls + '">' + escape(line) + '</span>';
+  }).join('\n');
+}
+
+// --- Acties ---------------------------------------------------------------
+
+$('tabTree').onclick = () => showTab(false);
+$('tabJson').onclick = () => showTab(true);
+$('guild').onchange = renderGuildInfo;
+$('editor').oninput = () => { $('saveNote').textContent = 'niet opgeslagen'; };
+
+$('save').onclick = async () => {
+  try {
+    await api('/templates/' + state.selected, { method: 'PUT', body: JSON.stringify({ json: $('editor').value }) });
+    state.original = $('editor').value;
+    $('saveNote').innerHTML = '<span class="ok">opgeslagen</span>';
+    await refresh();
+    renderTree();
+  } catch (error) {
+    $('saveNote').innerHTML = '';
+    $('planResult').innerHTML = '<div class="note bad" style="margin-top:10px">' + escape(error.message) + '</div>';
+  }
+};
+
+$('revert').onclick = () => { $('editor').value = state.original; $('saveNote').textContent = ''; renderTree(); };
+
+$('newTemplate').onclick = async () => {
+  const name = prompt('Naam van de nieuwe template?');
+  if (!name) return;
+  const created = await api('/templates', { method: 'POST', body: JSON.stringify({ id: name }) });
+  await refresh();
+  await select(created.id);
+};
+
+$('dupTemplate').onclick = async () => {
+  const name = prompt('Naam van de kopie?', state.selected + '-kopie');
+  if (!name) return;
+  const created = await api('/templates', { method: 'POST', body: JSON.stringify({ id: name, from: state.selected }) });
+  await refresh();
+  await select(created.id);
+};
+
+$('delTemplate').onclick = async () => {
+  if (!confirm('"' + state.selected + '" verwijderen?')) return;
+  await api('/templates/' + state.selected, { method: 'DELETE' });
+  state.selected = null;
+  $('editor').value = '';
+  $('editorTitle').textContent = 'Geen template gekozen';
+  $('treeView').innerHTML = '<p class="muted">Kies links een template.</p>';
+  await refresh();
+};
+
+$('preview').onclick = async () => {
+  if (!state.selected) return alert('Kies eerst een template.');
+  $('planResult').innerHTML = '<p class="muted">Bezig…</p>';
+  try {
+    const plan = await api('/plan', { method: 'POST', body: JSON.stringify(planBody()) });
+    $('planResult').innerHTML =
+      '<div class="note ok" style="margin-top:12px">' + escape(plan.summary) + '</div>' +
+      (plan.warnings.length ? '<div class="note warn" style="margin-top:8px">' + escape(plan.warnings.join('\n')) + '</div>' : '') +
+      (plan.actions.length ? '<pre class="actions">' + colorize(plan.actions) + '</pre>' : '');
+  } catch (error) {
+    $('planResult').innerHTML = '<div class="note bad" style="margin-top:12px">' + escape(error.message) + '</div>';
+  }
+};
+
+$('apply').onclick = async () => {
+  if (!state.selected) return alert('Kies eerst een template.');
+  const guild = state.guilds.find((candidate) => candidate.id === $('guild').value);
+  if (!guild) return;
+
+  const warning = $('prune').checked
+    ? 'LET OP: kanalen die niet in "' + state.selected + '" staan worden VERWIJDERD uit "' + guild.name +
+      '".\n\nTyp de servernaam om te bevestigen:'
+    : 'Template "' + state.selected + '" toepassen op "' + guild.name + '"?\n\nTyp de servernaam om te bevestigen:';
+
+  if (prompt(warning) !== guild.name) return alert('Niet bevestigd — er is niets gewijzigd.');
+
+  $('planResult').innerHTML = '<p class="muted">Bezig met toepassen…</p>';
+  try {
+    const result = await api('/apply', { method: 'POST', body: JSON.stringify(planBody()) });
+    $('planResult').innerHTML =
+      '<div class="note ' + (result.failed ? 'warn' : 'ok') + '" style="margin-top:12px">' +
+      (result.note || (result.applied + ' acties gelukt, ' + result.failed + ' mislukt')) + '</div>' +
+      (result.errors && result.errors.length ? '<pre class="actions">' + escape(result.errors.join('\n')) + '</pre>' : '');
+    await refresh();
+  } catch (error) {
+    $('planResult').innerHTML = '<div class="note bad" style="margin-top:12px">' + escape(error.message) + '</div>';
+  }
+};
+
+$('exportGuild').onclick = async () => {
+  const guildId = $('guild').value;
+  if (!guildId) return;
+  const exported = await api('/export/' + guildId);
+  const name = prompt('Opslaan als template met naam:', exported.id);
+  if (!name) return;
+  const created = await api('/templates', { method: 'POST', body: JSON.stringify({ id: name }) });
+  await api('/templates/' + created.id, { method: 'PUT', body: JSON.stringify({ json: exported.json }) });
+  await refresh();
+  await select(created.id);
+  alert('Opgeslagen als "' + created.id + '".');
+};
+
+function planBody() {
+  return {
+    templateId: state.selected,
+    guildId: $('guild').value,
+    prune: $('prune').checked,
+    update: $('update').checked,
+  };
+}
+
+refresh().catch((error) => { $('botName').textContent = 'Fout: ' + error.message; });
+</script>
+</body>
+</html>

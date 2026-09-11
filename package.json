@@ -15,7 +15,8 @@
     "typecheck": "tsc -p tsconfig.test.json",
     "test": "vitest run",
     "configure-install": "tsx src/configure-install.ts",
-    "invite": "tsx src/invite.ts"
+    "invite": "tsx src/invite.ts",
+    "dashboard": "tsx src/dashboard.ts"
   },
   "dependencies": {
     "discord.js": "^14.16.3",
