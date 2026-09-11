@@ -12,6 +12,8 @@ copyFileSync('./templates/community.json', path.join(templatesDir, 'community.js
 process.env.DISCORD_TOKEN = 'test-token';
 process.env.DISCORD_CLIENT_ID = '123456789';
 process.env.TEMPLATES_DIR = templatesDir;
+process.env.HISTORY_DIR = path.join(templatesDir, 'history');
+process.env.BACKUPS_DIR = path.join(templatesDir, 'backups');
 
 const { createDashboard } = await import('../src/dashboard/server.js');
 
@@ -147,6 +149,32 @@ describe('dashboard-api', () => {
     expect(plan.summary).toContain('aanmaken');
   });
 
+  it('plant voor meerdere servers tegelijk', async () => {
+    const data = await json(await post('/api/plan', { templateId: 'community', guildIds: ['guild-1', 'onbekend'] }));
+    expect(data.plans).toHaveLength(1);
+    expect(data.plans[0].guildName).toBe('Testserver');
+  });
+
+  it('bewaart de vorige inhoud bij het opslaan', async () => {
+    const before = await json(await get('/api/templates/community'));
+    const edited = JSON.parse(before.json);
+    edited.description = 'aangepast in een test';
+
+    await fetch(base + '/api/templates/community', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ json: JSON.stringify(edited) }),
+    });
+
+    const versions = await json(await get('/api/templates/community/versions'));
+    expect(versions.versions.length).toBeGreaterThan(0);
+
+    const restored = await json(
+      await post('/api/templates/community/restore', { stamp: versions.versions[0].stamp }),
+    );
+    expect(JSON.parse(restored.json).description).toBe(JSON.parse(before.json).description);
+  });
+
   it('exporteert een bestaande server', async () => {
     const exported = await json(await get('/api/export/guild-1'));
     expect(exported.id).toBe('testserver');
@@ -165,7 +193,12 @@ describe('dashboard-api zonder rechten', () => {
     await listen(stubClient(stubGuild(0n)));
 
     const response = await post('/api/apply', { templateId: 'community', guildId: 'guild-1' });
-    expect(response.status).toBe(400);
-    expect((await json(response)).error).toMatch(/mist rechten/);
+    expect(response.status).toBe(200);
+
+    // Een server zonder rechten laat de rest van de rij niet klappen; hij komt
+    // terug als mislukt met de reden erbij.
+    const data = await json(response);
+    expect(data.results[0].errors[0]).toMatch(/mist rechten/);
+    expect(data.applied).toBe(0);
   });
 });

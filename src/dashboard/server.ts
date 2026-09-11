@@ -11,6 +11,8 @@ import { describeActions, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadTemplate } from '../templates.js';
 import { countBySeverity, lintTemplate } from '../lint.js';
+import { backupGuild, listBackups, readBackup } from '../backup.js';
+import { listVersions, readVersion, recordVersion } from '../history.js';
 import { simulate, simulatableRoles } from '../simulate.js';
 import { parseTemplate, type ServerTemplate } from '../types.js';
 import { logger } from '../util/logger.js';
@@ -37,7 +39,7 @@ async function handle(client: Client<true>, request: IncomingMessage, response: 
   if (method === 'GET' && segments.length === 0) return sendHtml(response);
 
   if (segments[0] !== 'api') return send(response, 404, { error: 'Niet gevonden' });
-  const [, resource, id] = segments;
+  const [, resource, id, sub] = segments;
 
   // --- Status -------------------------------------------------------------
   if (method === 'GET' && resource === 'state') {
@@ -48,6 +50,7 @@ async function handle(client: Client<true>, request: IncomingMessage, response: 
       templatesDir: config.templatesDir,
       guilds: await Promise.all(client.guilds.cache.map(describeGuild)),
       templates: await describeTemplates(),
+      backups: await listBackups(config.backupsDir),
     });
   }
 
@@ -82,7 +85,11 @@ async function handle(client: Client<true>, request: IncomingMessage, response: 
   }
 
   if (resource === 'templates' && id !== undefined) {
-    if (method === 'GET') {
+    if (method === 'GET' && sub === 'versions') {
+      return send(response, 200, { versions: await listVersions(config.historyDir, id) });
+    }
+
+    if (method === 'GET' && sub === undefined) {
       const json = await readFile(templatePath(id), 'utf8');
       return send(response, 200, { id, json, template: parseTemplate(JSON.parse(json)) });
     }
@@ -91,6 +98,9 @@ async function handle(client: Client<true>, request: IncomingMessage, response: 
       const body = await readJson<{ json?: string }>(request);
       try {
         const template = parseTemplate(JSON.parse(body.json ?? ''));
+        // Eerst de oude inhoud bewaren, dan pas overschrijven.
+        const previous = await readFile(templatePath(id), 'utf8').catch(() => null);
+        if (previous) await recordVersion(config.historyDir, id, previous);
         await writeTemplate(id, template);
         return send(response, 200, { id, template, saved: true });
       } catch (error) {
@@ -101,6 +111,44 @@ async function handle(client: Client<true>, request: IncomingMessage, response: 
     if (method === 'DELETE') {
       await unlink(templatePath(id));
       return send(response, 200, { deleted: id });
+    }
+  }
+
+  if (method === 'POST' && resource === 'templates' && id !== undefined && sub === 'restore') {
+    const body = await readJson<{ stamp?: string }>(request);
+    if (!body.stamp) return send(response, 400, { error: 'Geef een versie op.' });
+
+    const contents = await readVersion(config.historyDir, id, body.stamp);
+    const template = parseTemplate(JSON.parse(contents));
+
+    const current = await readFile(templatePath(id), 'utf8').catch(() => null);
+    if (current) await recordVersion(config.historyDir, id, current);
+    await writeTemplate(id, template);
+
+    return send(response, 200, { id, json: JSON.stringify(template, null, 2), restored: body.stamp });
+  }
+
+  // --- Back-ups ------------------------------------------------------------
+  if (resource === 'backups') {
+    if (method === 'GET' && id === undefined) {
+      return send(response, 200, { backups: await listBackups(config.backupsDir) });
+    }
+
+    if (method === 'POST' && id === 'restore') {
+      const body = await readJson<{ file?: string; guildId?: string }>(request);
+      if (!body.file) return send(response, 400, { error: 'Geef een back-up op.' });
+
+      const backup = await readBackup(config.backupsDir, body.file);
+      const guild = client.guilds.cache.get(body.guildId || backup.guildId);
+      if (!guild) return send(response, 404, { error: 'Server niet gevonden.' });
+
+      // Terugzetten vult aan en werkt bij; het verwijdert nooit, want wat weg is
+      // krijgt deze back-up toch niet terug.
+      const plan = planSetup(await snapshotGuildFresh(guild), backup.template, { prune: false, update: true });
+      if (plan.actions.length === 0) return send(response, 200, { applied: 0, failed: 0, errors: [], note: 'Niets te herstellen.' });
+
+      logger.info(`Dashboard herstelt "${body.file}" op "${guild.name}" (${plan.actions.length} acties)`);
+      return send(response, 200, await applyPlan(guild, backup.template, plan));
     }
   }
 
@@ -130,44 +178,83 @@ async function handle(client: Client<true>, request: IncomingMessage, response: 
     const body = await readJson<{
       templateId?: string;
       guildId?: string;
+      guildIds?: string[];
       prune?: boolean;
       update?: boolean;
+      backup?: boolean;
     }>(request);
 
-    if (!body.templateId || !body.guildId) {
-      return send(response, 400, { error: 'Kies een template en een server.' });
+    const guildIds = body.guildIds?.length ? body.guildIds : body.guildId ? [body.guildId] : [];
+    if (!body.templateId || guildIds.length === 0) {
+      return send(response, 400, { error: 'Kies een template en minstens een server.' });
     }
-
-    const guild = client.guilds.cache.get(body.guildId);
-    if (!guild) return send(response, 404, { error: 'Server niet gevonden — is de bot er nog lid van?' });
 
     const template = await loadTemplate(config.templatesDir, body.templateId);
-    const plan = planSetup(await snapshotGuildFresh(guild), template, {
-      prune: body.prune ?? false,
-      update: body.update ?? true,
-    });
+    const options = { prune: body.prune ?? false, update: body.update ?? true };
 
     if (resource === 'plan') {
-      return send(response, 200, {
-        summary: summarizePlan(plan),
-        actions: describeActions(plan, 1000),
-        warnings: plan.warnings,
-        count: plan.actions.length,
-      });
+      const plans = [];
+      for (const guildId of guildIds) {
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) continue;
+        const plan = planSetup(await snapshotGuildFresh(guild), template, options);
+        plans.push({
+          guildId,
+          guildName: guild.name,
+          summary: summarizePlan(plan),
+          actions: describeActions(plan, 1000),
+          warnings: plan.warnings,
+          count: plan.actions.length,
+        });
+      }
+      if (plans.length === 0) return send(response, 404, { error: 'Geen van de servers is gevonden.' });
+      return send(response, 200, { plans, ...plans[0] });
     }
 
-    const me = await guild.members.fetchMe();
-    const missing = missingPermissions(me);
-    if (missing.length > 0) {
-      return send(response, 400, { error: `De bot mist rechten in deze server: ${missing.join(', ')}` });
-    }
-    if (plan.actions.length === 0) {
-      return send(response, 200, { applied: 0, failed: 0, errors: [], note: 'Niets te doen.' });
+    const results = [];
+    for (const guildId of guildIds) {
+      const guild = client.guilds.cache.get(guildId);
+      if (!guild) {
+        results.push({ guildId, guildName: guildId, applied: 0, failed: 0, errors: ['server niet gevonden'] });
+        continue;
+      }
+
+      const me = await guild.members.fetchMe();
+      const missing = missingPermissions(me);
+      if (missing.length > 0) {
+        results.push({
+          guildId,
+          guildName: guild.name,
+          applied: 0,
+          failed: 0,
+          errors: [`de bot mist rechten: ${missing.join(', ')}`],
+        });
+        continue;
+      }
+
+      const plan = planSetup(await snapshotGuildFresh(guild), template, options);
+      if (plan.actions.length === 0) {
+        results.push({ guildId, guildName: guild.name, applied: 0, failed: 0, errors: [], note: 'niets te doen' });
+        continue;
+      }
+
+      // Altijd eerst een momentopname, tenzij het dashboard er expliciet om vraagt.
+      let backupFile: string | null = null;
+      if (body.backup !== false) {
+        backupFile = await backupGuild(guild, config.backupsDir, body.templateId).catch(() => null);
+      }
+
+      logger.info(`Dashboard past "${body.templateId}" toe op "${guild.name}" (${plan.actions.length} acties)`);
+      const result = await applyPlan(guild, template, plan);
+      results.push({ guildId, guildName: guild.name, backup: backupFile, ...result });
     }
 
-    logger.info(`Dashboard past "${body.templateId}" toe op "${guild.name}" (${plan.actions.length} acties)`);
-    const result = await applyPlan(guild, template, plan);
-    return send(response, 200, result);
+    return send(response, 200, {
+      results,
+      applied: results.reduce((sum, result) => sum + result.applied, 0),
+      failed: results.reduce((sum, result) => sum + result.failed, 0),
+      errors: results.flatMap((result) => result.errors.map((error) => `${result.guildName}: ${error}`)),
+    });
   }
 
   // --- Bestaande server exporteren ---------------------------------------

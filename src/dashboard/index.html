@@ -94,6 +94,14 @@
   .vis .why { font-size: 11px; color: var(--muted); }
   .counts { display: flex; gap: 14px; margin-bottom: 10px; }
   .counts b { font-size: 18px; display: block; line-height: 1.2; }
+  button.link { border: 0; background: none; color: var(--accent); padding: 2px 4px; font-size: 12px; }
+  .guildrow { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .guildrow:last-child { border-bottom: 0; }
+  .guildrow .meta { font-size: 11px; color: var(--muted); }
+  .guildrow .bad { color: var(--bad); }
+  .guildrow .warn { color: var(--warn); }
+  .backup { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+  .backup:last-child { border-bottom: 0; }
 </style>
 </head>
 <body>
@@ -139,6 +147,7 @@
         <div class="row">
           <button id="save" class="primary">Opslaan</button>
           <button id="revert">Herstellen</button>
+          <select id="versions" title="Eerdere versies"></select>
           <span id="saveNote" class="muted"></span>
         </div>
       </div>
@@ -148,8 +157,11 @@
   <section class="panel">
     <h2>Toepassen</h2>
     <div class="body">
-      <div class="row"><select id="guild" style="width:100%"></select></div>
-      <div id="guildInfo" class="muted" style="margin-top:8px"></div>
+      <div id="guildList"></div>
+      <div class="row" style="margin-top:6px">
+        <button id="allGuilds" class="link">Alles</button>
+        <button id="noGuilds" class="link">Niets</button>
+      </div>
 
       <div class="row" style="margin-top:12px">
         <label class="check"><input type="checkbox" id="update" checked>
@@ -169,14 +181,23 @@
       <div id="planResult"></div>
 
       <div class="row" style="margin-top:16px; border-top:1px solid var(--line); padding-top:12px">
-        <button id="exportGuild">Deze server opslaan als template</button>
+        <button id="exportGuild">Server opslaan als template</button>
       </div>
+
+      <details style="margin-top:14px">
+        <summary class="muted" style="cursor:pointer">Back-ups</summary>
+        <p class="muted" style="font-size:12px;margin:8px 0">
+          Voor elk toepassen wordt de structuur van de server weggeschreven. Terugzetten vult
+          aan en werkt bij — verwijderde kanalen en hun berichten komen niet terug.
+        </p>
+        <div id="backupList"></div>
+      </details>
     </div>
   </section>
 </div>
 
 <script>
-const state = { templates: [], guilds: [], selected: null, original: '', simRole: null };
+const state = { templates: [], guilds: [], backups: [], selected: null, original: '', simRole: null };
 const $ = (id) => document.getElementById(id);
 
 async function api(path, options = {}) {
@@ -194,6 +215,8 @@ async function refresh() {
   state.templates = data.templates;
   state.guilds = data.guilds;
 
+  state.backups = data.backups || [];
+
   $('avatar').src = data.avatarUrl;
   $('botName').textContent = data.botName;
   $('botSub').textContent =
@@ -201,6 +224,7 @@ async function refresh() {
 
   renderTemplates();
   renderGuilds();
+  renderBackups();
 }
 
 function renderTemplates() {
@@ -224,37 +248,74 @@ function renderTemplates() {
 }
 
 function renderGuilds() {
-  const select = $('guild');
-  const previous = select.value;
-  select.innerHTML = '';
-
-  for (const guild of state.guilds) {
-    const option = document.createElement('option');
-    option.value = guild.id;
-    option.textContent = guild.name + (guild.missing.length ? '  ⚠ mist rechten' : '');
-    select.appendChild(option);
+  const list = $('guildList');
+  if (state.guilds.length === 0) {
+    list.innerHTML = '<p class="muted">De bot zit nog in geen enkele server.</p>';
+    return;
   }
 
-  if (previous) select.value = previous;
-  renderGuildInfo();
+  const checked = new Set(selectedGuilds());
+  list.innerHTML = state.guilds.map((guild, index) => {
+    const notes = [
+      guild.missing.length ? '<span class="bad">mist ' + escape(guild.missing.join(', ')) + '</span>' : '',
+      guild.rolesAbove > 0 ? '<span class="warn">' + guild.rolesAbove + ' rol(len) boven de bot</span>' : '',
+    ].filter(Boolean).join(' · ');
+
+    const on = checked.size ? checked.has(guild.id) : index === 0;
+    return '<label class="guildrow"><input type="checkbox" class="guildpick" value="' + escape(guild.id) + '"' +
+      (on ? ' checked' : '') + '><span><strong>' + escape(guild.name) + '</strong><div class="meta">' +
+      guild.memberCount + ' leden · ' + guild.channelCount + ' kanalen · ' + guild.roleCount + ' rollen' +
+      (notes ? '<br>' + notes : '') + '</div></span></label>';
+  }).join('');
 }
 
-function renderGuildInfo() {
-  const guild = state.guilds.find((candidate) => candidate.id === $('guild').value);
-  const info = $('guildInfo');
-  if (!guild) { info.textContent = 'De bot zit nog in geen enkele server.'; return; }
+function selectedGuilds() {
+  return [...document.querySelectorAll('.guildpick:checked')].map((input) => input.value);
+}
 
-  const parts = [guild.memberCount + ' leden · ' + guild.channelCount + ' kanalen · ' + guild.roleCount + ' rollen'];
-  info.innerHTML = '<div>' + escape(parts[0]) + '</div>';
+function renderBackups() {
+  const list = $('backupList');
+  if (!state.backups || state.backups.length === 0) {
+    list.innerHTML = '<p class="muted" style="font-size:12px">Nog geen back-ups.</p>';
+    return;
+  }
 
-  if (guild.missing.length) {
-    info.innerHTML += '<div class="note bad" style="margin-top:8px">Mist rechten: ' +
-      escape(guild.missing.join(', ')) + '</div>';
+  list.innerHTML = state.backups.slice(0, 15).map((backup) =>
+    '<div class="backup"><span>' + escape(backup.guildName) + '<br><span class="muted">' +
+    escape(backup.createdAt.slice(0, 16).replace('T', ' ')) + ' · ' + backup.roles + ' rollen · ' +
+    backup.channels + ' kanalen</span></span>' +
+    '<button data-backup="' + escape(backup.file) + '">Terugzetten</button></div>').join('');
+
+  for (const button of list.querySelectorAll('button[data-backup]')) {
+    button.onclick = () => restoreBackup(button.dataset.backup);
   }
-  if (guild.rolesAbove > 0) {
-    info.innerHTML += '<div class="note warn" style="margin-top:8px">' + guild.rolesAbove +
-      ' rol(len) staan boven de bot; die kan hij niet beheren.</div>';
+}
+
+async function restoreBackup(file) {
+  const backup = state.backups.find((candidate) => candidate.file === file);
+  if (!confirm('Back-up van "' + backup.guildName + '" terugzetten?\n\nDit vult aan en werkt bij. Verwijderde kanalen komen niet terug.')) return;
+
+  $('planResult').innerHTML = '<p class="muted">Bezig met terugzetten…</p>';
+  try {
+    const result = await api('/backups/restore', { method: 'POST', body: JSON.stringify({ file }) });
+    $('planResult').innerHTML = '<div class="note ok" style="margin-top:12px">' +
+      (result.note || result.applied + ' acties gelukt, ' + result.failed + ' mislukt') + '</div>';
+    await refresh();
+  } catch (error) {
+    $('planResult').innerHTML = '<div class="note bad" style="margin-top:12px">' + escape(error.message) + '</div>';
   }
+}
+
+async function renderVersions() {
+  const select = $('versions');
+  if (!state.selected) { select.innerHTML = ''; return; }
+
+  const data = await api('/templates/' + state.selected + '/versions');
+  select.innerHTML = '<option value="">Versies (' + data.versions.length + ')</option>' +
+    data.versions.map((version) =>
+      '<option value="' + escape(version.stamp) + '">' +
+      escape(version.stamp.slice(0, 16).replace('T', ' ').replace(/-(\d{2})-(\d{2})$/, ':$1')) +
+      '</option>').join('');
 }
 
 async function select(id) {
@@ -266,6 +327,7 @@ async function select(id) {
   $('saveNote').textContent = '';
   renderTemplates();
   renderTree();
+  await renderVersions();
 }
 
 function renderTree() {
@@ -396,7 +458,26 @@ $('tabTree').onclick = () => showTab('Tree');
 $('tabJson').onclick = () => showTab('Json');
 $('tabCheck').onclick = () => showTab('Check');
 $('runCheck').onclick = () => runCheck();
-$('guild').onchange = renderGuildInfo;
+$('allGuilds').onclick = () => {
+  for (const input of document.querySelectorAll('.guildpick')) input.checked = true;
+};
+$('noGuilds').onclick = () => {
+  for (const input of document.querySelectorAll('.guildpick')) input.checked = false;
+};
+$('versions').onchange = async () => {
+  const stamp = $('versions').value;
+  if (!stamp) return;
+  if (!confirm('Deze versie terugzetten? De huidige inhoud wordt als versie bewaard.')) return;
+  const data = await api('/templates/' + state.selected + '/restore', {
+    method: 'POST',
+    body: JSON.stringify({ stamp }),
+  });
+  $('editor').value = data.json;
+  state.original = data.json;
+  $('saveNote').innerHTML = '<span class="ok">versie teruggezet</span>';
+  renderTree();
+  await renderVersions();
+};
 $('editor').oninput = () => { $('saveNote').textContent = 'niet opgeslagen'; };
 
 $('save').onclick = async () => {
@@ -442,13 +523,16 @@ $('delTemplate').onclick = async () => {
 
 $('preview').onclick = async () => {
   if (!state.selected) return alert('Kies eerst een template.');
+  if (selectedGuilds().length === 0) return alert('Vink minstens een server aan.');
+
   $('planResult').innerHTML = '<p class="muted">Bezig…</p>';
   try {
-    const plan = await api('/plan', { method: 'POST', body: JSON.stringify(planBody()) });
-    $('planResult').innerHTML =
-      '<div class="note ok" style="margin-top:12px">' + escape(plan.summary) + '</div>' +
-      (plan.warnings.length ? '<div class="note warn" style="margin-top:8px">' + escape(plan.warnings.join('\n')) + '</div>' : '') +
-      (plan.actions.length ? '<pre class="actions">' + colorize(plan.actions) + '</pre>' : '');
+    const data = await api('/plan', { method: 'POST', body: JSON.stringify(planBody()) });
+    $('planResult').innerHTML = data.plans.map((plan) =>
+      '<div style="margin-top:12px"><strong>' + escape(plan.guildName) + '</strong>' +
+      '<div class="note ok" style="margin-top:6px">' + escape(plan.summary) + '</div>' +
+      (plan.warnings.length ? '<div class="note warn" style="margin-top:6px">' + escape(plan.warnings.join('\n')) + '</div>' : '') +
+      (plan.actions.length ? '<pre class="actions">' + colorize(plan.actions) + '</pre>' : '') + '</div>').join('');
   } catch (error) {
     $('planResult').innerHTML = '<div class="note bad" style="margin-top:12px">' + escape(error.message) + '</div>';
   }
@@ -456,23 +540,30 @@ $('preview').onclick = async () => {
 
 $('apply').onclick = async () => {
   if (!state.selected) return alert('Kies eerst een template.');
-  const guild = state.guilds.find((candidate) => candidate.id === $('guild').value);
-  if (!guild) return;
+  const targets = state.guilds.filter((guild) => selectedGuilds().includes(guild.id));
+  if (targets.length === 0) return alert('Vink minstens een server aan.');
 
-  const warning = $('prune').checked
-    ? 'LET OP: kanalen die niet in "' + state.selected + '" staan worden VERWIJDERD uit "' + guild.name +
-      '".\n\nTyp de servernaam om te bevestigen:'
-    : 'Template "' + state.selected + '" toepassen op "' + guild.name + '"?\n\nTyp de servernaam om te bevestigen:';
+  const names = targets.map((guild) => guild.name);
+  const confirmation = targets.length === 1 ? names[0] : 'TOEPASSEN';
+  const warning =
+    (($('prune').checked
+      ? 'LET OP: kanalen die niet in "' + state.selected + '" staan worden VERWIJDERD.\n\n'
+      : '') +
+      'Template "' + state.selected + '" toepassen op:\n· ' + names.join('\n· ') +
+      '\n\nEr wordt eerst een back-up van elke server gemaakt.\n\nTyp "' + confirmation + '" om te bevestigen:');
 
-  if (prompt(warning) !== guild.name) return alert('Niet bevestigd — er is niets gewijzigd.');
+  if (prompt(warning) !== confirmation) return alert('Niet bevestigd — er is niets gewijzigd.');
 
   $('planResult').innerHTML = '<p class="muted">Bezig met toepassen…</p>';
   try {
-    const result = await api('/apply', { method: 'POST', body: JSON.stringify(planBody()) });
-    $('planResult').innerHTML =
-      '<div class="note ' + (result.failed ? 'warn' : 'ok') + '" style="margin-top:12px">' +
-      (result.note || (result.applied + ' acties gelukt, ' + result.failed + ' mislukt')) + '</div>' +
-      (result.errors && result.errors.length ? '<pre class="actions">' + escape(result.errors.join('\n')) + '</pre>' : '');
+    const data = await api('/apply', { method: 'POST', body: JSON.stringify(planBody()) });
+    $('planResult').innerHTML = data.results.map((result) =>
+      '<div style="margin-top:12px"><strong>' + escape(result.guildName) + '</strong>' +
+      '<div class="note ' + (result.failed ? 'warn' : 'ok') + '" style="margin-top:6px">' +
+      (result.note || result.applied + ' acties gelukt, ' + result.failed + ' mislukt') +
+      (result.backup ? ' · back-up gemaakt' : '') + '</div>' +
+      (result.errors.length ? '<pre class="actions">' + escape(result.errors.join('\n')) + '</pre>' : '') +
+      '</div>').join('');
     await refresh();
   } catch (error) {
     $('planResult').innerHTML = '<div class="note bad" style="margin-top:12px">' + escape(error.message) + '</div>';
@@ -480,8 +571,8 @@ $('apply').onclick = async () => {
 };
 
 $('exportGuild').onclick = async () => {
-  const guildId = $('guild').value;
-  if (!guildId) return;
+  const guildId = selectedGuilds()[0];
+  if (!guildId) return alert('Vink eerst een server aan.');
   const exported = await api('/export/' + guildId);
   const name = prompt('Opslaan als template met naam:', exported.id);
   if (!name) return;
@@ -495,7 +586,7 @@ $('exportGuild').onclick = async () => {
 function planBody() {
   return {
     templateId: state.selected,
-    guildId: $('guild').value,
+    guildIds: selectedGuilds(),
     prune: $('prune').checked,
     update: $('update').checked,
   };

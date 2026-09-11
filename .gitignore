@@ -6,3 +6,7 @@ dist/
 *.log
 .DS_Store
 coverage/
+
+# Lokale momentopnames en template-historie
+backups/
+history/

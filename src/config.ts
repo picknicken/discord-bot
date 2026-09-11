@@ -17,4 +17,8 @@ export const config = {
   botName: process.env.BOT_NAME?.trim() || 'Setup Bot',
   /** Poort van het lokale dashboard. Luistert alleen op 127.0.0.1. */
   dashboardPort: Number(process.env.DASHBOARD_PORT ?? 4000),
+  /** Momentopnames van servers, weggeschreven voor elk toepassen. */
+  backupsDir: process.env.BACKUPS_DIR || './backups',
+  /** Vorige versies van templates, bijgehouden door het dashboard. */
+  historyDir: process.env.HISTORY_DIR || './history',
 };
