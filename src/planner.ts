@@ -1,6 +1,13 @@
 import { toBitfield } from './permissions.js';
 import type { GuildSnapshot, SnapshotChannel } from './snapshot.js';
-import type { CategorySpec, ChannelSpec, RoleSpec, ServerTemplate } from './types.js';
+import type {
+  AutomodSpec,
+  CategorySpec,
+  ChannelSpec,
+  EmojiSpec,
+  RoleSpec,
+  ServerTemplate,
+} from './types.js';
 
 export interface PlanOptions {
   /** Verwijder kanalen/categorieen die niet in de template staan. */
@@ -17,6 +24,12 @@ export type PlanAction =
   | { kind: 'create-channel'; channel: ChannelSpec; categoryName: string | null }
   | { kind: 'update-channel'; channelId: string; channel: ChannelSpec; categoryName: string | null; changes: string[] }
   | { kind: 'delete-channel'; channelId: string; name: string; isCategory: boolean }
+  | { kind: 'create-emoji'; emoji: EmojiSpec }
+  | { kind: 'create-automod'; rule: AutomodSpec }
+  | { kind: 'update-automod'; ruleId: string; rule: AutomodSpec }
+  | { kind: 'order-channels'; count: number }
+  | { kind: 'order-roles'; count: number }
+  | { kind: 'onboarding'; prompts: number }
   | { kind: 'guild-settings'; changes: string[] };
 
 export interface Plan {
@@ -148,6 +161,59 @@ function planChannels(snapshot: GuildSnapshot, template: ServerTemplate, options
   return { actions, keptChannelIds, keptCategoryIds };
 }
 
+function planEmojis(snapshot: GuildSnapshot, template: ServerTemplate): PlanAction[] {
+  const existing = new Set(snapshot.emojis.map(normalize));
+  return template.emojis
+    .filter((emoji) => !existing.has(normalize(emoji.name)))
+    .map((emoji) => ({ kind: 'create-emoji', emoji }));
+}
+
+function planAutomod(snapshot: GuildSnapshot, template: ServerTemplate, options: PlanOptions): PlanAction[] {
+  const existing = new Map(snapshot.automod.map((rule) => [normalize(rule.name), rule]));
+
+  return template.automod.flatMap<PlanAction>((rule) => {
+    const match = existing.get(normalize(rule.name));
+    if (!match) return [{ kind: 'create-automod', rule }];
+    return options.update ? [{ kind: 'update-automod', ruleId: match.id, rule }] : [];
+  });
+}
+
+/** Staan de rollen die al bestaan in dezelfde volgorde als in de template? */
+function rolesOutOfOrder(snapshot: GuildSnapshot, template: ServerTemplate): boolean {
+  const byName = new Map(snapshot.roles.map((role) => [normalize(role.name), role]));
+  const positions = template.roles
+    .map((role) => byName.get(normalize(role.name))?.position)
+    .filter((position): position is number => position !== undefined);
+
+  // De template loopt van hoog naar laag, dus de posities horen te dalen.
+  return positions.some((position, index) => index > 0 && position >= (positions[index - 1] ?? 0));
+}
+
+function channelsOutOfOrder(snapshot: GuildSnapshot, template: ServerTemplate): boolean {
+  const categoryPositions = template.categories
+    .map((category) => snapshot.categories.find((c) => normalize(c.name) === normalize(category.name))?.position)
+    .filter((position): position is number => position !== undefined);
+
+  if (categoryPositions.some((position, index) => index > 0 && position <= (categoryPositions[index - 1] ?? -1))) {
+    return true;
+  }
+
+  for (const category of template.categories) {
+    const parent = snapshot.categories.find((c) => normalize(c.name) === normalize(category.name));
+    if (!parent) continue;
+    const positions = category.channels
+      .map((channel) =>
+        snapshot.channels.find(
+          (existing) => existing.parentId === parent.id && normalize(existing.name) === normalize(channel.name),
+        )?.position,
+      )
+      .filter((position): position is number => position !== undefined);
+    if (positions.some((position, index) => index > 0 && position <= (positions[index - 1] ?? -1))) return true;
+  }
+
+  return false;
+}
+
 function planGuildSettings(template: ServerTemplate): PlanAction[] {
   const changes = Object.entries(template.guild)
     .filter(([, value]) => value !== undefined)
@@ -173,6 +239,29 @@ export function planSetup(snapshot: GuildSnapshot, template: ServerTemplate, opt
         actions.push({ kind: 'delete-channel', channelId: category.id, name: category.name, isCategory: true });
       }
     }
+  }
+
+  actions.push(...planEmojis(snapshot, template));
+  actions.push(...planAutomod(snapshot, template, options));
+
+  const createdChannels = actions.some(
+    (action) => action.kind === 'create-channel' || action.kind === 'create-category',
+  );
+  const templateChannelCount =
+    template.categories.reduce((sum, category) => sum + category.channels.length, 0) +
+    template.uncategorizedChannels.length;
+
+  if (templateChannelCount > 0 && (createdChannels || channelsOutOfOrder(snapshot, template))) {
+    actions.push({ kind: 'order-channels', count: templateChannelCount + template.categories.length });
+  }
+
+  const createdRoles = actions.some((action) => action.kind === 'create-role');
+  if (template.roles.length > 1 && (createdRoles || rolesOutOfOrder(snapshot, template))) {
+    actions.push({ kind: 'order-roles', count: template.roles.length });
+  }
+
+  if (template.onboarding) {
+    actions.push({ kind: 'onboarding', prompts: template.onboarding.prompts.length });
   }
 
   actions.push(...planGuildSettings(template));
@@ -207,6 +296,12 @@ export function summarizePlan(plan: Plan): string {
     'create-channel': 'kanaal aanmaken',
     'update-channel': 'kanaal bijwerken',
     'delete-channel': 'verwijderen',
+    'create-emoji': 'emoji toevoegen',
+    'create-automod': 'automod-regel aanmaken',
+    'update-automod': 'automod-regel bijwerken',
+    'order-channels': 'kanaalvolgorde zetten',
+    'order-roles': 'rolvolgorde zetten',
+    onboarding: 'onboarding instellen',
     'guild-settings': 'serverinstellingen',
   };
 
@@ -224,12 +319,33 @@ export function describeActions(plan: Plan, limit = 25): string[] {
         return `+ categorie ${action.category.name}`;
       case 'update-category':
         return `~ categorie ${action.category.name}`;
-      case 'create-channel':
-        return `+ ${action.channel.type} #${action.channel.name}${action.categoryName ? ` in ${action.categoryName}` : ''}`;
+      case 'create-channel': {
+        const extras = [
+          action.channel.messages.length > 0 ? `${action.channel.messages.length} berichten` : '',
+          action.channel.tags.length > 0 ? `${action.channel.tags.length} tags` : '',
+        ].filter(Boolean);
+        return (
+          `+ ${action.channel.type} #${action.channel.name}` +
+          (action.categoryName ? ` in ${action.categoryName}` : '') +
+          (extras.length ? ` (${extras.join(', ')})` : '')
+        );
+      }
       case 'update-channel':
         return `~ #${action.channel.name} (${action.changes.join(', ')})`;
       case 'delete-channel':
         return `- ${action.isCategory ? 'categorie' : 'kanaal'} ${action.name}`;
+      case 'create-emoji':
+        return `+ emoji :${action.emoji.name}:`;
+      case 'create-automod':
+        return `+ automod "${action.rule.name}" (${action.rule.trigger})`;
+      case 'update-automod':
+        return `~ automod "${action.rule.name}"`;
+      case 'order-channels':
+        return `~ volgorde van ${action.count} kanalen/categorieen`;
+      case 'order-roles':
+        return `~ volgorde van ${action.count} rollen`;
+      case 'onboarding':
+        return `~ onboarding (${action.prompts} vragen)`;
       case 'guild-settings':
         return `~ serverinstellingen (${action.changes.join(', ')})`;
     }

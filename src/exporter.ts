@@ -61,6 +61,23 @@ export function exportGuild(guild: Guild, templateName = guild.name): ServerTemp
       slowmodeSeconds: 'rateLimitPerUser' in channel ? channel.rateLimitPerUser ?? 0 : 0,
       userLimit: 'userLimit' in channel ? channel.userLimit : undefined,
       overwrites: overwritesOf(channel),
+      // Berichten worden bewust niet geexporteerd: die horen bij de inhoud van een
+      // server, niet bij de structuur, en zouden bij elke uitrol opnieuw geplaatst worden.
+      messages: [],
+      tags:
+        'availableTags' in channel
+          ? channel.availableTags.map((tag) => ({
+              name: tag.name,
+              emoji: tag.emoji?.name ?? undefined,
+              moderated: tag.moderated,
+            }))
+          : [],
+      defaultReaction:
+        'defaultReactionEmoji' in channel ? channel.defaultReactionEmoji?.name ?? undefined : undefined,
+      autoArchiveMinutes:
+        'defaultAutoArchiveDuration' in channel
+          ? (channel.defaultAutoArchiveDuration as ChannelSpec['autoArchiveMinutes']) ?? undefined
+          : undefined,
     };
   };
 
@@ -84,12 +101,30 @@ export function exportGuild(guild: Guild, templateName = guild.name): ServerTemp
     .map(channelSpec)
     .filter((spec): spec is ChannelSpec => spec !== null);
 
+  const channelName = (id: string | null | undefined) =>
+    id ? guild.channels.cache.get(id)?.name : undefined;
+
   return {
     name: templateName,
     description: `Geexporteerd uit "${guild.name}" op ${new Date().toISOString().slice(0, 10)}`,
-    guild: {},
+    guild: {
+      description: guild.description ?? undefined,
+      systemChannel: channelName(guild.systemChannelId),
+      afkChannel: channelName(guild.afkChannelId),
+      rulesChannel: channelName(guild.rulesChannelId),
+      updatesChannel: channelName(guild.publicUpdatesChannelId),
+      community: guild.features.includes('COMMUNITY') || undefined,
+    },
     roles,
     categories,
     uncategorizedChannels,
+    // De CDN-url werkt als bron bij het opnieuw aanmaken.
+    emojis: guild.emojis.cache.map((emoji) => ({
+      name: emoji.name ?? 'emoji',
+      image: emoji.imageURL({ size: 128 }),
+      roles: emoji.roles.cache.map((role) => roleKeys.get(role.id) ?? '').filter(Boolean),
+    })),
+    // AutoMod-regels staan niet in de cache; die zou een losse API-call vergen.
+    automod: [],
   };
 }

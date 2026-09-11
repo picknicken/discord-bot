@@ -33,8 +33,16 @@ function stubGuild(botPermissions: bigint) {
     name: 'Testserver',
     memberCount: 12,
     iconURL: () => null,
+    description: null,
+    features: [] as string[],
+    systemChannelId: null,
+    afkChannelId: null,
+    rulesChannelId: null,
+    publicUpdatesChannelId: null,
     roles: { cache: new Collection([['guild-1', everyone]]) },
     channels: { cache: new Collection() },
+    emojis: { cache: new Collection() },
+    autoModerationRules: { cache: new Collection(), fetch: async () => new Collection() },
     members: {
       fetchMe: async () => ({
         permissions: new PermissionsBitField(botPermissions),

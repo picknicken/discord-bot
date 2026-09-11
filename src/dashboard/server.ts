@@ -8,7 +8,7 @@ import { missingPermissions, rolesAboveBot } from '../botPermissions.js';
 import { applyPlan } from '../applier.js';
 import { exportGuild } from '../exporter.js';
 import { describeActions, planSetup, summarizePlan } from '../planner.js';
-import { snapshotGuild } from '../snapshot.js';
+import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadTemplate } from '../templates.js';
 import { parseTemplate, type ServerTemplate } from '../types.js';
 import { logger } from '../util/logger.js';
@@ -63,7 +63,16 @@ async function handle(client: Client<true>, request: IncomingMessage, response: 
 
       const source: ServerTemplate = body.from
         ? { ...(await loadTemplate(config.templatesDir, body.from)), name: newId }
-        : { name: newId, description: '', guild: {}, roles: [], categories: [], uncategorizedChannels: [] };
+        : {
+            name: newId,
+            description: '',
+            guild: {},
+            roles: [],
+            categories: [],
+            uncategorizedChannels: [],
+            emojis: [],
+            automod: [],
+          };
 
       await writeTemplate(newId, source);
       return send(response, 200, { id: newId, json: JSON.stringify(source, null, 2) });
@@ -110,7 +119,7 @@ async function handle(client: Client<true>, request: IncomingMessage, response: 
     if (!guild) return send(response, 404, { error: 'Server niet gevonden — is de bot er nog lid van?' });
 
     const template = await loadTemplate(config.templatesDir, body.templateId);
-    const plan = planSetup(snapshotGuild(guild), template, {
+    const plan = planSetup(await snapshotGuildFresh(guild), template, {
       prune: body.prune ?? false,
       update: body.update ?? true,
     });

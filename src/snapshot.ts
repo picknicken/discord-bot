@@ -11,6 +11,9 @@ export interface GuildSnapshot {
   roles: SnapshotRole[];
   categories: SnapshotCategory[];
   channels: SnapshotChannel[];
+  emojis: string[];
+  /** Gevuld zodra de caller `guild.autoModerationRules.fetch()` heeft gedaan. */
+  automod: { id: string; name: string }[];
 }
 
 export interface SnapshotRole {
@@ -98,5 +101,16 @@ export function snapshotGuild(guild: Guild): GuildSnapshot {
     roles: roles.sort((a, b) => b.position - a.position),
     categories: categories.sort((a, b) => a.position - b.position),
     channels: channels.sort((a, b) => a.position - b.position),
+    emojis: guild.emojis.cache.map((emoji) => emoji.name ?? '').filter(Boolean),
+    automod: guild.autoModerationRules.cache.map((rule) => ({ id: rule.id, name: rule.name })),
   };
+}
+
+/**
+ * Zelfde als `snapshotGuild`, maar haalt eerst de AutoMod-regels op: die staan niet
+ * standaard in de cache, en zonder die stap zou de planner ze allemaal opnieuw aanmaken.
+ */
+export async function snapshotGuildFresh(guild: Guild): Promise<GuildSnapshot> {
+  await guild.autoModerationRules.fetch().catch(() => null);
+  return snapshotGuild(guild);
 }

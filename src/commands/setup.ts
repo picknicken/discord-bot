@@ -13,7 +13,7 @@ import { missingPermissions } from '../botPermissions.js';
 import { applyPlan } from '../applier.js';
 import { exportGuild } from '../exporter.js';
 import { describeActions, planSetup, summarizePlan } from '../planner.js';
-import { snapshotGuild } from '../snapshot.js';
+import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadAllTemplates, loadTemplate } from '../templates.js';
 import { logger } from '../util/logger.js';
 
@@ -123,7 +123,7 @@ async function handlePreview(interaction: ChatInputCommandInteraction, guild: Gu
 
   try {
     const template = await loadTemplate(config.templatesDir, id);
-    const plan = planSetup(snapshotGuild(guild), template, {
+    const plan = planSetup(await snapshotGuildFresh(guild), template, {
       prune: interaction.options.getBoolean('prune') ?? false,
       update: true,
     });
@@ -172,7 +172,7 @@ async function handleApply(interaction: ChatInputCommandInteraction, guild: Guil
 
   try {
     const template = await loadTemplate(config.templatesDir, id);
-    const plan = planSetup(snapshotGuild(guild), template, {
+    const plan = planSetup(await snapshotGuildFresh(guild), template, {
       prune: interaction.options.getBoolean('prune') ?? false,
       update: interaction.options.getBoolean('update') ?? true,
     });

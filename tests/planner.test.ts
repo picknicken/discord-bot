@@ -22,6 +22,8 @@ const emptyGuild: GuildSnapshot = {
   ],
   categories: [],
   channels: [],
+  emojis: [],
+  automod: [],
 };
 
 const template = parseTemplate({
@@ -40,7 +42,7 @@ describe('planSetup', () => {
   it('maakt alles aan op een lege server', () => {
     const plan = planSetup(emptyGuild, template, { prune: false, update: true });
     const kinds = plan.actions.map((action) => action.kind);
-    expect(kinds).toEqual(['create-role', 'create-category', 'create-channel']);
+    expect(kinds).toEqual(['create-role', 'create-category', 'create-channel', 'order-channels']);
   });
 
   it('houdt rol-aanmaak voor kanaal-aanmaak', () => {
