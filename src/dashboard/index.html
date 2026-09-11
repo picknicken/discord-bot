@@ -83,6 +83,17 @@
     font-size: 12.5px; margin: 10px 0 0; white-space: pre-wrap;
   }
   .add { color: var(--ok); } .del { color: var(--bad); } .mod { color: var(--warn); }
+  .finding { display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); align-items: baseline; }
+  .finding:last-child { border-bottom: 0; }
+  .sev { font-size: 11px; font-weight: 700; text-transform: uppercase; min-width: 62px; letter-spacing: .04em; }
+  .sev.error { color: var(--bad); } .sev.warning { color: var(--warn); } .sev.info { color: var(--muted); }
+  .finding .where { color: var(--muted); font-size: 12px; }
+  .vis { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; }
+  .vis .eye { min-width: 16px; }
+  .vis.off { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line); }
+  .vis .why { font-size: 11px; color: var(--muted); }
+  .counts { display: flex; gap: 14px; margin-bottom: 10px; }
+  .counts b { font-size: 18px; display: block; line-height: 1.2; }
 </style>
 </head>
 <body>
@@ -112,9 +123,17 @@
     <div class="tabs">
       <button id="tabTree" aria-selected="true">Structuur</button>
       <button id="tabJson" aria-selected="false">JSON</button>
+      <button id="tabCheck" aria-selected="false">Controle</button>
     </div>
     <div class="body">
       <div id="treeView"><p class="muted">Kies links een template.</p></div>
+      <div id="checkView" hidden>
+        <div class="row" style="margin-bottom:12px">
+          <button id="runCheck" class="primary">Controleer</button>
+          <span class="muted">werkt op wat er nu in de editor staat</span>
+        </div>
+        <div id="checkResult"></div>
+      </div>
       <div id="jsonView" hidden>
         <textarea id="editor" spellcheck="false"></textarea>
         <div class="row">
@@ -157,7 +176,7 @@
 </div>
 
 <script>
-const state = { templates: [], guilds: [], selected: null, original: '' };
+const state = { templates: [], guilds: [], selected: null, original: '', simRole: null };
 const $ = (id) => document.getElementById(id);
 
 async function api(path, options = {}) {
@@ -286,12 +305,77 @@ function renderTree() {
     (loose ? '<div class="cat"><h3>Zonder categorie</h3><ul>' + loose + '</ul></div>' : '');
 }
 
-function showTab(json) {
-  $('tabTree').setAttribute('aria-selected', String(!json));
-  $('tabJson').setAttribute('aria-selected', String(json));
-  $('treeView').hidden = json;
-  $('jsonView').hidden = !json;
-  if (!json) renderTree();
+function showTab(which) {
+  for (const [tab, view] of [['tabTree', 'treeView'], ['tabJson', 'jsonView'], ['tabCheck', 'checkView']]) {
+    const active = tab === 'tab' + which;
+    $(tab).setAttribute('aria-selected', String(active));
+    $(view).hidden = !active;
+  }
+  if (which === 'Tree') renderTree();
+  if (which === 'Check') runCheck();
+}
+
+async function runCheck(role) {
+  if (!state.selected) return;
+  const target = $('checkResult');
+  target.innerHTML = '<p class="muted">Bezig…</p>';
+
+  try {
+    const data = await api('/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ json: $('editor').value, role: role || state.simRole }),
+    });
+    state.simRole = data.simulation ? data.simulation.role : null;
+    target.innerHTML = renderCheck(data);
+    const picker = $('simRole');
+    if (picker) picker.onchange = () => runCheck(picker.value);
+  } catch (error) {
+    target.innerHTML = '<div class="note bad">' + escape(error.message) + '</div>';
+  }
+}
+
+function renderCheck(data) {
+  const counts =
+    '<div class="counts">' +
+    [['error', 'fouten'], ['warning', 'waarschuwingen'], ['info', 'opmerkingen']]
+      .map(([key, label]) =>
+        '<div><b class="' + (data.counts[key] ? key : 'muted') + '" style="color:var(--' +
+        (key === 'error' ? 'bad' : key === 'warning' ? 'warn' : 'muted') + ')">' +
+        data.counts[key] + '</b><span class="muted">' + label + '</span></div>')
+      .join('') +
+    '</div>';
+
+  const findings = data.findings.length
+    ? data.findings.map((finding) =>
+        '<div class="finding"><span class="sev ' + finding.severity + '">' + finding.severity +
+        '</span><span>' + escape(finding.message) + ' <span class="where">— ' + escape(finding.where) +
+        '</span></span></div>').join('')
+    : '<div class="note ok">Niets gevonden. Deze template kan de deur uit.</div>';
+
+  const simulation = data.simulation;
+  const options = data.roles
+    .map((role) => '<option value="' + escape(role.key) + '"' +
+      (simulation && role.key === simulation.role ? ' selected' : '') + '>' + escape(role.name) + '</option>')
+    .join('');
+
+  const tree = simulation
+    ? simulation.categories.map((category) =>
+        '<div class="cat"><h3>' + escape(category.name) + '</h3><ul>' +
+        category.channels.map((channel) =>
+          '<li><div class="vis ' + (channel.visible ? '' : 'off') + '">' +
+          '<span class="eye">' + (channel.visible ? '✓' : '·') + '</span>' +
+          '<span class="type">' + escape(channel.type) + '</span>' +
+          '<span>' + escape(channel.name) + '</span>' +
+          '<span class="why">' + escape(channel.reason) + '</span></div></li>').join('') +
+        '</ul></div>').join('')
+    : '';
+
+  return counts + '<div class="panel" style="margin-bottom:16px"><div class="body">' + findings + '</div></div>' +
+    '<h3 style="font-size:13px">Wat ziet ' + (simulation ? escape(simulation.roleName) : '') + '?</h3>' +
+    '<div class="row"><select id="simRole">' + options + '</select>' +
+    (simulation ? '<span class="muted">' + simulation.visibleCount + ' van ' + simulation.totalCount +
+      ' kanalen zichtbaar' + (simulation.administrator ? ' (Administrator)' : '') + '</span>' : '') +
+    '</div>' + tree;
 }
 
 function escape(value) {
@@ -308,8 +392,10 @@ function colorize(lines) {
 
 // --- Acties ---------------------------------------------------------------
 
-$('tabTree').onclick = () => showTab(false);
-$('tabJson').onclick = () => showTab(true);
+$('tabTree').onclick = () => showTab('Tree');
+$('tabJson').onclick = () => showTab('Json');
+$('tabCheck').onclick = () => showTab('Check');
+$('runCheck').onclick = () => runCheck();
 $('guild').onchange = renderGuildInfo;
 $('editor').oninput = () => { $('saveNote').textContent = 'niet opgeslagen'; };
 

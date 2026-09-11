@@ -130,6 +130,16 @@
           "topic": "Belangrijke updates van het team.",
           "overwrites": [
             {
+              "role": "@everyone",
+              "allow": [
+                "ViewChannel",
+                "ReadMessageHistory"
+              ],
+              "deny": [
+                "SendMessages"
+              ]
+            },
+            {
               "role": "moderator",
               "allow": [
                 "SendMessages",
@@ -270,8 +280,18 @@
           "userLimit": 0,
           "overwrites": [
             {
-              "role": "lid",
+              "role": "@everyone",
               "allow": [],
+              "deny": [
+                "ViewChannel"
+              ]
+            },
+            {
+              "role": "lid",
+              "allow": [
+                "ViewChannel",
+                "Connect"
+              ],
               "deny": [
                 "Speak"
               ]
@@ -372,7 +392,11 @@
     "defaultChannels": [
       "welkom",
       "regels",
-      "algemeen"
+      "aankondigingen",
+      "algemeen",
+      "media",
+      "off-topic",
+      "vragen"
     ],
     "prompts": [
       {

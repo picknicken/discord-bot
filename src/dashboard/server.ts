@@ -10,6 +10,8 @@ import { exportGuild } from '../exporter.js';
 import { describeActions, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadTemplate } from '../templates.js';
+import { countBySeverity, lintTemplate } from '../lint.js';
+import { simulate, simulatableRoles } from '../simulate.js';
 import { parseTemplate, type ServerTemplate } from '../types.js';
 import { logger } from '../util/logger.js';
 
@@ -99,6 +101,27 @@ async function handle(client: Client<true>, request: IncomingMessage, response: 
     if (method === 'DELETE') {
       await unlink(templatePath(id));
       return send(response, 200, { deleted: id });
+    }
+  }
+
+  // --- Controle en simulatie ---------------------------------------------
+  // Werkt op de JSON uit de editor, dus je kunt controleren voor je opslaat.
+  if (method === 'POST' && resource === 'analyze') {
+    const body = await readJson<{ json?: string; role?: string }>(request);
+    try {
+      const template = parseTemplate(JSON.parse(body.json ?? ''));
+      const roles = simulatableRoles(template);
+      const role = roles.find((candidate) => candidate.key === body.role) ?? roles[0];
+      const findings = lintTemplate(template);
+
+      return send(response, 200, {
+        findings,
+        counts: countBySeverity(findings),
+        roles,
+        simulation: role ? simulate(template, role.key) : null,
+      });
+    } catch (error) {
+      return send(response, 400, { error: message(error) });
     }
   }
 
