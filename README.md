@@ -1,4 +1,4 @@
-# Discord Server Setup Bot
+# Discord Setup Bot
 
 Een Discord-bot die complete servers inricht vanuit JSON-templates: rollen, categorieen,
 kanalen, permissie-overwrites en serverinstellingen — in een keer, reproduceerbaar.
@@ -70,6 +70,29 @@ invite en staat geen escalatie achteraf toe. Wat wel automatisch kan, doet dit p
 Gevraagd wordt: `ManageChannels`, `ManageRoles`, `ManageGuild` (verplicht) plus
 `ViewChannel`, `SendMessages`, `EmbedLinks`, `AttachFiles`, `ReadMessageHistory` om te
 kunnen terugkoppelen. Bewust **geen** Administrator.
+
+## Naam van de bot
+
+De naam staat op drie plekken in Discord, en ze zijn niet allemaal hetzelfde:
+
+| Waar | Wat het is | Hoe je het zet |
+| --- | --- | --- |
+| **Gebruikersnaam** | wat in de ledenlijst en boven berichten staat | `BOT_NAME` in `.env` + `npm run configure-install` |
+| **Applicatienaam** | de titel op het autorisatiescherm en in de App Directory | Developer Portal → General Information → Name |
+| **Servernickname** | per server aan te passen door beheerders | rechtermuisknop op de bot → Bijnaam wijzigen |
+
+Standaard is `BOT_NAME` **Discord Setup Bot**. `npm run configure-install` zet de
+gebruikersnaam en meldt het als de applicatienaam ervan afwijkt.
+
+Twee dingen om te weten voordat je hem draait:
+
+- Discord weigert gebruikersnamen met **"discord"** of **"clyde"** erin. Wordt de naam
+  geweigerd, dan zegt het script precies wat Discord terugstuurt en laat het de rest van de
+  instellingen ongemoeid — kies dan een variant als `Setup Bot` of `Server Setup`.
+- Een bot mag zijn gebruikersnaam **twee keer per uur** wijzigen. Daarna volgt een 429 tot
+  het uur om is.
+
+Voor de applicatienaam bestaat geen API; dat blijft handwerk in het portal.
 
 Zet `DISCORD_DEV_GUILD_ID` in `.env` tijdens het ontwikkelen: commands zijn dan direct
 actief in die ene server, in plaats van de globale registratie die tot een uur kan duren.
@@ -151,7 +174,7 @@ zonder gateway-verbinding.
 src/
   index.ts              bot-client en interaction-routing
   deploy-commands.ts    slash commands registreren
-  configure-install.ts  default install-settings (rechten bij elke join) zetten
+  configure-install.ts  install-settings (rechten bij elke join) en botnaam zetten
   invite.ts             invite-link printen
   botPermissions.ts     de enige lijst met rechten die de bot vraagt
   commands/setup.ts     /setup met list, preview, apply, export

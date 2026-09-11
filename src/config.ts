@@ -13,4 +13,6 @@ export const config = {
   clientId: required('DISCORD_CLIENT_ID'),
   devGuildId: process.env.DISCORD_DEV_GUILD_ID || undefined,
   templatesDir: process.env.TEMPLATES_DIR || './templates',
+  /** Weergavenaam van de bot. Wordt toegepast door `npm run configure-install`. */
+  botName: process.env.BOT_NAME?.trim() || 'Discord Setup Bot',
 };

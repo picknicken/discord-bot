@@ -1,5 +1,5 @@
 {
-  "name": "discord-server-setup-bot",
+  "name": "discord-setup-bot",
   "version": "0.1.0",
   "private": true,
   "type": "module",
