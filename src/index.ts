@@ -4,6 +4,7 @@ import * as setup from './commands/setup.js';
 import { handleGuildCreate } from './events/guildCreate.js';
 import { buildInviteUrl } from './botPermissions.js';
 import { logger } from './util/logger.js';
+import { login } from './util/start.js';
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
@@ -45,4 +46,4 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 process.on('unhandledRejection', (reason) => logger.error('Onafgehandelde rejection', reason));
 
-await client.login(config.token);
+await login(client, config.token);

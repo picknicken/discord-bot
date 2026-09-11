@@ -112,10 +112,20 @@ actief in die ene server, in plaats van de globale registratie die tot een uur k
 npm run dashboard   # http://127.0.0.1:4000
 ```
 
-Even rondkijken zonder iets te installeren? `npm run build:demo` bouwt een statische demo in
-`docs/` met verzonnen gegevens: dezelfde pagina en dezelfde scripts, maar met een nagebootste
-server ervoor. Die map kan GitHub Pages rechtstreeks serveren (Settings → Pages → main /docs).
-Er is geen bot, geen token en geen echte server bij betrokken.
+### Eerst uitproberen zonder bot
+
+```bash
+npm install
+npm run demo      # http://127.0.0.1:4000
+```
+
+Dit start het echte dashboard met een nagemaakte Discord-client ervoor: twee verzonnen servers,
+geen token, geen applicatie in het Developer Portal. Je kunt templates bewerken, controleren,
+vergelijken en een preview draaien; **Toepassen** weigert netjes, want er is niets om op toe te
+passen. Je bewerkingen gaan naar `.demo/`, dus je echte `templates/` blijft ongemoeid.
+
+Wil je alleen kijken zonder Node? `npm run build:demo` bouwt een statische versie in `docs/`
+die GitHub Pages rechtstreeks kan serveren (Settings → Pages → main /docs).
 
 De werkplek: links je templates, in het midden de gekozen template, rechts de servers waar
 je hem op loslaat. Bedoeld om een server **helemaal in te richten voordat je uitrolt**.

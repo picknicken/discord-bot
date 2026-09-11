@@ -2,10 +2,16 @@ import 'dotenv/config';
 
 function required(name: string): string {
   const value = process.env[name];
-  if (!value) {
-    throw new Error(`Ontbrekende environment variable: ${name}. Kopieer .env.example naar .env en vul hem in.`);
-  }
-  return value;
+  if (value) return value;
+
+  // Een stacktrace helpt hier niemand; dit is gewoon een ontbrekende instelling.
+  console.error(
+    `\n  Ontbrekende instelling: ${name}\n\n` +
+      '  Kopieer .env.example naar .env en vul hem in:\n' +
+      '    cp .env.example .env\n\n' +
+      '  Even rondkijken zonder Discord-account? Draai `npm run demo`.\n',
+  );
+  process.exit(1);
 }
 
 export const config = {
@@ -15,6 +21,8 @@ export const config = {
   templatesDir: process.env.TEMPLATES_DIR || './templates',
   /** Weergavenaam van de bot. Wordt toegepast door `npm run configure-install`. */
   botName: process.env.BOT_NAME?.trim() || 'Setup Bot',
+  /** Demo-modus: geen echte bot, dus toepassen wordt geweigerd in plaats van geprobeerd. */
+  demo: process.env.DEMO === '1',
   /** Afbeelding voor de botavatar en het applicatie-icoon. */
   avatarFile: process.env.BOT_AVATAR || './assets/logo.png',
   /** Poort van het dashboard. */

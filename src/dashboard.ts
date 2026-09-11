@@ -2,6 +2,7 @@ import { Client, Events, GatewayIntentBits, Team, type ClientApplication } from 
 import { config } from './config.js';
 import { authEnabled, createDashboard } from './dashboard/server.js';
 import { logger } from './util/logger.js';
+import { login } from './util/start.js';
 
 /**
  * Start de bot en zet er een dashboard naast. Het dashboard gebruikt dezelfde
@@ -59,4 +60,4 @@ function ownersOf(application: ClientApplication): string[] {
 
 process.on('unhandledRejection', (reason) => logger.error('Onafgehandelde rejection', reason));
 
-await client.login(config.token);
+await login(client, config.token);

@@ -203,6 +203,9 @@ async function handle(
       const backup = await readBackup(config.backupsDir, body.file);
       const guild = client.guilds.cache.get(body.guildId || backup.guildId);
       if (!guild) return send(response, 404, { error: 'Server niet gevonden.' });
+      if (config.demo) {
+        return send(response, 200, { applied: 0, failed: 0, errors: [], note: 'demo-modus — er is niets teruggezet' });
+      }
 
       // Terugzetten vult aan en werkt bij; het verwijdert nooit, want wat weg is
       // krijgt deze back-up toch niet terug.
@@ -285,6 +288,22 @@ async function handle(
       }
       if (plans.length === 0) return send(response, 404, { error: 'Geen van de servers is gevonden.' });
       return send(response, 200, { plans, ...plans[0] });
+    }
+
+    if (config.demo) {
+      return send(response, 200, {
+        results: guildIds.map((guildId) => ({
+          guildId,
+          guildName: client.guilds.cache.get(guildId)?.name ?? guildId,
+          applied: 0,
+          failed: 0,
+          errors: [],
+          note: 'demo-modus — er is geen bot verbonden, dus er is niets gewijzigd',
+        })),
+        applied: 0,
+        failed: 0,
+        errors: [],
+      });
     }
 
     const results = [];
