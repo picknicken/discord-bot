@@ -107,19 +107,53 @@ actief in die ene server, in plaats van de globale registratie die tot een uur k
 npm run dashboard   # http://127.0.0.1:4000
 ```
 
-Een lokale werkplek voor je templates, naast de slash commands. Links je templates, in het
-midden de gekozen template, rechts de server waar je hem op loslaat.
+De werkplek: links je templates, in het midden de gekozen template, rechts de servers waar
+je hem op loslaat. Bedoeld om een server **helemaal in te richten voordat je uitrolt**.
 
-- **Structuur** toont de template zoals hij bedoeld is: rollen met hun kleur en aantal
-  rechten, categorieen met hun kanalen en het aantal permissie-overwrites.
-- **JSON** is dezelfde template als tekst. Opslaan gaat door dezelfde validatie als de bot:
-  een onbekende permissie of een overwrite naar een niet-bestaande rol wordt geweigerd en
-  het bestand op schijf blijft ongemoeid.
-- **Nieuw / Dupliceren / Verwijderen** beheert de bestanden in `templates/`.
-- **Preview** draait het echte plan tegen de gekozen server en toont regel voor regel wat er
-  zou gebeuren. **Toepassen** voert het uit, na bevestiging met de servernaam.
-- **Deze server opslaan als template** leest een bestaande server uit en zet hem als nieuwe
-  template in je lijst.
+### Structuur — klikken in plaats van JSON
+
+- **Rollen**: naam, kleur, apart tonen, pingbaar, en alle rechten als vinkjes per groep.
+  De volgorde in de lijst is de rolhierarchie — bovenaan staat de hoogste rol.
+- **Kanalen en categorieen**: toevoegen, verwijderen, verplaatsen, hernoemen, type wisselen,
+  onderwerp, slowmode, ledenlimiet, NSFW, forum-tags, en de berichten die bij het aanmaken
+  in het kanaal gezet worden.
+- **Rechten-matrix** per categorie en kanaal: rollen in de kolommen, permissies in de rijen.
+  Klik een cel door toestaan (✓), niet ingesteld (·) en weigeren (✗). Bij een kanaal staat
+  erbij of het de rechten van zijn categorie erft of niet.
+
+Een rol hernoemen werkt alle verwijzingen bij (overwrites, automod, emoji's, onboarding);
+een rol verwijderen haalt ze weg. De template blijft dus geldig terwijl je schuift.
+
+### JSON — de vluchtweg
+
+Dezelfde template als tekst, altijd in sync met de editor. Opslaan gaat door dezelfde
+validatie als de bot: een onbekende permissie of een verwijzing naar een niet-bestaande rol
+wordt geweigerd en het bestand op schijf blijft ongemoeid. De vorige inhoud gaat bij elke
+opslag naar `history/`; de versiekiezer zet hem terug.
+
+### Controle — voordat er iets echt gebeurt
+
+- **Wat ziet @everyone / Lid / Moderator?** Per kanaal zichtbaar of niet, met de reden.
+  Het model volgt Discord: een kanaal met eigen overwrites erft niets meer van zijn
+  categorie — precies de val waar echte servers in trappen.
+- **Controles** op Discord-limieten (kanalen, rollen, emoji's, forum-tags, automod per
+  triggertype), dubbele namen, kanalen die niemand kan zien, riskante rechten voor
+  @everyone, onboarding-eisen, en kanalen die ongemerkt de beperkingen van hun categorie
+  kwijtraken.
+
+De controle werkt op wat er op dat moment in de editor staat, dus ook op nog niet
+opgeslagen wijzigingen.
+
+### Uitrollen
+
+- Vink een of **meerdere servers** aan. Elke server krijgt zijn eigen plan, back-up en
+  resultaat; een server die rechten mist laat de rest van de rij gewoon doorlopen.
+- **Preview** toont per server regel voor regel wat er zou gebeuren. **Toepassen** voert het
+  uit na bevestiging.
+- Voor elk toepassen gaat de structuur van de server naar `backups/`. Terugzetten kan met
+  een knop — dat vult aan en werkt bij, maar **verwijdert nooit**: wat weg is, krijgt een
+  back-up niet terug.
+- **Server opslaan als template** leest een bestaande server uit naar een nieuwe template.
 
 Servers met een probleem vallen meteen op: ontbrekende rechten en rollen die boven de bot
 staan worden bij de serverkeuze getoond, niet pas als het toepassen halverwege vastloopt.
@@ -127,8 +161,7 @@ staan worden bij de serverkeuze getoond, niet pas als het toepassen halverwege v
 Het dashboard luistert **alleen op 127.0.0.1** en gebruikt dezelfde ingelogde client als de
 bot: het praat namens je bot met Discord, dus het hoort niet naar buiten open te staan. De
 token blijft aan de serverkant — de browser krijgt hem nooit te zien. Poort aanpassen kan
-met `DASHBOARD_PORT`.
-
+met `DASHBOARD_PORT`, mappen met `BACKUPS_DIR` en `HISTORY_DIR`.
 
 ## Templates
 
@@ -174,12 +207,25 @@ in het commando kiest. Meegeleverd: `community`, `gaming` en `bedrijf`.
 **Velden in het kort**
 
 - `roles[].key` — interne sleutel waarnaar `overwrites` verwijzen. `@everyone` mag altijd
-  gebruikt worden zonder dat je hem definieert.
+  gebruikt worden zonder dat je hem definieert. De volgorde van `roles` is de hierarchie.
 - `permissions` / `allow` / `deny` — namen uit Discord's permissieset, bijvoorbeeld
   `ViewChannel`, `SendMessages`, `ManageMessages`, `Connect`, `Speak`, `Administrator`.
   Een onbekende naam laat de template bij het laden falen, niet halverwege het uitvoeren.
 - `channels[].type` — `text`, `voice`, `forum`, `announcement` of `stage`.
 - `slowmodeSeconds` (0–21600), `userLimit` (0–99, voice/stage), `nsfw`, `topic`.
+- `channels[].messages` — berichten die bij het **aanmaken** in het kanaal gezet worden,
+  standaard vastgepind. Opnieuw toepassen post niets dubbel. Alleen text en announcement.
+- `channels[].tags` / `defaultReaction` / `autoArchiveMinutes` — forumkanalen.
+- `guild` — `verificationLevel`, `explicitContentFilter`, `defaultMessageNotifications`,
+  `systemChannel`, `afkChannel`, `rulesChannel`, `updatesChannel`, `afkTimeoutSeconds`,
+  `description`, `icon`, `banner` (pad of https-URL) en `community`.
+- `emojis` — `{ name, image, roles }`, met een pad of URL als bron.
+- `automod` — regels met trigger `keyword`, `keyword_preset`, `spam` of `mention_spam`,
+  actie `block`, `alert` of `timeout`, en uitzonderingen per rol.
+- `onboarding` — vragen met keuzes, en de rollen en kanalen die daaraan hangen.
+
+Wat een template beschrijft, richt de server dus compleet in: van rollen en kanalen tot
+regels-bericht, AutoMod, onboarding en de volgorde waarin alles staat.
 
 De snelste manier aan een eigen template te komen: richt een server met de hand in en
 draai `/setup export`.
@@ -199,7 +245,8 @@ verwijzen. Elke actie wordt los afgehandeld: een mislukte actie stopt de rest ni
 komt terug in het eindrapport.
 
 Omdat de planner op gewone objecten werkt (`GuildSnapshot`) is de hele planlogica te testen
-zonder gateway-verbinding.
+zonder gateway-verbinding. De simulator werkt op dezelfde manier: die rekent puur op de
+template, zodat je zichtbaarheid kunt controleren zonder ook maar iets aan te raken.
 
 ## Projectstructuur
 
@@ -213,17 +260,24 @@ src/
   commands/setup.ts     /setup met list, preview, apply, export
   events/guildCreate.ts zelfcontrole en welkomstbericht bij het joinen
   dashboard.ts          start de bot met het lokale dashboard ernaast
-  dashboard/server.ts   API voor templates, plannen en toepassen
+  dashboard/server.ts   API voor templates, plannen, controleren en toepassen
   dashboard/index.html  de dashboardpagina (geen buildstap, geen dependencies)
+  dashboard/app.js      dashboardlogica in de browser
+  dashboard/editor.js   de klik-editor voor rollen, kanalen en permissies
   types.ts              zod-schema en validatie van templates
   templates.ts          templates inlezen uit de map
   snapshot.ts           bestaande server -> platte structuur
   planner.ts            snapshot + template -> plan
   applier.ts            plan uitvoeren via de Discord API
   exporter.ts           bestaande server -> template
+  simulate.ts           wat ziet een rol straks? (zonder uit te rollen)
+  lint.ts               controles op limieten, zichtbaarheid en rechten
+  backup.ts             momentopname van een server voor het toepassen
+  history.ts            vorige versies van templates
   permissions.ts        permissienamen <-> bitfields
+  permissionCatalogue.ts  gegroepeerde permissielijst voor het dashboard
 templates/              meegeleverde templates
-tests/                  vitest-tests voor schema, planner, rechten en dashboard-API
+tests/                  vitest-tests: schema, planner, simulatie, controles, rechten, dashboard-API
 ```
 
 ## Ontwikkelen
@@ -236,10 +290,16 @@ npm run build
 
 ## Bekende grenzen
 
-- Discord staat maximaal 500 kanalen en 250 rollen per server toe; de planner waarschuwt
-  als een template daar overheen gaat.
-- Emoji's, stickers, automod-regels en onboarding vallen buiten deze versie.
-- Kanaalvolgorde binnen een categorie volgt de volgorde in de template bij aanmaken;
-  bestaande kanalen worden niet herordend.
+- **Terugzetten is geen tijdmachine.** Een back-up bevat de structuur, niet de berichten.
+  Een verwijderd kanaal komt terug als leeg kanaal; wat erin stond is weg. Daarom verwijdert
+  terugzetten ook nooit iets.
+- **Berichten worden alleen bij het aanmaken geplaatst.** Dat houdt opnieuw toepassen veilig,
+  maar betekent ook dat een gewijzigde regelstekst niet vanzelf in een bestaand kanaal komt.
+- **AutoMod-regels worden niet geexporteerd** bij `export`: die staan niet in de cache en
+  zouden een losse API-call vergen. Rollen, kanalen, rechten en emoji's wel.
+- **Stickers** vallen buiten deze versie.
+- Een **banner** werkt pas vanaf boostniveau 2; zonder boosts negeert Discord het veld.
+- De **rolvolgorde** wordt onder de rol van de bot gezet. Staat die te laag, dan wordt de
+  volgorde overgeslagen met een melding in plaats van half uitgevoerd.
 - Bij grote templates kan Discord's rate limiting het uitvoeren vertragen — dat is normaal,
   discord.js wacht automatisch.
