@@ -101,6 +101,25 @@ describe('dashboard-api', () => {
     expect(await response.text()).toContain('<title>Setup Bot');
   });
 
+  it('serveert de scriptbestanden naast de pagina', async () => {
+    for (const name of ['app.js', 'editor.js']) {
+      const response = await get('/' + name);
+      expect(response.status, name).toBe(200);
+      expect(response.headers.get('content-type')).toContain('javascript');
+    }
+    expect((await get('/../package.json')).status).not.toBe(200);
+  });
+
+  it('geeft de permissielijst mee voor de editor', async () => {
+    const state = await json(await get('/api/state'));
+    expect(state.permissions.length).toBeGreaterThan(40);
+    expect(state.permissions.find((p: { name: string }) => p.name === 'ViewChannel')).toMatchObject({
+      label: 'View Channel',
+      group: 'Algemeen',
+      common: true,
+    });
+  });
+
   it('geeft servers en templates terug', async () => {
     const state = await json(await get('/api/state'));
     expect(state.botName).toBe('Setup Bot');

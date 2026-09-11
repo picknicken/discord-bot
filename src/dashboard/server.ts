@@ -11,6 +11,7 @@ import { describeActions, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadTemplate } from '../templates.js';
 import { countBySeverity, lintTemplate } from '../lint.js';
+import { PERMISSION_CATALOGUE } from '../permissionCatalogue.js';
 import { backupGuild, listBackups, readBackup } from '../backup.js';
 import { listVersions, readVersion, recordVersion } from '../history.js';
 import { simulate, simulatableRoles } from '../simulate.js';
@@ -38,6 +39,10 @@ async function handle(client: Client<true>, request: IncomingMessage, response: 
 
   if (method === 'GET' && segments.length === 0) return sendHtml(response);
 
+  if (method === 'GET' && segments.length === 1 && /^[\w-]+\.js$/.test(segments[0] ?? '')) {
+    return sendAsset(response, segments[0] as string);
+  }
+
   if (segments[0] !== 'api') return send(response, 404, { error: 'Niet gevonden' });
   const [, resource, id, sub] = segments;
 
@@ -51,6 +56,7 @@ async function handle(client: Client<true>, request: IncomingMessage, response: 
       guilds: await Promise.all(client.guilds.cache.map(describeGuild)),
       templates: await describeTemplates(),
       backups: await listBackups(config.backupsDir),
+      permissions: PERMISSION_CATALOGUE,
     });
   }
 
@@ -373,6 +379,31 @@ async function sendHtml(response: ServerResponse): Promise<void> {
   }
 
   send(response, 500, { error: 'index.html niet gevonden' });
+}
+
+/** Losse scriptbestanden naast index.html, zodat de pagina niet een muur JavaScript wordt. */
+async function sendAsset(response: ServerResponse, name: string): Promise<void> {
+  for (const candidate of assetCandidates(name)) {
+    try {
+      const contents = await readFile(candidate, 'utf8');
+      response.writeHead(200, {
+        'content-type': 'text/javascript; charset=utf-8',
+        'cache-control': 'no-store',
+      });
+      response.end(contents);
+      return;
+    } catch {
+      continue;
+    }
+  }
+  send(response, 404, { error: `${name} niet gevonden` });
+}
+
+function assetCandidates(name: string): string[] {
+  return [
+    fileURLToPath(new URL(`./${name}`, import.meta.url)),
+    path.join(process.cwd(), 'src/dashboard', name),
+  ];
 }
 
 function message(error: unknown): string {
