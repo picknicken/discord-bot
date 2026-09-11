@@ -12,6 +12,18 @@ import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadTemplate } from '../templates.js';
 import { countBySeverity, lintTemplate } from '../lint.js';
 import { PERMISSION_CATALOGUE } from '../permissionCatalogue.js';
+import { INVITE_PERMISSIONS } from '../botPermissions.js';
+import {
+  buildAuthorizeUrl,
+  buildGuildInviteUrl,
+  clearedCookie,
+  exchangeCode,
+  isAllowed,
+  readSessionCookie,
+  sessionCookie,
+  SessionStore,
+  type Session,
+} from '../auth.js';
 import { backupGuild, listBackups, readBackup } from '../backup.js';
 import { listVersions, readVersion, recordVersion } from '../history.js';
 import { simulate, simulatableRoles } from '../simulate.js';
@@ -24,19 +36,44 @@ import { logger } from '../util/logger.js';
  * met Discord, dus het mag niet van buiten bereikbaar zijn. De token blijft aan
  * deze kant — de browser krijgt hem nooit te zien.
  */
-export function createDashboard(client: Client<true>): Server {
+export interface DashboardOptions {
+  /** Discord-ids die sowieso binnen mogen (de eigenaar of het team van de applicatie). */
+  applicationOwners?: string[];
+}
+
+export function createDashboard(client: Client<true>, options: DashboardOptions = {}): Server {
+  const sessions = new SessionStore();
+  const owners = options.applicationOwners ?? [];
+
   return createServer((request, response) => {
-    handle(client, request, response).catch((error: unknown) => {
+    handle(client, request, response, sessions, owners).catch((error: unknown) => {
       logger.error('Dashboard-verzoek mislukt', error);
       send(response, 500, { error: message(error) });
     });
   });
 }
 
-async function handle(client: Client<true>, request: IncomingMessage, response: ServerResponse): Promise<void> {
+/** Inloggen staat aan zodra er een client secret is; buiten localhost is het verplicht. */
+export const authEnabled = () => Boolean(config.clientSecret);
+
+const redirectUri = () => `${config.dashboardUrl}/auth/callback`;
+
+async function handle(
+  client: Client<true>,
+  request: IncomingMessage,
+  response: ServerResponse,
+  sessions: SessionStore,
+  applicationOwners: string[],
+): Promise<void> {
   const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
   const segments = url.pathname.split('/').filter(Boolean);
   const method = request.method ?? 'GET';
+  const session = sessions.get(readSessionCookie(request.headers.cookie));
+
+  // --- Inloggen ------------------------------------------------------------
+  if (segments[0] === 'auth') {
+    return handleAuth(segments[1], url, request, response, sessions, applicationOwners, session);
+  }
 
   if (method === 'GET' && segments.length === 0) return sendHtml(response);
 
@@ -44,8 +81,26 @@ async function handle(client: Client<true>, request: IncomingMessage, response: 
     return sendAsset(response, segments[0] as string);
   }
 
+  // Het logo staat bewust voor de inlogpoort: het inlogscherm moet het kunnen tonen.
+  if (method === 'GET' && url.pathname === '/logo.png') return sendLogo(response);
+
   if (segments[0] !== 'api') return send(response, 404, { error: 'Niet gevonden' });
   const [, resource, id, sub] = segments;
+
+  // --- Wie ben ik? ---------------------------------------------------------
+  // Deze route mag zonder sessie: de pagina moet kunnen vragen of je moet inloggen.
+  if (method === 'GET' && resource === 'session') {
+    return send(response, 200, {
+      authEnabled: authEnabled(),
+      authenticated: !authEnabled() || session !== null,
+      user: session?.user ?? null,
+      guilds: session ? describeOAuthGuilds(client, session) : [],
+    });
+  }
+
+  if (authEnabled() && !session) {
+    return send(response, 401, { error: 'Niet ingelogd.', login: '/auth/login' });
+  }
 
   // --- Status -------------------------------------------------------------
   if (method === 'GET' && resource === 'state') {
@@ -414,12 +469,116 @@ async function sendAsset(response: ServerResponse, name: string): Promise<void> 
   send(response, 404, { error: `${name} niet gevonden` });
 }
 
+/** De afbeelding uit BOT_AVATAR, zodat het inlogscherm hetzelfde logo toont als de bot. */
+async function sendLogo(response: ServerResponse): Promise<void> {
+  try {
+    const image = await readFile(config.avatarFile);
+    response.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'max-age=300' });
+    response.end(image);
+  } catch {
+    send(response, 404, { error: 'Geen logo ingesteld' });
+  }
+}
+
 function assetCandidates(name: string): string[] {
   return [
     fileURLToPath(new URL(`./${name}`, import.meta.url)),
     path.join(process.cwd(), 'src/dashboard', name),
   ];
 }
+
+async function handleAuth(
+  action: string | undefined,
+  url: URL,
+  request: IncomingMessage,
+  response: ServerResponse,
+  sessions: SessionStore,
+  applicationOwners: string[],
+  session: Session | null,
+): Promise<void> {
+  if (!authEnabled()) {
+    return send(response, 400, {
+      error: 'Inloggen staat uit. Zet DISCORD_CLIENT_SECRET in .env om het aan te zetten.',
+    });
+  }
+
+  if (action === 'login') {
+    const target = buildAuthorizeUrl(config.clientId, redirectUri(), sessions.issueState());
+    response.writeHead(302, { location: target, 'cache-control': 'no-store' });
+    response.end();
+    return;
+  }
+
+  if (action === 'logout') {
+    sessions.destroy(session?.id);
+    response.writeHead(302, { location: '/', 'set-cookie': clearedCookie });
+    response.end();
+    return;
+  }
+
+  if (action === 'callback') {
+    const code = url.searchParams.get('code');
+    if (!code) return sendLoginError(response, 'Geen inlogcode ontvangen.');
+    if (!sessions.consumeState(url.searchParams.get('state'))) {
+      return sendLoginError(response, 'De inlogpoging is verlopen of hoort niet bij dit venster.');
+    }
+
+    try {
+      const { user, guilds } = await exchangeCode(config.clientId, config.clientSecret, redirectUri(), code);
+
+      if (!isAllowed(user.id, config.dashboardOwners, applicationOwners[0] ?? null) &&
+          !applicationOwners.includes(user.id)) {
+        logger.warn(`Inlogpoging geweigerd voor ${user.username} (${user.id})`);
+        return sendLoginError(
+          response,
+          `${user.username} mag hier niet bij. Zet het gebruikers-id in DASHBOARD_OWNERS om toegang te geven: ${user.id}`,
+        );
+      }
+
+      const created = sessions.create(user, guilds);
+      logger.info(`Dashboard-login: ${user.username} (${user.id})`);
+      response.writeHead(302, {
+        location: '/',
+        'set-cookie': sessionCookie(created.id, config.dashboardUrl.startsWith('https://')),
+      });
+      response.end();
+      return;
+    } catch (error) {
+      return sendLoginError(response, message(error));
+    }
+  }
+
+  send(response, 404, { error: 'Niet gevonden' });
+}
+
+/** Jouw servers, met per server of de bot er al in zit en zo niet een klaargezette invite. */
+function describeOAuthGuilds(client: Client<true>, session: Session) {
+  const permissions = INVITE_PERMISSIONS.bitfield.toString();
+
+  return session.guilds
+    .filter((guild) => guild.canManage)
+    .map((guild) => ({
+      ...guild,
+      botPresent: client.guilds.cache.has(guild.id),
+      inviteUrl: client.guilds.cache.has(guild.id)
+        ? null
+        : buildGuildInviteUrl(config.clientId, permissions, guild.id),
+    }))
+    .sort((a, b) => Number(b.botPresent) - Number(a.botPresent) || a.name.localeCompare(b.name));
+}
+
+function sendLoginError(response: ServerResponse, reason: string): void {
+  response.writeHead(403, { 'content-type': 'text/html; charset=utf-8' });
+  response.end(
+    `<!doctype html><meta charset="utf-8"><title>Inloggen mislukt</title>` +
+      `<body style="font:14px system-ui;max-width:34rem;margin:15vh auto;padding:0 1rem;color:#16181d">` +
+      `<h1 style="font-size:18px">Inloggen mislukt</h1><p>${escapeHtml(reason)}</p>` +
+      `<p><a href="/auth/login">Opnieuw proberen</a></p></body>`,
+  );
+}
+
+const escapeHtml = (value: string) =>
+  value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] as string);
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

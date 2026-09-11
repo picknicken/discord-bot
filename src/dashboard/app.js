@@ -4,6 +4,7 @@ import { ask, busy, CHANNEL_ICONS, emptyState, escapeHtml as escape, icon, initT
 const state = {
   templates: [], guilds: [], backups: [], permissions: [],
   selected: null, original: '', simRole: null, template: null, dirty: false,
+  session: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -54,6 +55,58 @@ async function api(path, options = {}) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || 'HTTP ' + response.status);
   return data;
+}
+
+// --- inloggen ---------------------------------------------------------------
+
+/** Vraagt of we binnen mogen. Zo niet: inlogscherm en verder niets laden. */
+async function checkSession() {
+  const data = await api('/session');
+  state.session = data;
+
+  if (!data.authenticated) {
+    $('gate').hidden = false;
+    $('gateNote').textContent = '';
+    return false;
+  }
+
+  $('gate').hidden = true;
+  renderWho();
+  renderJoinable();
+  return true;
+}
+
+function renderWho() {
+  const user = state.session?.user;
+  if (!user) { $('who').innerHTML = ''; return; }
+
+  $('who').innerHTML =
+    '<img src="' + escape(user.avatarUrl) + '" alt="">' +
+    '<span>' + escape(user.globalName || user.username) + '</span>' +
+    '<a class="btn-icon" href="/auth/logout" title="Uitloggen" style="display:inline-flex;color:var(--muted)">' +
+    icon('undo') + '</a>';
+}
+
+/** Servers waar jij beheerder bent maar de bot nog niet in zit. */
+function renderJoinable() {
+  const target = $('joinable');
+  const missing = (state.session?.guilds || []).filter((guild) => !guild.botPresent);
+
+  if (missing.length === 0) { target.innerHTML = ''; return; }
+
+  target.innerHTML =
+    '<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">' +
+    '<h4 style="font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:6px">' +
+    'Jouw servers zonder de bot</h4>' +
+    missing
+      .map((guild) =>
+        '<div class="joinrow">' +
+        (guild.iconUrl ? '<img src="' + escape(guild.iconUrl) + '" alt="">' : icon('server', 'sm')) +
+        '<span class="truncate">' + escape(guild.name) + '</span>' +
+        '<a class="btn-sm" href="' + escape(guild.inviteUrl) + '" target="_blank" rel="noopener">' +
+        icon('plus', 'sm') + 'Toevoegen</a></div>')
+      .join('') +
+    '</div>';
 }
 
 // --- status ----------------------------------------------------------------
@@ -498,6 +551,7 @@ async function apply() {
     toast(data.failed ? data.applied + ' gelukt, ' + data.failed + ' mislukt' : 'Uitgerold: ' + data.applied + ' acties',
       data.failed ? 'bad' : 'ok');
     await refresh();
+    if (state.session?.authEnabled) await checkSession();
   } catch (error) {
     $('planResult').innerHTML = '<div class="note bad" style="margin-top:12px">' + escape(error.message) + '</div>';
   }
@@ -682,7 +736,9 @@ window.addEventListener('beforeunload', (event) => {
 
 initTheme($('themeToggle'));
 
-refresh().catch((error) => {
-  $('botName').textContent = 'Verbinding mislukt';
-  $('botSub').innerHTML = '<span style="color:var(--bad)">' + escape(error.message) + '</span>';
-});
+checkSession()
+  .then((allowed) => (allowed ? refresh() : undefined))
+  .catch((error) => {
+    $('botName').textContent = 'Verbinding mislukt';
+    $('botSub').innerHTML = '<span style="color:var(--bad)">' + escape(error.message) + '</span>';
+  });

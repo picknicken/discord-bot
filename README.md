@@ -186,16 +186,54 @@ bot: het praat namens je bot met Discord, dus het hoort niet naar buiten open te
 token blijft aan de serverkant — de browser krijgt hem nooit te zien. Poort aanpassen kan
 met `DASHBOARD_PORT`, mappen met `BACKUPS_DIR` en `HISTORY_DIR`.
 
+### Inloggen met Discord
+
+Zonder inloggen geldt: wie de pagina kan openen, kan namens je bot je servers herinrichten.
+Daarom staat het dashboard standaard alleen op `127.0.0.1`. Met Discord-login weet de server
+wie er kijkt, en kan hij veilig verder open.
+
+```env
+DISCORD_CLIENT_SECRET=...              # Developer Portal -> OAuth2 -> Client Secret
+DASHBOARD_URL=http://127.0.0.1:4000    # de URL waarop jij het dashboard opent
+DASHBOARD_OWNERS=                      # leeg = alleen de eigenaar van de applicatie
+```
+
+Zet in het Developer Portal onder **OAuth2 → Redirects** exact `<DASHBOARD_URL>/auth/callback`.
+Wijkt die ene letter af, dan weigert Discord de inlog — dat is de meestgemaakte fout.
+
+Wat het oplevert:
+
+- **Een slot.** Zonder sessie geeft elke API-route 401. De sessie-id is 32 willekeurige bytes
+  in een HttpOnly-cookie; JavaScript kan er niet bij en bij een herstart is hij weg.
+- **Wie mag binnen.** Standaard alleen de eigenaar van de applicatie (of het team erachter).
+  Iemand anders toelaten? Zijn gebruikers-id in `DASHBOARD_OWNERS`. Een geweigerde poging
+  toont het id, zodat je het kunt kopiëren.
+- **Jouw servers.** De `guilds`-scope laat zien waar jij beheerder bent — inclusief servers
+  waar de bot nog niet in zit, met een knop **Toevoegen** die die server al voorselecteert.
+  Dat is de snelste manier om de bot ergens binnen te krijgen.
+
+Wat het **niet** doet: de bot wordt er niet machtiger van, en de bot-token stond al
+server-side. Inloggen bepaalt alleen wie aan de knoppen mag.
+
+Gevraagde scopes zijn `identify` en `guilds` — geen e-mail, geen toegang tot berichten.
+
 ### Op de telefoon
 
-De pagina is gebouwd voor smalle schermen: de kolommen stapelen, de rechten-matrix scrollt
-binnen zijn eigen kader. Maar het dashboard luistert alleen op `127.0.0.1`, dus je telefoon
-kan er niet zomaar bij — ook niet in hetzelfde wifi-netwerk. Dat is bewust: wie de pagina
-kan openen, kan namens je bot je servers herinrichten.
+De pagina is gebouwd voor smalle schermen: de kolommen stapelen en de rechten-matrix scrollt
+binnen zijn eigen kader.
 
-Werkt vandaag wel: een SSH-tunnel of een tijdelijke tunnel (bijvoorbeeld `cloudflared` of
-`ngrok`) naar poort 4000. Beide leggen de pagina open zonder inlog, dus zet ze uit als je
-klaar bent.
+Om er vanaf je telefoon bij te kunnen moet het dashboard van localhost af, en dat mag alleen
+met inloggen aan — zonder client secret weigert hij te starten op een ander adres:
+
+```env
+DASHBOARD_HOST=0.0.0.0
+DASHBOARD_URL=http://192.168.1.20:4000   # het adres van deze computer in je netwerk
+```
+
+Let op: binnen je eigen netwerk gaat dit over gewoon HTTP, dus het sessiecookie reist
+onversleuteld. Voor thuis is dat een redelijke afweging; over het internet niet. Wil je er
+van buiten bij, zet er dan een tunnel voor die HTTPS afhandelt (bijvoorbeeld `cloudflared`)
+en zet `DASHBOARD_URL` op die https-URL — die moet dan ook in het portal staan.
 
 ## Templates
 
@@ -306,6 +344,7 @@ assets/logo.png         avatar en applicatie-icoon
   planner.ts            snapshot + template -> plan
   applier.ts            plan uitvoeren via de Discord API
   exporter.ts           bestaande server -> template
+  auth.ts               inloggen met Discord: sessies, cookies en toegang
   compare.ts            template naast de echte server: nieuw, gelijk of drift
   simulate.ts           wat ziet een rol straks? (zonder uit te rollen)
   lint.ts               controles op limieten, zichtbaarheid en rechten
@@ -314,7 +353,7 @@ assets/logo.png         avatar en applicatie-icoon
   permissions.ts        permissienamen <-> bitfields
   permissionCatalogue.ts  gegroepeerde permissielijst voor het dashboard
 templates/              meegeleverde templates
-tests/                  vitest-tests: schema, planner, simulatie, vergelijking, controles, dashboard-API
+tests/                  vitest-tests: schema, planner, simulatie, vergelijking, inloggen, dashboard-API
 ```
 
 ## Ontwikkelen

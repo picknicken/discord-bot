@@ -55,6 +55,8 @@
   }
 
   * { box-sizing: border-box; }
+  /* Een display-regel op een klasse verslaat het hidden-attribuut; dit zet dat recht. */
+  [hidden] { display: none !important; }
   html, body { height: 100%; }
   body {
     margin: 0; background: var(--bg); color: var(--text);
@@ -330,6 +332,32 @@
   .toast.leaving { opacity: 0; transform: translateX(8px); transition: opacity .2s, transform .2s; }
   @keyframes slide { from { opacity: 0; transform: translateX(10px); } }
 
+  /* inloggen */
+  .who { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-2); }
+  .who img { width: 22px; height: 22px; border-radius: 50%; }
+  .gate {
+    position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+    background: var(--bg); padding: 20px;
+  }
+  .gatecard {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-3);
+    box-shadow: var(--shadow-2); padding: 30px 28px; max-width: 360px; text-align: center;
+  }
+  .gatecard h2 { font-size: 17px; margin-bottom: 6px; }
+  .gatecard p { font-size: 13px; }
+  .gateavatar { width: 56px; height: 56px; border-radius: 16px; margin-bottom: 14px; }
+  .gatebtn {
+    display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; padding: 9px 16px;
+    border-radius: var(--r-1); text-decoration: none; font-weight: 600; font-size: 13.5px;
+  }
+  .joinrow {
+    display: flex; gap: 9px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border);
+    font-size: 12.5px;
+  }
+  .joinrow:last-child { border-bottom: 0; }
+  .joinrow img { width: 20px; height: 20px; border-radius: 6px; }
+  .joinrow a { margin-left: auto; text-decoration: none; }
+
   .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border-strong);
              border-top-color: var(--accent); animation: spin .7s linear infinite; display: inline-block; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -376,8 +404,21 @@
     <h1 id="botName">Dashboard laden…</h1>
     <div class="sub" id="botSub"><span class="spinner" style="width:9px;height:9px"></span> verbinden</div>
   </div>
+  <div id="who" class="who"></div>
   <button id="themeToggle" class="btn-icon" title="Licht of donker"><svg class="icon"><use href="#i-moon"/></svg></button>
 </header>
+
+<div id="gate" class="gate" hidden>
+  <div class="gatecard">
+    <img src="/logo.png" alt="" id="gateAvatar" class="gateavatar" onerror="this.hidden = true">
+    <h2>Setup Bot</h2>
+    <p class="muted">Log in met Discord om je servers in te richten. Alleen de eigenaar van deze
+      bot komt binnen.</p>
+    <a class="btn-primary gatebtn" href="/auth/login">
+      <svg class="icon"><use href="#i-shield"/></svg> Inloggen met Discord</a>
+    <p class="hint" id="gateNote"></p>
+  </div>
+</div>
 
 <div class="grid">
   <section class="panel">
@@ -460,6 +501,8 @@
       </div>
 
       <div id="planResult"></div>
+
+      <div id="joinable"></div>
 
       <div class="row" style="margin-top:16px; border-top:1px solid var(--border); padding-top:13px">
         <button id="exportGuild" class="btn-sm"><svg class="icon sm"><use href="#i-download"/></svg>Server opslaan als template</button>
