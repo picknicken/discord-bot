@@ -1,0 +1,36 @@
+# Setup Bot als systemd-unit, in de stijl van de bestaande dmc-bot-prod.
+#
+#   sudo cp deploy/setup-bot.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now setup-bot
+#   journalctl -u setup-bot -f
+#
+[Unit]
+Description=Setup Bot - Discord server-inrichting met dashboard
+Documentation=https://github.com/picknicken/discord-bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=setupbot
+Group=setupbot
+WorkingDirectory=/opt/setup-bot
+EnvironmentFile=/opt/setup-bot/.env
+ExecStart=/usr/bin/node dist/dashboard.js
+Restart=on-failure
+RestartSec=5s
+
+# Alleen zijn eigen map mag beschreven worden; daar staan templates,
+# back-ups en de versiehistorie.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/setup-bot
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

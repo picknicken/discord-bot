@@ -397,6 +397,34 @@ Let op: zodra het dashboard van localhost af gaat, is inloggen verplicht — zie
 [Inloggen met Discord](#inloggen-met-discord). En de map `templates/` moet blijven bestaan
 tussen herstarts, anders ben je je templates kwijt bij elke deploy.
 
+### Naast andere diensten op een VPS
+
+In `deploy/` staan een systemd-unit en een nginx-serverblok. De aanpak:
+
+```bash
+sudo useradd --system --home /opt/setup-bot setupbot
+sudo git clone https://github.com/picknicken/discord-bot /opt/setup-bot
+cd /opt/setup-bot && sudo -u setupbot npm ci && sudo -u setupbot npm run build
+sudo -u setupbot cp .env.example .env   # en invullen
+
+sudo cp deploy/setup-bot.service /etc/systemd/system/
+sudo systemctl enable --now setup-bot
+```
+
+Vier dingen om te controleren voordat je begint:
+
+- **Node 20 of hoger** op de machine. Een Python-stack heeft dat niet automatisch.
+- **Een vrije poort op localhost.** Het dashboard luistert standaard op `127.0.0.1:4000`;
+  draait daar al iets, zet `DASHBOARD_PORT` op iets anders.
+- **Een eigen Discord-applicatie.** Deze bot hoort een eigen token te hebben, niet die van
+  een bot die er al draait.
+- **Schrijfrechten** op `/opt/setup-bot` voor `templates/`, `backups/` en `history/`. De
+  unit staat verder alles op alleen-lezen.
+
+Met nginx ervoor draait het dashboard over https, en dan reist het sessiecookie versleuteld.
+Zet `DASHBOARD_URL` op die https-URL en registreer `<DASHBOARD_URL>/auth/callback` in het
+Developer Portal.
+
 ## Bekende grenzen
 
 - **Terugzetten is geen tijdmachine.** Een back-up bevat de structuur, niet de berichten.
