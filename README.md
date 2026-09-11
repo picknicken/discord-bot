@@ -112,6 +112,11 @@ actief in die ene server, in plaats van de globale registratie die tot een uur k
 npm run dashboard   # http://127.0.0.1:4000
 ```
 
+Even rondkijken zonder iets te installeren? `npm run build:demo` bouwt een statische demo in
+`docs/` met verzonnen gegevens: dezelfde pagina en dezelfde scripts, maar met een nagebootste
+server ervoor. Die map kan GitHub Pages rechtstreeks serveren (Settings → Pages → main /docs).
+Er is geen bot, geen token en geen echte server bij betrokken.
+
 De werkplek: links je templates, in het midden de gekozen template, rechts de servers waar
 je hem op loslaat. Bedoeld om een server **helemaal in te richten voordat je uitrolt**.
 
@@ -363,6 +368,24 @@ npm run typecheck
 npm test
 npm run build
 ```
+
+## Waar draait dit?
+
+De bot houdt een verbinding met Discord open en het dashboard bewaart je token en schrijft je
+templatebestanden. Dat is een draaiend Node-proces, geen statische site — **GitHub Pages kan
+het dus niet hosten**; die serveert alleen bestanden. Wat Pages wél kan is de demo uit `docs/`.
+
+Voor het echte werk zijn er drie routes:
+
+| Waar | Wanneer |
+| --- | --- |
+| **Je eigen computer** | Tijdens het inrichten. Simpel, maar de bot is offline zodra je afsluit. |
+| **Altijd-aan machine** (Raspberry Pi, NAS, VPS) | Je hebt er al een. `npm run build && npm start`, en het dashboard erbij met `npm run dashboard`. |
+| **Node-host** (Railway, Render, Fly.io, …) | Geen eigen machine. Zet de variabelen uit `.env.example` in hun instellingen. |
+
+Let op: zodra het dashboard van localhost af gaat, is inloggen verplicht — zie
+[Inloggen met Discord](#inloggen-met-discord). En de map `templates/` moet blijven bestaan
+tussen herstarts, anders ben je je templates kwijt bij elke deploy.
 
 ## Bekende grenzen
 

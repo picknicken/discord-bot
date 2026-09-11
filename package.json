@@ -16,7 +16,8 @@
     "test": "vitest run",
     "configure-install": "tsx src/configure-install.ts",
     "invite": "tsx src/invite.ts",
-    "dashboard": "tsx src/dashboard.ts"
+    "dashboard": "tsx src/dashboard.ts",
+    "build:demo": "tsx scripts/build-demo.ts"
   },
   "dependencies": {
     "discord.js": "^14.16.3",
