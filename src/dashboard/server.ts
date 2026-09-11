@@ -15,6 +15,7 @@ import { PERMISSION_CATALOGUE } from '../permissionCatalogue.js';
 import { backupGuild, listBackups, readBackup } from '../backup.js';
 import { listVersions, readVersion, recordVersion } from '../history.js';
 import { simulate, simulatableRoles } from '../simulate.js';
+import { compare } from '../compare.js';
 import { parseTemplate, type ServerTemplate } from '../types.js';
 import { logger } from '../util/logger.js';
 
@@ -174,6 +175,20 @@ async function handle(client: Client<true>, request: IncomingMessage, response: 
         roles,
         simulation: role ? simulate(template, role.key) : null,
       });
+    } catch (error) {
+      return send(response, 400, { error: message(error) });
+    }
+  }
+
+  // --- Template naast de echte server ------------------------------------
+  if (method === 'POST' && resource === 'compare') {
+    const body = await readJson<{ json?: string; guildId?: string }>(request);
+    const guild = body.guildId ? client.guilds.cache.get(body.guildId) : undefined;
+    if (!guild) return send(response, 404, { error: 'Kies een server om mee te vergelijken.' });
+
+    try {
+      const template = parseTemplate(JSON.parse(body.json ?? ''));
+      return send(response, 200, compare(await snapshotGuildFresh(guild), template));
     } catch (error) {
       return send(response, 400, { error: message(error) });
     }

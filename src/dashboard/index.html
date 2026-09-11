@@ -92,7 +92,7 @@
     display: grid; gap: 14px; padding: 14px 18px 40px;
     grid-template-columns: 248px minmax(0, 1fr) 316px; align-items: start;
   }
-  @media (max-width: 1180px) { .grid { grid-template-columns: 1fr; } }
+  @media (max-width: 1180px) { .grid { grid-template-columns: minmax(0, 1fr); padding: 12px; } }
 
   .panel {
     background: var(--surface); border: 1px solid var(--border);
@@ -186,7 +186,7 @@
     background: var(--surface-2); resize: vertical; tab-size: 2; line-height: 1.6;
   }
   .editor { display: grid; grid-template-columns: minmax(0, 252px) minmax(0, 1fr); gap: 18px; align-items: start; }
-  @media (max-width: 960px) { .editor { grid-template-columns: 1fr; } }
+  @media (max-width: 960px) { .editor { grid-template-columns: minmax(0, 1fr); gap: 10px; } }
   .tree { border-right: 1px solid var(--border); padding-right: 14px; }
   @media (max-width: 960px) { .tree { border-right: 0; padding-right: 0; } }
   .tree ul { list-style: none; margin: 0 0 4px; padding: 0; }
@@ -278,6 +278,23 @@
   .cat > h3 { padding: 7px 11px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
               background: var(--surface-2); color: var(--text-2); border-bottom: 1px solid var(--border); }
   .cat ul { list-style: none; margin: 0; padding: 6px 11px 8px; }
+
+  /* vergelijking */
+  .cmp { display: flex; gap: 8px; align-items: center; padding: 3px 0; font-size: 12.5px; }
+  .cmp .icon { color: var(--muted); }
+  .cmp .note { font-size: 11px; color: var(--muted); }
+  .pill {
+    margin-left: auto; font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 99px;
+    text-transform: uppercase; letter-spacing: .03em;
+  }
+  .pill.new { background: var(--ok-bg); color: var(--ok); }
+  .pill.same { background: var(--surface-3); color: var(--muted); }
+  .pill.extra { background: var(--warn-bg); color: var(--warn); }
+  .pill.mismatch { background: var(--bad-bg); color: var(--bad); }
+  .cmp.same { color: var(--muted); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+  .legend span { display: flex; gap: 5px; align-items: center; }
+  .swatch { width: 9px; height: 9px; border-radius: 3px; }
 
   /* ---------- servers ---------- */
   .guildrow {
@@ -380,11 +397,14 @@
       <svg class="icon"><use href="#i-file"/></svg>
       <h2 class="grow" id="editorTitle">Geen template gekozen</h2>
       <span id="saveNote" class="muted" style="font-size:11.5px"></span>
+      <button id="undo" class="btn-icon" title="Ongedaan maken (Ctrl+Z)" disabled><svg class="icon"><use href="#i-undo"/></svg></button>
+      <button id="redo" class="btn-icon" title="Opnieuw (Ctrl+Shift+Z)" disabled><svg class="icon" style="transform:scaleX(-1)"><use href="#i-undo"/></svg></button>
     </div>
     <div class="tabs">
       <button id="tabTree" aria-selected="true">Structuur</button>
       <button id="tabJson" aria-selected="false">JSON</button>
       <button id="tabCheck" aria-selected="false">Controle</button>
+      <button id="tabServer" aria-selected="false">Server</button>
     </div>
     <div class="pbody">
       <div id="treeView">
@@ -396,6 +416,13 @@
           <span class="muted" style="font-size:12px">werkt op wat er nu in de editor staat</span>
         </div>
         <div id="checkResult"></div>
+      </div>
+      <div id="serverView" hidden>
+        <div class="row" style="margin-bottom:14px">
+          <button id="runCompare" class="btn-primary"><svg class="icon sm"><use href="#i-server"/></svg>Vergelijk</button>
+          <span class="muted" style="font-size:12px">met de eerst aangevinkte server</span>
+        </div>
+        <div id="compareResult"></div>
       </div>
       <div id="jsonView" hidden>
         <textarea id="editor" spellcheck="false"></textarea>

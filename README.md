@@ -83,6 +83,7 @@ De naam staat op drie plekken in Discord, en ze zijn niet allemaal hetzelfde:
 | **Gebruikersnaam** | wat in de ledenlijst en boven berichten staat | `BOT_NAME` in `.env` + `npm run configure-install` |
 | **Applicatienaam** | de titel op het autorisatiescherm en in de App Directory | Developer Portal → General Information → Name |
 | **Servernickname** | per server aan te passen door beheerders | rechtermuisknop op de bot → Bijnaam wijzigen |
+| **Avatar** | het plaatje in de ledenlijst | `BOT_AVATAR` in `.env` + `npm run configure-install` |
 
 Standaard is `BOT_NAME` **Setup Bot**. `npm run configure-install` zet de gebruikersnaam en
 meldt het als de applicatienaam ervan afwijkt.
@@ -97,6 +98,10 @@ Twee dingen om te weten voordat je hem draait:
   het uur om is.
 
 Voor de applicatienaam bestaat geen API; dat blijft handwerk in het portal.
+
+De avatar staat standaard op `assets/logo.png` en gaat in dezelfde stap mee — als botavatar
+en als applicatie-icoon. Een ongewijzigde afbeelding wordt overgeslagen: de hash ligt naast
+het bestand, zodat je de rate limit op accountwijzigingen niet voor niets opbrandt.
 
 Zet `DISCORD_DEV_GUILD_ID` in `.env` tijdens het ontwikkelen: commands zijn dan direct
 actief in die ene server, in plaats van de globale registratie die tot een uur kan duren.
@@ -123,6 +128,24 @@ je hem op loslaat. Bedoeld om een server **helemaal in te richten voordat je uit
 
 Een rol hernoemen werkt alle verwijzingen bij (overwrites, automod, emoji's, onboarding);
 een rol verwijderen haalt ze weg. De template blijft dus geldig terwijl je schuift.
+
+Bewerkingen zijn terug te draaien met **Ctrl+Z** (of de pijl in de kop), opnieuw met
+**Ctrl+Shift+Z**. In de JSON-tab houdt de browser zijn eigen tekst-undo.
+
+### Server — wat er nu echt staat
+
+Legt de template naast een aangevinkte server en kleurt elk onderdeel:
+
+| Label | Betekenis |
+| --- | --- |
+| **nieuw** | staat in de template, nog niet op de server |
+| **staat er al** | beide |
+| **alleen op server** | staat op de server, niet in de template — drift |
+| **ander type** | naam bestaat, maar bijvoorbeeld text waar de template voice wil |
+
+Dat laatste kwadrant is waar het om gaat: je ziet wat er in de loop van de tijd op een
+server is bijgekomen zonder dat je template het weet. Rollen van bots en integraties blijven
+buiten beeld, want die beheert Discord zelf.
 
 ### JSON — de vluchtweg
 
@@ -162,6 +185,17 @@ Het dashboard luistert **alleen op 127.0.0.1** en gebruikt dezelfde ingelogde cl
 bot: het praat namens je bot met Discord, dus het hoort niet naar buiten open te staan. De
 token blijft aan de serverkant — de browser krijgt hem nooit te zien. Poort aanpassen kan
 met `DASHBOARD_PORT`, mappen met `BACKUPS_DIR` en `HISTORY_DIR`.
+
+### Op de telefoon
+
+De pagina is gebouwd voor smalle schermen: de kolommen stapelen, de rechten-matrix scrollt
+binnen zijn eigen kader. Maar het dashboard luistert alleen op `127.0.0.1`, dus je telefoon
+kan er niet zomaar bij — ook niet in hetzelfde wifi-netwerk. Dat is bewust: wie de pagina
+kan openen, kan namens je bot je servers herinrichten.
+
+Werkt vandaag wel: een SSH-tunnel of een tijdelijke tunnel (bijvoorbeeld `cloudflared` of
+`ngrok`) naar poort 4000. Beide leggen de pagina open zonder inlog, dus zet ze uit als je
+klaar bent.
 
 ## Templates
 
@@ -264,12 +298,15 @@ src/
   dashboard/index.html  de dashboardpagina (geen buildstap, geen dependencies)
   dashboard/app.js      dashboardlogica in de browser
   dashboard/editor.js   de klik-editor voor rollen, kanalen en permissies
+  dashboard/ui.js       iconen, meldingen, dialogen en het thema
+assets/logo.png         avatar en applicatie-icoon
   types.ts              zod-schema en validatie van templates
   templates.ts          templates inlezen uit de map
   snapshot.ts           bestaande server -> platte structuur
   planner.ts            snapshot + template -> plan
   applier.ts            plan uitvoeren via de Discord API
   exporter.ts           bestaande server -> template
+  compare.ts            template naast de echte server: nieuw, gelijk of drift
   simulate.ts           wat ziet een rol straks? (zonder uit te rollen)
   lint.ts               controles op limieten, zichtbaarheid en rechten
   backup.ts             momentopname van een server voor het toepassen
@@ -277,7 +314,7 @@ src/
   permissions.ts        permissienamen <-> bitfields
   permissionCatalogue.ts  gegroepeerde permissielijst voor het dashboard
 templates/              meegeleverde templates
-tests/                  vitest-tests: schema, planner, simulatie, controles, rechten, dashboard-API
+tests/                  vitest-tests: schema, planner, simulatie, vergelijking, controles, dashboard-API
 ```
 
 ## Ontwikkelen

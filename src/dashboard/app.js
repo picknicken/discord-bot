@@ -8,6 +8,44 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
+/** Bewerkingen in de structuur-editor, zodat Ctrl+Z werkt. */
+const history = { past: [], future: [], last: null, limit: 100 };
+
+function recordEdit(after) {
+  if (history.last !== null && history.last !== after) {
+    history.past.push(history.last);
+    if (history.past.length > history.limit) history.past.shift();
+    history.future = [];
+  }
+  history.last = after;
+  renderUndo();
+}
+
+/** Tekstbewerkingen in de JSON-tab tellen als een stap zodra je de tab verlaat. */
+function captureManualEdit() {
+  const current = $('editor').value;
+  if (state.selected && history.last !== null && current !== history.last) recordEdit(current);
+}
+
+function step(from, to) {
+  if (from.length === 0) return;
+  to.push($('editor').value);
+  const value = from.pop();
+  history.last = value;
+  $('editor').value = value;
+  setDirty(true);
+  renderTree();
+  renderUndo();
+}
+
+const undo = () => step(history.past, history.future);
+const redo = () => step(history.future, history.past);
+
+function renderUndo() {
+  $('undo').disabled = history.past.length === 0;
+  $('redo').disabled = history.future.length === 0;
+}
+
 async function api(path, options = {}) {
   const response = await fetch('/api' + path, {
     ...options,
@@ -133,6 +171,10 @@ async function select(id) {
   state.original = data.json;
   $('editor').value = data.json;
   $('editorTitle').textContent = id;
+  history.past = [];
+  history.future = [];
+  history.last = data.json;
+  renderUndo();
   setDirty(false);
   resetSelection();
   renderTemplates();
@@ -159,7 +201,9 @@ function renderTree() {
     permissions: state.permissions,
     onChange: () => {
       // De JSON blijft de bron van waarheid voor opslaan en controleren.
-      $('editor').value = JSON.stringify(state.template, null, 2);
+      const after = JSON.stringify(state.template, null, 2);
+      recordEdit(after);
+      $('editor').value = after;
       setDirty(true);
     },
   });
@@ -197,13 +241,111 @@ async function save() {
 // --- tabs en controle ------------------------------------------------------
 
 function showTab(which) {
-  for (const [tab, view] of [['tabTree', 'treeView'], ['tabJson', 'jsonView'], ['tabCheck', 'checkView']]) {
+  captureManualEdit();
+
+  for (const [tab, view] of [
+    ['tabTree', 'treeView'], ['tabJson', 'jsonView'], ['tabCheck', 'checkView'], ['tabServer', 'serverView'],
+  ]) {
     const active = tab === 'tab' + which;
     $(tab).setAttribute('aria-selected', String(active));
     $(view).hidden = !active;
   }
   if (which === 'Tree') renderTree();
   if (which === 'Check') runCheck();
+  if (which === 'Server') runCompare();
+}
+
+// --- template naast de echte server ---------------------------------------
+
+async function runCompare() {
+  if (!state.selected) return;
+  const target = $('compareResult');
+  const guildId = selectedGuilds()[0];
+
+  if (!guildId) {
+    target.innerHTML = emptyState('server', 'Vink rechts een server aan om mee te vergelijken.');
+    return;
+  }
+
+  target.innerHTML = busy('Server uitlezen…');
+  try {
+    const data = await api('/compare', {
+      method: 'POST',
+      body: JSON.stringify({ json: $('editor').value, guildId }),
+    });
+    target.innerHTML = renderCompare(data);
+  } catch (error) {
+    target.innerHTML = '<div class="note bad">' + escape(error.message) + '</div>';
+  }
+}
+
+const PILLS = {
+  new: ['new', 'nieuw'],
+  same: ['same', 'staat er'],
+  extra: ['extra', 'alleen op server'],
+  'type-mismatch': ['mismatch', 'ander type'],
+};
+
+function comparedRow(item, iconName) {
+  const [cls, label] = PILLS[item.status];
+  return (
+    '<li class="cmp ' + item.status + '">' + icon(iconName, 'sm') +
+    '<span>' + escape(item.name) + '</span>' +
+    (item.note ? '<span class="note">' + escape(item.note) + '</span>' : '') +
+    '<span class="pill ' + cls + '">' + label + '</span></li>'
+  );
+}
+
+function renderCompare(data) {
+  const legend =
+    '<div class="legend">' +
+    [['var(--ok)', 'nieuw: komt erbij'], ['var(--surface-3)', 'staat er al'],
+     ['var(--warn)', 'alleen op de server'], ['var(--bad)', 'naam bestaat, ander type']]
+      .map(([color, label]) => '<span><i class="swatch" style="background:' + color + '"></i>' + escape(label) + '</span>')
+      .join('') +
+    '</div>';
+
+  const counts =
+    '<div class="counts">' +
+    [['new', 'nieuw'], ['same', 'staat er al'], ['extra', 'alleen op server'], ['type-mismatch', 'ander type']]
+      .map(([key, label]) =>
+        '<div class="count ' + (key === 'type-mismatch' && data.counts[key] ? 'on error' : '') +
+        (key === 'extra' && data.counts[key] ? ' on warning' : '') + '"><b>' + data.counts[key] +
+        '</b><span>' + label + '</span></div>')
+      .join('') +
+    '</div>';
+
+  const roles = data.roles.length
+    ? '<h4 style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:18px 0 6px">Rollen</h4>' +
+      '<ul style="list-style:none;margin:0;padding:0">' +
+      data.roles.map((role) => comparedRow(role, 'shield')).join('') + '</ul>'
+    : '';
+
+  const categories = data.categories
+    .map((category) => {
+      const [cls, label] = PILLS[category.status];
+      return (
+        '<div class="cat"><h3 style="display:flex;align-items:center;gap:6px">' + escape(category.name) +
+        '<span class="pill ' + cls + '">' + label + '</span></h3><ul>' +
+        (category.channels.length
+          ? category.channels.map((channel) => comparedRow(channel, CHANNEL_ICONS[channel.type] || 'hash')).join('')
+          : '<li class="hint">geen kanalen</li>') +
+        '</ul></div>'
+      );
+    })
+    .join('');
+
+  const loose = data.loose.length
+    ? '<div class="cat"><h3>Zonder categorie</h3><ul>' +
+      data.loose.map((channel) => comparedRow(channel, CHANNEL_ICONS[channel.type] || 'hash')).join('') + '</ul></div>'
+    : '';
+
+  return (
+    '<p class="hint">Vergeleken met <strong>' + escape(data.guildName) + '</strong></p>' +
+    counts + legend + roles +
+    '<h4 style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:18px 0 6px">Kanalen</h4>' +
+    categories + loose
+  );
 }
 
 async function runCheck(role) {
@@ -390,6 +532,10 @@ async function restoreBackup(file) {
 $('tabTree').onclick = () => showTab('Tree');
 $('tabJson').onclick = () => showTab('Json');
 $('tabCheck').onclick = () => showTab('Check');
+$('tabServer').onclick = () => showTab('Server');
+$('runCompare').onclick = () => runCompare();
+$('undo').onclick = undo;
+$('redo').onclick = redo;
 $('runCheck').onclick = () => runCheck();
 $('save').onclick = save;
 $('preview').onclick = preview;
@@ -514,9 +660,19 @@ $('versions').onchange = async () => {
 };
 
 document.addEventListener('keydown', (event) => {
-  if ((event.metaKey || event.ctrlKey) && event.key === 's') {
+  if (!(event.metaKey || event.ctrlKey)) return;
+
+  if (event.key === 's') {
     event.preventDefault();
     save();
+    return;
+  }
+
+  // In de JSON-tab houdt de browser zijn eigen tekst-undo; die laten we met rust.
+  const inTextarea = event.target instanceof HTMLTextAreaElement;
+  if (event.key.toLowerCase() === 'z' && !inTextarea) {
+    event.preventDefault();
+    if (event.shiftKey) redo(); else undo();
   }
 });
 

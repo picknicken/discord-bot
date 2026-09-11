@@ -194,6 +194,21 @@ describe('dashboard-api', () => {
     expect(JSON.parse(restored.json).description).toBe(JSON.parse(before.json).description);
   });
 
+  it('legt de template naast de server', async () => {
+    const template = await json(await get('/api/templates/community'));
+    const data = await json(await post('/api/compare', { json: template.json, guildId: 'guild-1' }));
+
+    expect(data.guildName).toBe('Testserver');
+    expect(data.counts.new).toBeGreaterThan(0);
+    expect(data.counts.same).toBe(0);
+    expect(data.categories[0].channels[0]).toMatchObject({ status: 'new' });
+  });
+
+  it('weigert vergelijken zonder server', async () => {
+    const response = await post('/api/compare', { json: '{"name":"X"}' });
+    expect(response.status).toBe(404);
+  });
+
   it('exporteert een bestaande server', async () => {
     const exported = await json(await get('/api/export/guild-1'));
     expect(exported.id).toBe('testserver');

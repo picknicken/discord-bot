@@ -15,6 +15,8 @@ export const config = {
   templatesDir: process.env.TEMPLATES_DIR || './templates',
   /** Weergavenaam van de bot. Wordt toegepast door `npm run configure-install`. */
   botName: process.env.BOT_NAME?.trim() || 'Setup Bot',
+  /** Afbeelding voor de botavatar en het applicatie-icoon. */
+  avatarFile: process.env.BOT_AVATAR || './assets/logo.png',
   /** Poort van het lokale dashboard. Luistert alleen op 127.0.0.1. */
   dashboardPort: Number(process.env.DASHBOARD_PORT ?? 4000),
   /** Momentopnames van servers, weggeschreven voor elk toepassen. */

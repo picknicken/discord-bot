@@ -10,3 +10,4 @@ coverage/
 # Lokale momentopnames en template-historie
 backups/
 history/
+.avatar-hash
