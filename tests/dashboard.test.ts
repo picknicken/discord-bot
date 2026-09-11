@@ -102,7 +102,7 @@ describe('dashboard-api', () => {
   });
 
   it('serveert de scriptbestanden naast de pagina', async () => {
-    for (const name of ['app.js', 'editor.js']) {
+    for (const name of ['app.js', 'editor.js', 'ui.js']) {
       const response = await get('/' + name);
       expect(response.status, name).toBe(200);
       expect(response.headers.get('content-type')).toContain('javascript');

@@ -3,6 +3,8 @@
  * zodra er iets verandert; opslaan en valideren blijft aan app.js.
  */
 
+import { CHANNEL_ICONS, emptyState, escapeHtml, icon } from './ui.js';
+
 const CHANNEL_TYPES = ['text', 'voice', 'forum', 'announcement', 'stage'];
 const STATES = { 1: '✓', 0: '·', '-1': '✗' };
 const STATE_TITLES = { 1: 'toestaan', 0: 'niet ingesteld', '-1': 'weigeren' };
@@ -32,9 +34,7 @@ function draw(container) {
   bind(container);
 }
 
-const esc = (value) =>
-  String(value ?? '').replace(/[&<>"']/g, (char) =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+const esc = escapeHtml;
 
 // --- boom ------------------------------------------------------------------
 
@@ -47,10 +47,11 @@ function tree() {
       return (
         '<li class="node' + (active ? ' on' : '') + '" data-pick="role" data-index="' + index + '">' +
         '<span class="dot" style="background:' + esc(role.color || 'var(--muted)') + '"></span>' +
-        '<span class="grow">' + esc(role.name) + '</span>' +
+        '<span class="grow truncate">' + esc(role.name) + '</span>' +
         '<span class="tools">' +
         moveButtons('role', index, template.roles.length) +
-        '<button data-del="role" data-index="' + index + '" title="Verwijderen">×</button>' +
+        '<button class="btn-icon" data-del="role" data-index="' + index + '" title="Verwijderen">' +
+        icon('trash', 'sm') + '</button>' +
         '</span></li>'
       );
     })
@@ -68,12 +69,12 @@ function tree() {
           return (
             '<li class="node' + (active ? ' on' : '') + '" data-pick="channel" data-category="' +
             categoryIndex + '" data-index="' + channelIndex + '">' +
-            '<span class="type">' + esc(channel.type) + '</span>' +
-            '<span class="grow">' + esc(channel.name) + '</span>' +
+            icon(CHANNEL_ICONS[channel.type] || 'hash', 'sm') +
+            '<span class="grow truncate">' + esc(channel.name) + '</span>' +
             '<span class="tools">' +
             moveButtons('channel', channelIndex, category.channels.length, categoryIndex) +
-            '<button data-del="channel" data-category="' + categoryIndex + '" data-index="' + channelIndex +
-            '" title="Verwijderen">×</button>' +
+            '<button class="btn-icon" data-del="channel" data-category="' + categoryIndex + '" data-index="' +
+            channelIndex + '" title="Verwijderen">' + icon('trash', 'sm') + '</button>' +
             '</span></li>'
           );
         })
@@ -82,11 +83,13 @@ function tree() {
       return (
         '<li class="group"><div class="node head' + (activeCategory ? ' on' : '') +
         '" data-pick="category" data-index="' + categoryIndex + '">' +
-        '<span class="grow"><strong>' + esc(category.name) + '</strong></span>' +
+        icon('folder', 'sm') + '<span class="grow truncate"><strong>' + esc(category.name) + '</strong></span>' +
         '<span class="tools">' +
         moveButtons('category', categoryIndex, template.categories.length) +
-        '<button data-add="channel" data-category="' + categoryIndex + '" title="Kanaal toevoegen">+</button>' +
-        '<button data-del="category" data-index="' + categoryIndex + '" title="Verwijderen">×</button>' +
+        '<button class="btn-icon" data-add="channel" data-category="' + categoryIndex +
+        '" title="Kanaal toevoegen">' + icon('plus', 'sm') + '</button>' +
+        '<button class="btn-icon" data-del="category" data-index="' + categoryIndex + '" title="Verwijderen">' +
+        icon('trash', 'sm') + '</button>' +
         '</span></div><ul>' + channels + '</ul></li>'
       );
     })
@@ -97,19 +100,22 @@ function tree() {
       const active = selection.type === 'channel' && selection.category === null && selection.index === index;
       return (
         '<li class="node' + (active ? ' on' : '') + '" data-pick="channel" data-category="" data-index="' +
-        index + '"><span class="type">' + esc(channel.type) + '</span><span class="grow">' +
+        index + '">' + icon(CHANNEL_ICONS[channel.type] || 'hash', 'sm') + '<span class="grow truncate">' +
         esc(channel.name) + '</span><span class="tools">' +
-        '<button data-del="channel" data-category="" data-index="' + index + '" title="Verwijderen">×</button>' +
+        '<button class="btn-icon" data-del="channel" data-category="" data-index="' + index +
+        '" title="Verwijderen">' + icon('trash', 'sm') + '</button>' +
         '</span></li>'
       );
     })
     .join('');
 
   return (
-    '<div class="treehead"><h4>Rollen</h4><button data-add="role">+ rol</button></div>' +
+    '<div class="treehead"><h4>Rollen</h4><button class="btn-sm" data-add="role">' + icon('plus', 'sm') +
+    'Rol</button></div>' +
     '<p class="hint">Bovenaan staat de hoogste rol.</p>' +
-    '<ul>' + (roles || '<li class="muted">geen rollen</li>') + '</ul>' +
-    '<div class="treehead"><h4>Kanalen</h4><button data-add="category">+ categorie</button></div>' +
+    '<ul>' + (roles || '<li class="hint">nog geen rollen</li>') + '</ul>' +
+    '<div class="treehead"><h4>Kanalen</h4><button class="btn-sm" data-add="category">' + icon('plus', 'sm') +
+    'Categorie</button></div>' +
     '<ul>' + categories + '</ul>' +
     (loose ? '<div class="treehead"><h4>Zonder categorie</h4></div><ul>' + loose + '</ul>' : '')
   );
@@ -120,8 +126,10 @@ function moveButtons(kind, index, total, category) {
     'data-move="' + kind + '" data-index="' + index +
     (category === undefined ? '' : '" data-category="' + category) + '"';
   return (
-    '<button ' + data + ' data-dir="-1" title="Omhoog"' + (index === 0 ? ' disabled' : '') + '>↑</button>' +
-    '<button ' + data + ' data-dir="1" title="Omlaag"' + (index === total - 1 ? ' disabled' : '') + '>↓</button>'
+    '<button class="btn-icon" ' + data + ' data-dir="-1" title="Omhoog"' + (index === 0 ? ' disabled' : '') + '>' +
+    icon('up', 'sm') + '</button>' +
+    '<button class="btn-icon" ' + data + ' data-dir="1" title="Omlaag"' + (index === total - 1 ? ' disabled' : '') + '>' +
+    icon('down', 'sm') + '</button>'
   );
 }
 
@@ -131,7 +139,7 @@ function props() {
   if (selection.type === 'role') return roleProps(ctx.template.roles[selection.index]);
   if (selection.type === 'category') return categoryProps(ctx.template.categories[selection.index]);
   if (selection.type === 'channel') return channelProps(currentChannel());
-  return '<p class="muted">Kies links een rol, categorie of kanaal.</p>';
+  return emptyState('shield', 'Kies links een rol, categorie of kanaal.');
 }
 
 function currentChannel() {
@@ -182,7 +190,7 @@ function roleProps(role) {
     .join('');
 
   return (
-    '<h3>Rol</h3>' +
+    '<h3>Rol</h3><p class="hint">Positie in de lijst bepaalt de hierarchie.</p>' +
     field('Naam', text('name', role.name)) +
     field('Kleur', '<input type="color" data-edit="color" value="' + esc(role.color || '#99aab5') + '">') +
     '<div class="row">' +
@@ -197,7 +205,7 @@ function roleProps(role) {
 function categoryProps(category) {
   if (!category) return '';
   return (
-    '<h3>Categorie</h3>' +
+    '<h3>Categorie</h3><p class="hint">Kanalen zonder eigen rechten erven die van hier.</p>' +
     field('Naam', text('name', category.name)) +
     matrix(category.overwrites, 'Rechten in deze categorie', 'Kanalen zonder eigen rechten erven deze.')
   );
@@ -217,7 +225,8 @@ function channelProps(channel) {
         '</textarea><div class="row">' +
         '<label class="check"><input type="checkbox" data-messagepin="' + index + '"' +
         (message.pin ? ' checked' : '') + '><span>vastpinnen</span></label>' +
-        '<button data-delmessage="' + index + '">Weg</button></div></div>',
+        '<button class="btn-sm btn-danger" data-delmessage="' + index + '">' + icon('trash', 'sm') +
+        '</button></div></div>',
     )
     .join('');
 
@@ -250,11 +259,11 @@ function channelProps(channel) {
   const messageBlock =
     channel.type === 'text' || channel.type === 'announcement'
       ? '<h4>Berichten bij aanmaken</h4><p class="hint">Alleen geplaatst als het kanaal nieuw is.</p>' +
-        messages + '<button data-addmessage="1">+ bericht</button>'
+        messages + '<button class="btn-sm" data-addmessage="1">' + icon('plus', 'sm') + 'Bericht</button>'
       : '';
 
   return (
-    '<h3>Kanaal</h3>' +
+    '<h3>Kanaal</h3><p class="hint">' + esc(channel.type) + '-kanaal</p>' +
     field('Naam', text('name', channel.name)) +
     field('Type', '<select data-edit="type">' + types + '</select>') +
     textOnly + voice + forum +
@@ -276,7 +285,7 @@ function matrix(overwrites, title, hint) {
   const permissions = ctx.permissions.filter((permission) => showAllPermissions || permission.common);
 
   const header =
-    '<tr><th></th>' + roles.map((role) => '<th>' + esc(role.name) + '</th>').join('') + '</tr>';
+    '<thead><tr><th></th>' + roles.map((role) => '<th>' + esc(role.name) + '</th>').join('') + '</tr></thead>';
 
   const rows = permissions
     .map((permission) => {
@@ -299,7 +308,7 @@ function matrix(overwrites, title, hint) {
     (hint ? '<p class="hint">' + esc(hint) + '</p>' : '') +
     '<label class="check"><input type="checkbox" data-allperms' + (showAllPermissions ? ' checked' : '') +
     '><span>alle permissies tonen</span></label>' +
-    '<div class="matrixwrap"><table class="matrix">' + header + rows + '</table></div>'
+    '<div class="matrixwrap"><table class="matrix">' + header + '<tbody>' + rows + '</tbody></table></div>'
   );
 }
 
