@@ -1,0 +1,113 @@
+{
+  "name": "Gaming clan",
+  "description": "Clan-server met ranks, teamkanalen, scrims en losse voice-rooms.",
+  "guild": {
+    "verificationLevel": "high",
+    "explicitContentFilter": "all_members",
+    "defaultMessageNotifications": "only_mentions",
+    "systemChannel": "welkom",
+    "afkTimeoutSeconds": 300
+  },
+  "roles": [
+    { "key": "owner", "name": "Clan Owner", "color": "#e91e63", "hoist": true, "mentionable": true, "permissions": ["Administrator"] },
+    {
+      "key": "officier",
+      "name": "Officier",
+      "color": "#f1c40f",
+      "hoist": true,
+      "mentionable": true,
+      "permissions": [
+        "ViewChannel", "SendMessages", "ReadMessageHistory", "ManageMessages", "ManageThreads",
+        "KickMembers", "ModerateMembers", "MuteMembers", "MoveMembers", "MentionEveryone", "CreateInstantInvite"
+      ]
+    },
+    {
+      "key": "member",
+      "name": "Clan Member",
+      "color": "#3498db",
+      "hoist": true,
+      "mentionable": true,
+      "permissions": [
+        "ViewChannel", "SendMessages", "SendMessagesInThreads", "CreatePublicThreads", "ReadMessageHistory",
+        "AddReactions", "AttachFiles", "EmbedLinks", "UseExternalEmojis", "UseApplicationCommands",
+        "Connect", "Speak", "Stream", "PrioritySpeaker"
+      ]
+    },
+    {
+      "key": "trial",
+      "name": "Trial",
+      "color": "#95a5a6",
+      "hoist": true,
+      "mentionable": false,
+      "permissions": [
+        "ViewChannel", "SendMessages", "ReadMessageHistory", "AddReactions", "UseApplicationCommands", "Connect", "Speak"
+      ]
+    }
+  ],
+  "categories": [
+    {
+      "name": "Info",
+      "overwrites": [{ "role": "@everyone", "allow": ["ViewChannel", "ReadMessageHistory"], "deny": ["SendMessages"] }],
+      "channels": [
+        { "name": "welkom", "type": "text", "topic": "Welkom bij de clan.", "overwrites": [] },
+        { "name": "regels", "type": "text", "topic": "Clanregels en verwachtingen.", "overwrites": [] },
+        { "name": "aankondigingen", "type": "announcement", "topic": "Clannieuws en events.", "overwrites": [{ "role": "officier", "allow": ["SendMessages", "MentionEveryone"], "deny": [] }] },
+        { "name": "sollicitaties", "type": "forum", "topic": "Lid worden? Open hier een aanvraag.", "overwrites": [{ "role": "@everyone", "allow": ["SendMessages"], "deny": [] }] }
+      ]
+    },
+    {
+      "name": "Clan",
+      "overwrites": [
+        { "role": "@everyone", "allow": [], "deny": ["ViewChannel"] },
+        { "role": "trial", "allow": ["ViewChannel"], "deny": [] },
+        { "role": "member", "allow": ["ViewChannel"], "deny": [] }
+      ],
+      "channels": [
+        { "name": "algemeen", "type": "text", "topic": "Clanchat.", "overwrites": [] },
+        { "name": "lfg", "type": "text", "topic": "Looking for group — zoek hier medespelers.", "overwrites": [] },
+        { "name": "clips", "type": "text", "topic": "Je beste momenten.", "slowmodeSeconds": 15, "overwrites": [] },
+        { "name": "builds-en-loadouts", "type": "forum", "topic": "Deel en bespreek setups.", "overwrites": [] }
+      ]
+    },
+    {
+      "name": "Competitief",
+      "overwrites": [
+        { "role": "@everyone", "allow": [], "deny": ["ViewChannel"] },
+        { "role": "member", "allow": ["ViewChannel"], "deny": [] }
+      ],
+      "channels": [
+        { "name": "scrims", "type": "text", "topic": "Planning van scrims en matches.", "overwrites": [] },
+        { "name": "vod-review", "type": "text", "topic": "Analyse van opnames.", "overwrites": [] },
+        { "name": "Team A", "type": "voice", "userLimit": 5, "overwrites": [] },
+        { "name": "Team B", "type": "voice", "userLimit": 5, "overwrites": [] }
+      ]
+    },
+    {
+      "name": "Voice",
+      "overwrites": [
+        { "role": "@everyone", "allow": [], "deny": ["ViewChannel"] },
+        { "role": "trial", "allow": ["ViewChannel", "Connect", "Speak"], "deny": [] },
+        { "role": "member", "allow": ["ViewChannel", "Connect", "Speak"], "deny": [] }
+      ],
+      "channels": [
+        { "name": "Lobby", "type": "voice", "userLimit": 0, "overwrites": [] },
+        { "name": "Squad 1", "type": "voice", "userLimit": 4, "overwrites": [] },
+        { "name": "Squad 2", "type": "voice", "userLimit": 4, "overwrites": [] },
+        { "name": "Stage", "type": "stage", "overwrites": [] }
+      ]
+    },
+    {
+      "name": "Staf",
+      "overwrites": [
+        { "role": "@everyone", "allow": [], "deny": ["ViewChannel"] },
+        { "role": "officier", "allow": ["ViewChannel", "SendMessages", "ReadMessageHistory"], "deny": [] },
+        { "role": "owner", "allow": ["ViewChannel"], "deny": [] }
+      ],
+      "channels": [
+        { "name": "officieren", "type": "text", "topic": "Intern overleg.", "overwrites": [] },
+        { "name": "logboek", "type": "text", "topic": "Automatische logs.", "overwrites": [] }
+      ]
+    }
+  ],
+  "uncategorizedChannels": []
+}

@@ -1,0 +1,93 @@
+{
+  "name": "Bedrijf",
+  "description": "Zakelijke server met afdelingen, projecten, klantsupport en een besloten directiezone.",
+  "guild": {
+    "verificationLevel": "high",
+    "explicitContentFilter": "all_members",
+    "defaultMessageNotifications": "only_mentions",
+    "systemChannel": "start-hier",
+    "afkTimeoutSeconds": 1800
+  },
+  "roles": [
+    { "key": "directie", "name": "Directie", "color": "#1abc9c", "hoist": true, "mentionable": true, "permissions": ["Administrator"] },
+    {
+      "key": "manager",
+      "name": "Manager",
+      "color": "#3498db",
+      "hoist": true,
+      "mentionable": true,
+      "permissions": [
+        "ViewChannel", "SendMessages", "ReadMessageHistory", "ManageMessages", "ManageThreads",
+        "ManageChannels", "ModerateMembers", "MentionEveryone", "CreateInstantInvite", "ViewAuditLog"
+      ]
+    },
+    {
+      "key": "medewerker",
+      "name": "Medewerker",
+      "color": "#9b59b6",
+      "hoist": true,
+      "mentionable": true,
+      "permissions": [
+        "ViewChannel", "SendMessages", "SendMessagesInThreads", "CreatePublicThreads", "ReadMessageHistory",
+        "AddReactions", "AttachFiles", "EmbedLinks", "UseApplicationCommands", "Connect", "Speak", "Stream"
+      ]
+    },
+    {
+      "key": "klant",
+      "name": "Klant",
+      "color": "#e67e22",
+      "hoist": false,
+      "mentionable": false,
+      "permissions": ["ViewChannel", "SendMessages", "ReadMessageHistory", "AttachFiles", "UseApplicationCommands"]
+    }
+  ],
+  "categories": [
+    {
+      "name": "Start",
+      "overwrites": [{ "role": "@everyone", "allow": ["ViewChannel", "ReadMessageHistory"], "deny": ["SendMessages"] }],
+      "channels": [
+        { "name": "start-hier", "type": "text", "topic": "Uitleg over deze werkruimte.", "overwrites": [] },
+        { "name": "mededelingen", "type": "announcement", "topic": "Bedrijfsbrede updates.", "overwrites": [{ "role": "manager", "allow": ["SendMessages", "MentionEveryone"], "deny": [] }] }
+      ]
+    },
+    {
+      "name": "Werkvloer",
+      "overwrites": [
+        { "role": "@everyone", "allow": [], "deny": ["ViewChannel"] },
+        { "role": "medewerker", "allow": ["ViewChannel"], "deny": [] }
+      ],
+      "channels": [
+        { "name": "algemeen", "type": "text", "topic": "Dagelijkse afstemming.", "overwrites": [] },
+        { "name": "planning", "type": "text", "topic": "Roosters en beschikbaarheid.", "overwrites": [] },
+        { "name": "projecten", "type": "forum", "topic": "Een thread per project.", "overwrites": [] },
+        { "name": "Overleg", "type": "voice", "userLimit": 10, "overwrites": [] },
+        { "name": "Focusruimte", "type": "voice", "userLimit": 4, "overwrites": [] }
+      ]
+    },
+    {
+      "name": "Klanten",
+      "overwrites": [
+        { "role": "@everyone", "allow": [], "deny": ["ViewChannel"] },
+        { "role": "klant", "allow": ["ViewChannel"], "deny": [] },
+        { "role": "medewerker", "allow": ["ViewChannel"], "deny": [] }
+      ],
+      "channels": [
+        { "name": "support", "type": "forum", "topic": "Meld hier je vraag of probleem.", "overwrites": [] },
+        { "name": "status", "type": "text", "topic": "Storingen en onderhoud.", "overwrites": [{ "role": "klant", "allow": [], "deny": ["SendMessages"] }] }
+      ]
+    },
+    {
+      "name": "Directie",
+      "overwrites": [
+        { "role": "@everyone", "allow": [], "deny": ["ViewChannel"] },
+        { "role": "directie", "allow": ["ViewChannel"], "deny": [] },
+        { "role": "manager", "allow": ["ViewChannel", "SendMessages", "ReadMessageHistory"], "deny": [] }
+      ],
+      "channels": [
+        { "name": "management", "type": "text", "topic": "Besloten overleg.", "overwrites": [] },
+        { "name": "cijfers", "type": "text", "topic": "Rapportages en KPI's.", "overwrites": [] }
+      ]
+    }
+  ],
+  "uncategorizedChannels": []
+}

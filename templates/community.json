@@ -1,0 +1,154 @@
+{
+  "name": "Community",
+  "description": "Algemene community-server met welkomstzone, gesprekskanalen, hulp en voice.",
+  "guild": {
+    "verificationLevel": "medium",
+    "explicitContentFilter": "members_without_roles",
+    "defaultMessageNotifications": "only_mentions",
+    "systemChannel": "welkom",
+    "afkChannel": "afk",
+    "afkTimeoutSeconds": 900
+  },
+  "roles": [
+    {
+      "key": "admin",
+      "name": "Admin",
+      "color": "#ed4245",
+      "hoist": true,
+      "mentionable": true,
+      "permissions": ["Administrator"]
+    },
+    {
+      "key": "moderator",
+      "name": "Moderator",
+      "color": "#5865f2",
+      "hoist": true,
+      "mentionable": true,
+      "permissions": [
+        "ViewChannel",
+        "SendMessages",
+        "ReadMessageHistory",
+        "ManageMessages",
+        "ManageThreads",
+        "ManageNicknames",
+        "KickMembers",
+        "BanMembers",
+        "ModerateMembers",
+        "MuteMembers",
+        "DeafenMembers",
+        "MoveMembers",
+        "ViewAuditLog",
+        "MentionEveryone"
+      ]
+    },
+    {
+      "key": "lid",
+      "name": "Lid",
+      "color": "#57f287",
+      "hoist": false,
+      "mentionable": false,
+      "permissions": [
+        "ViewChannel",
+        "SendMessages",
+        "SendMessagesInThreads",
+        "CreatePublicThreads",
+        "ReadMessageHistory",
+        "AddReactions",
+        "AttachFiles",
+        "EmbedLinks",
+        "UseExternalEmojis",
+        "UseApplicationCommands",
+        "Connect",
+        "Speak",
+        "Stream"
+      ]
+    },
+    {
+      "key": "bots",
+      "name": "Bots",
+      "color": "#95a5a6",
+      "hoist": false,
+      "mentionable": false,
+      "permissions": ["ViewChannel", "SendMessages", "EmbedLinks", "ReadMessageHistory", "UseApplicationCommands"]
+    }
+  ],
+  "categories": [
+    {
+      "name": "Welkom",
+      "overwrites": [
+        { "role": "@everyone", "allow": ["ViewChannel", "ReadMessageHistory"], "deny": ["SendMessages"] }
+      ],
+      "channels": [
+        {
+          "name": "welkom",
+          "type": "text",
+          "topic": "Start hier: lees de regels en stel jezelf voor.",
+          "overwrites": []
+        },
+        {
+          "name": "regels",
+          "type": "text",
+          "topic": "De huisregels van deze server.",
+          "overwrites": []
+        },
+        {
+          "name": "aankondigingen",
+          "type": "announcement",
+          "topic": "Belangrijke updates van het team.",
+          "overwrites": [
+            { "role": "moderator", "allow": ["SendMessages", "MentionEveryone"], "deny": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Gesprekken",
+      "overwrites": [
+        { "role": "@everyone", "allow": [], "deny": ["ViewChannel"] },
+        { "role": "lid", "allow": ["ViewChannel"], "deny": [] }
+      ],
+      "channels": [
+        { "name": "algemeen", "type": "text", "topic": "Waar alles mag, zolang het aardig blijft.", "overwrites": [] },
+        { "name": "media", "type": "text", "topic": "Fotos, clips en memes.", "slowmodeSeconds": 10, "overwrites": [] },
+        { "name": "off-topic", "type": "text", "topic": "Alles wat nergens anders past.", "overwrites": [] }
+      ]
+    },
+    {
+      "name": "Hulp",
+      "overwrites": [
+        { "role": "@everyone", "allow": [], "deny": ["ViewChannel"] },
+        { "role": "lid", "allow": ["ViewChannel"], "deny": [] }
+      ],
+      "channels": [
+        { "name": "vragen", "type": "forum", "topic": "Stel je vraag als nieuw bericht.", "overwrites": [] },
+        { "name": "suggesties", "type": "text", "topic": "Ideeen voor de server.", "slowmodeSeconds": 30, "overwrites": [] }
+      ]
+    },
+    {
+      "name": "Voice",
+      "overwrites": [
+        { "role": "@everyone", "allow": [], "deny": ["ViewChannel"] },
+        { "role": "lid", "allow": ["ViewChannel", "Connect", "Speak"], "deny": [] }
+      ],
+      "channels": [
+        { "name": "Lounge", "type": "voice", "userLimit": 0, "overwrites": [] },
+        { "name": "Chill", "type": "voice", "userLimit": 6, "overwrites": [] },
+        { "name": "afk", "type": "voice", "userLimit": 0, "overwrites": [{ "role": "lid", "allow": [], "deny": ["Speak"] }] }
+      ]
+    },
+    {
+      "name": "Staf",
+      "overwrites": [
+        { "role": "@everyone", "allow": [], "deny": ["ViewChannel"] },
+        { "role": "moderator", "allow": ["ViewChannel", "SendMessages", "ReadMessageHistory"], "deny": [] },
+        { "role": "admin", "allow": ["ViewChannel"], "deny": [] }
+      ],
+      "channels": [
+        { "name": "staf-chat", "type": "text", "topic": "Intern overleg.", "overwrites": [] },
+        { "name": "logboek", "type": "text", "topic": "Automatische logs.", "overwrites": [] },
+        { "name": "Staf Voice", "type": "voice", "overwrites": [] }
+      ]
+    }
+  ],
+  "uncategorizedChannels": []
+}
