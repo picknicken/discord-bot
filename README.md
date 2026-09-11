@@ -12,6 +12,9 @@ kanalen, permissie-overwrites en serverinstellingen — in een keer, reproduceer
 | `/setup apply template:<naam> bevestig:<servernaam>` | Voert het plan uit |
 | `/setup export` | Exporteert de huidige server als template-bestand (JSON-bijlage) |
 
+Bij het joinen van een server controleert de bot zichzelf en post hij een kort bericht:
+of hij klaar is voor gebruik, of precies welk recht ontbreekt met een link die het herstelt.
+
 Alle antwoorden zijn ephemeral (alleen zichtbaar voor degene die het commando uitvoert).
 Het commando is standaard alleen beschikbaar voor leden met **Server beheren**.
 
@@ -29,9 +32,10 @@ Het commando is standaard alleen beschikbaar voor leden met **Server beheren**.
 
 ```bash
 npm install
-cp .env.example .env   # vul DISCORD_TOKEN en DISCORD_CLIENT_ID in
-npm run deploy         # registreert de slash commands
-npm run dev            # of: npm run build && npm start
+cp .env.example .env      # vul DISCORD_TOKEN en DISCORD_CLIENT_ID in
+npm run configure-install # zet de rechten die de bot bij elke join krijgt
+npm run deploy            # registreert de slash commands
+npm run dev               # of: npm run build && npm start
 ```
 
 ### Bot aanmaken en uitnodigen
@@ -39,15 +43,33 @@ npm run dev            # of: npm run build && npm start
 1. Maak een applicatie op <https://discord.com/developers/applications>.
 2. Tabblad **Bot** → *Reset Token* → zet de token in `.env` als `DISCORD_TOKEN`.
    Het Application ID (tabblad *General Information*) is `DISCORD_CLIENT_ID`.
-3. Nodig de bot uit met scopes `bot` + `applications.commands` en de permissies
-   **Manage Channels**, **Manage Roles** en **Manage Server**:
-
-   ```
-   https://discord.com/oauth2/authorize?client_id=<CLIENT_ID>&scope=bot+applications.commands&permissions=268435472
-   ```
-
-4. Zet de rol van de bot in de rollenlijst **boven** de rollen die hij moet beheren —
+3. Draai `npm run configure-install`. Vanaf dat moment vraagt elke manier om de bot toe te
+   voegen automatisch de juiste rechten — ook de **Add App**-knop op het profiel van de bot
+   en in de App Directory. Je hoeft geen handgemaakte link meer rond te sturen.
+4. `npm run invite` print de invite-link als je er toch een wilt delen.
+5. Zet de rol van de bot in de rollenlijst **boven** de rollen die hij moet beheren —
    Discord staat niet toe dat een bot rollen aanmaakt of aanpast boven zijn eigen rol.
+   De bot waarschuwt hier zelf voor als hij een server binnenkomt.
+
+## Rechten bij het joinen
+
+Een bot kan zichzelf **geen** rechten geven: Discord legt ze vast op het moment van de
+invite en staat geen escalatie achteraf toe. Wat wel automatisch kan, doet dit project:
+
+- **Default install-settings** (`npm run configure-install`) zetten de gevraagde rechten
+  vast op de applicatie zelf. Elke join daarna maakt de beheerde rol van de bot direct met
+  de juiste permissies aan — zonder dat iemand vinkjes hoeft te zetten.
+- **Zelfcontrole bij binnenkomst**: mist de bot toch iets (iemand heeft vinkjes uitgezet,
+  of hij is met een oude link toegevoegd), dan post hij meteen wat er ontbreekt met een
+  herstel-link. Opnieuw autoriseren werkt de bestaande rol bij; de bot hoeft er niet uit.
+- **Eén bron voor de lijst**: `src/botPermissions.ts`. De invite-link, de install-settings,
+  de controle bij het joinen en de check in `/setup apply` lezen daar allemaal uit, dus ze
+  kunnen niet uit elkaar lopen. Wil je er een recht bij? Voeg het daar toe en draai
+  `npm run configure-install` opnieuw.
+
+Gevraagd wordt: `ManageChannels`, `ManageRoles`, `ManageGuild` (verplicht) plus
+`ViewChannel`, `SendMessages`, `EmbedLinks`, `AttachFiles`, `ReadMessageHistory` om te
+kunnen terugkoppelen. Bewust **geen** Administrator.
 
 Zet `DISCORD_DEV_GUILD_ID` in `.env` tijdens het ontwikkelen: commands zijn dan direct
 actief in die ene server, in plaats van de globale registratie die tot een uur kan duren.
@@ -127,18 +149,22 @@ zonder gateway-verbinding.
 
 ```
 src/
-  index.ts            bot-client en interaction-routing
-  deploy-commands.ts  slash commands registreren
-  commands/setup.ts   /setup met list, preview, apply, export
-  types.ts            zod-schema en validatie van templates
-  templates.ts        templates inlezen uit de map
-  snapshot.ts         bestaande server -> platte structuur
-  planner.ts          snapshot + template -> plan
-  applier.ts          plan uitvoeren via de Discord API
-  exporter.ts         bestaande server -> template
-  permissions.ts      permissienamen <-> bitfields
-templates/            meegeleverde templates
-tests/                vitest-tests voor schema en planner
+  index.ts              bot-client en interaction-routing
+  deploy-commands.ts    slash commands registreren
+  configure-install.ts  default install-settings (rechten bij elke join) zetten
+  invite.ts             invite-link printen
+  botPermissions.ts     de enige lijst met rechten die de bot vraagt
+  commands/setup.ts     /setup met list, preview, apply, export
+  events/guildCreate.ts zelfcontrole en welkomstbericht bij het joinen
+  types.ts              zod-schema en validatie van templates
+  templates.ts          templates inlezen uit de map
+  snapshot.ts           bestaande server -> platte structuur
+  planner.ts            snapshot + template -> plan
+  applier.ts            plan uitvoeren via de Discord API
+  exporter.ts           bestaande server -> template
+  permissions.ts        permissienamen <-> bitfields
+templates/              meegeleverde templates
+tests/                  vitest-tests voor schema, planner en rechten
 ```
 
 ## Ontwikkelen

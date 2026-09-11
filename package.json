@@ -13,7 +13,9 @@
     "dev": "tsx watch src/index.ts",
     "deploy": "tsx src/deploy-commands.ts",
     "typecheck": "tsc -p tsconfig.test.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "configure-install": "tsx src/configure-install.ts",
+    "invite": "tsx src/invite.ts"
   },
   "dependencies": {
     "discord.js": "^14.16.3",

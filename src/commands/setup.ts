@@ -9,6 +9,7 @@ import {
   type Guild,
 } from 'discord.js';
 import { config } from '../config.js';
+import { missingPermissions } from '../botPermissions.js';
 import { applyPlan } from '../applier.js';
 import { exportGuild } from '../exporter.js';
 import { describeActions, planSetup, summarizePlan } from '../planner.js';
@@ -157,10 +158,10 @@ async function handleApply(interaction: ChatInputCommandInteraction, guild: Guil
   }
 
   const me = await guild.members.fetchMe();
-  const missing = requiredPermissions.filter((permission) => !me.permissions.has(permission));
+  const missing = missingPermissions(me);
   if (missing.length > 0) {
     await interaction.reply({
-      content: `De bot mist rechten: ${missing.map((p) => `\`${permissionLabel(p)}\``).join(', ')}`,
+      content: `De bot mist rechten: ${missing.map((name) => `\`${name}\``).join(', ')}`,
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -214,17 +215,6 @@ async function handleExport(interaction: ChatInputCommandInteraction, guild: Gui
     content: 'Zet dit bestand in de templates-map om deze server elders te herhalen.',
     files: [file],
   });
-}
-
-const requiredPermissions = [
-  PermissionFlagsBits.ManageChannels,
-  PermissionFlagsBits.ManageRoles,
-  PermissionFlagsBits.ManageGuild,
-];
-
-function permissionLabel(permission: bigint): string {
-  const entry = Object.entries(PermissionFlagsBits).find(([, value]) => value === permission);
-  return entry?.[0] ?? String(permission);
 }
 
 function codeBlock(lines: string[]): string {
