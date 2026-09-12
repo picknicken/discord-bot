@@ -236,6 +236,11 @@
   table.matrix th { font-weight: 500; padding: 6px 6px; white-space: nowrap; text-align: center; font-size: 11.5px; }
   table.matrix thead th { background: var(--surface-2); border-bottom: 1px solid var(--border); position: sticky; top: 0; }
   table.matrix tr > th:first-child { color: var(--text-2); text-align: left; padding-left: 10px; padding-right: 14px; }
+  table.matrix .wat { display: block; }
+  table.matrix .waarom {
+    display: block; font-size: 10.5px; font-weight: 400; color: var(--muted);
+    max-width: 30ch; white-space: normal; line-height: 1.35; margin-top: 1px;
+  }
   table.matrix tbody tr:hover { background: var(--surface-2); }
   table.matrix td { padding: 2px 6px; text-align: center; }
   button.tri {
@@ -308,6 +313,11 @@
   .backup { display: flex; justify-content: space-between; gap: 8px; align-items: center;
             padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
   .backup:last-child { border-bottom: 0; }
+  .versie { display: flex; gap: 9px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .versie:last-child { border-bottom: 0; }
+  .versie .wat { font-size: 12.5px; }
+  .versie .toen { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+  .versie .knoppen { margin-left: auto; display: flex; gap: 4px; }
 
   /* ---------- dialog & toast ---------- */
   dialog {
@@ -320,6 +330,14 @@
   dialog .dbody { padding: 8px 18px 4px; color: var(--text-2); font-size: 13px; white-space: pre-wrap; }
   dialog .dbody input { width: 100%; margin-top: 10px; }
   dialog .dfoot { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 18px; }
+  dialog .keuzes { display: flex; flex-direction: column; gap: 6px; padding: 12px 18px 0; }
+  dialog .keuze {
+    display: block; text-align: left; width: 100%; padding: 11px 13px; border-radius: var(--r-2);
+    background: var(--surface-2); border: 1px solid var(--border); box-shadow: none;
+  }
+  dialog .keuze:hover { border-color: var(--accent); background: var(--surface-3); }
+  dialog .keuze strong { display: block; font-size: 13.5px; }
+  dialog .keuze span { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
   .toasts { position: fixed; right: 16px; bottom: 16px; z-index: 60; display: flex; flex-direction: column; gap: 8px; }
   .toast {
     display: flex; gap: 9px; align-items: flex-start; background: var(--surface); color: var(--text);
@@ -498,7 +516,9 @@
       <div class="row">
         <button id="newTemplate" class="btn-sm"><svg class="icon sm"><use href="#i-plus"/></svg>Nieuw</button>
         <button id="dupTemplate" class="btn-sm" disabled><svg class="icon sm"><use href="#i-copy"/></svg>Kopie</button>
+        <button id="importTemplate" class="btn-sm"><svg class="icon sm"><use href="#i-download"/></svg>Import</button>
         <button id="delTemplate" class="btn-sm btn-danger" disabled><svg class="icon sm"><use href="#i-trash"/></svg></button>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
       </div>
     </div>
   </section>
@@ -540,8 +560,13 @@
         <div class="row">
           <button id="save" class="btn-primary"><svg class="icon sm"><use href="#i-save"/></svg>Opslaan</button>
           <button id="revert"><svg class="icon sm"><use href="#i-undo"/></svg>Terug</button>
-          <select id="versions" title="Eerdere versies"></select>
+          <button id="download"><svg class="icon sm"><use href="#i-download"/></svg>Download</button>
         </div>
+
+        <details id="versieblok" style="margin-top:14px">
+          <summary><svg class="icon sm"><use href="#i-history"/></svg> Versies</summary>
+          <div id="versions"></div>
+        </details>
       </div>
     </div>
   </section>

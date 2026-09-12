@@ -165,12 +165,30 @@ Dat laatste kwadrant is waar het om gaat: je ziet wat er in de loop van de tijd 
 server is bijgekomen zonder dat je template het weet. Rollen van bots en integraties blijven
 buiten beeld, want die beheert Discord zelf.
 
+Mist er iets, dan staat er een knop **Herstel wat mist**. Die maakt alleen aan wat ontbreekt:
+bestaande kanalen en rollen blijven zoals ze zijn en er wordt niets verwijderd. Voor het
+volledige gelijktrekken gebruik je *Toepassen* met bijwerken aan.
+
+**Blokken** (knop *Blok*) voegen een kant-en-klare brok toe: een welkomstzone, stafzone,
+supportzone of spraakzone, met de rollen en rechten die erbij horen. Een rol die er al is
+blijft staan. Zo bouw je een template uit losse stukken zonder een tweede bestandsformaat.
+Een categorie dupliceren kan met de kopieerknop op de categorie zelf.
+
+Bij elke permissie staat in gewone woorden wat hij doet — in de rechten-matrix onder de naam,
+en als tooltip bij de vinkjes van een rol.
+
 ### JSON — de vluchtweg
 
 Dezelfde template als tekst, altijd in sync met de editor. Opslaan gaat door dezelfde
 validatie als de bot: een onbekende permissie of een verwijzing naar een niet-bestaande rol
-wordt geweigerd en het bestand op schijf blijft ongemoeid. De vorige inhoud gaat bij elke
-opslag naar `history/`; de versiekiezer zet hem terug.
+wordt geweigerd en het bestand op schijf blijft ongemoeid.
+
+**Versies schrijven zichzelf.** Elke opslag bewaart de vorige inhoud in `history/`, en de
+lijst zegt per regel wat die opslag veranderde — "1 rol erbij", "2 kanalen weg". Je hoeft bij
+het opslaan dus niets in te typen. Per versie kun je terugzetten of hem als JSON downloaden.
+
+**Import en export**: *Download* geeft je de huidige template als bestand, *Import* leest er
+een in als nieuwe template. Zo deel je een inrichting met iemand anders: stuur het bestand.
 
 ### Controle — voordat er iets echt gebeurt
 

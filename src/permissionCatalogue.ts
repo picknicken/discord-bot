@@ -14,7 +14,66 @@ export interface PermissionInfo {
   group: PermissionGroup;
   /** Standaard zichtbaar in de overwrite-matrix. */
   common: boolean;
+  /** Wat het in gewone woorden betekent. */
+  uitleg?: string;
 }
+
+/** Kort en in de taal van de gebruiker, niet die van de API. */
+const UITLEG: Record<string, string> = {
+  ViewChannel: 'Mag het kanaal zien staan. Zonder dit bestaat het voor deze rol niet.',
+  SendMessages: 'Mag berichten sturen.',
+  SendMessagesInThreads: 'Mag reageren in een draadje.',
+  CreatePublicThreads: 'Mag een draadje beginnen dat iedereen ziet.',
+  CreatePrivateThreads: 'Mag een besloten draadje beginnen.',
+  ManageThreads: 'Mag draadjes hernoemen, sluiten en verwijderen.',
+  ManageMessages: 'Mag berichten van anderen verwijderen en vastpinnen.',
+  EmbedLinks: 'Links krijgen een voorbeeldweergave.',
+  AttachFiles: 'Mag bestanden en afbeeldingen sturen.',
+  ReadMessageHistory: 'Ziet wat er eerder gestuurd is. Zonder dit begint het kanaal leeg.',
+  MentionEveryone: 'Mag @everyone en @here gebruiken.',
+  AddReactions: 'Mag emoji onder berichten zetten.',
+  UseExternalEmojis: 'Mag emoji van andere servers gebruiken.',
+  UseApplicationCommands: 'Mag slash commands van bots gebruiken.',
+  SendTTSMessages: 'Mag berichten laten voorlezen.',
+  SendVoiceMessages: 'Mag spraakberichten sturen.',
+  SendPolls: 'Mag polls plaatsen.',
+  Connect: 'Mag het spraakkanaal binnenkomen.',
+  Speak: 'Mag praten in spraak. Zonder dit kun je wel luisteren.',
+  Stream: 'Mag scherm delen en video aanzetten.',
+  UseVAD: 'Mag spreken zonder drukknop.',
+  PrioritySpeaker: 'Overstemt anderen als deze rol praat.',
+  MuteMembers: 'Mag anderen dempen in spraak.',
+  DeafenMembers: 'Mag anderen het geluid afnemen.',
+  MoveMembers: 'Mag anderen naar een ander spraakkanaal slepen.',
+  RequestToSpeak: 'Mag op een podium om het woord vragen.',
+  UseEmbeddedActivities: 'Mag spelletjes en activiteiten starten in spraak.',
+  UseSoundboard: 'Mag geluidjes afspelen in spraak.',
+  ManageChannels: 'Mag kanalen aanmaken, aanpassen en verwijderen.',
+  ManageRoles: 'Mag rollen en rechten aanpassen, tot aan de eigen rol.',
+  ManageGuild: 'Mag serverinstellingen aanpassen.',
+  CreateInstantInvite: 'Mag uitnodigingslinks maken.',
+  ChangeNickname: 'Mag de eigen bijnaam aanpassen.',
+  ManageNicknames: 'Mag bijnamen van anderen aanpassen.',
+  KickMembers: 'Mag leden uit de server zetten. Ze kunnen terugkomen.',
+  BanMembers: 'Mag leden verbannen. Ze kunnen niet terugkomen.',
+  ModerateMembers: 'Mag leden een time-out geven.',
+  ViewAuditLog: 'Mag zien wie wat heeft gewijzigd.',
+  ViewGuildInsights: 'Mag de groeicijfers van de server bekijken.',
+  ManageWebhooks: 'Mag koppelingen met andere diensten beheren.',
+  ManageEvents: 'Mag serverevenementen aanpassen.',
+  CreateEvents: 'Mag serverevenementen aanmaken.',
+  ManageGuildExpressions: 'Mag emoji en stickers beheren.',
+  CreateGuildExpressions: 'Mag emoji en stickers toevoegen.',
+  Administrator: 'Mag alles, en negeert alle uitzonderingen per kanaal. Wees hier zuinig mee.',
+  SetVoiceChannelStatus: 'Mag de status van een spraakkanaal zetten.',
+  UseExternalStickers: 'Mag stickers van andere servers gebruiken.',
+  UseExternalSounds: 'Mag geluidjes van andere servers gebruiken.',
+  BypassSlowmode: 'Heeft geen last van de wachttijd tussen berichten.',
+  ManageEmojisAndStickers: 'Mag emoji en stickers beheren.',
+  PinMessages: 'Mag berichten vastpinnen.',
+  UseExternalApps: 'Mag apps van buiten deze server gebruiken.',
+  ViewCreatorMonetizationAnalytics: 'Mag de verdiencijfers van de server bekijken.',
+};
 
 const GROUPS: Record<Exclude<PermissionGroup, 'Overig'>, readonly string[]> = {
   Algemeen: [
@@ -58,6 +117,7 @@ export const PERMISSION_CATALOGUE: PermissionInfo[] = Object.keys(PermissionFlag
     label: name.replace(/([a-z])([A-Z])/g, '$1 $2'),
     group: groupOf(name),
     common: COMMON.has(name),
+    uitleg: UITLEG[name],
   }))
   .sort((a, b) => {
     const byGroup = ORDER.indexOf(a.group) - ORDER.indexOf(b.group);

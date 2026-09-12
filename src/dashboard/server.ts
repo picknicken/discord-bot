@@ -26,6 +26,7 @@ import {
 } from '../auth.js';
 import { backupGuild, listBackups, readBackup } from '../backup.js';
 import { listVersions, readVersion, recordVersion } from '../history.js';
+import { diffTemplates, summarizeDiff } from '../diff.js';
 import { simulate, simulatableRoles } from '../simulate.js';
 import { compare } from '../compare.js';
 import { parseTemplate, type ServerTemplate } from '../types.js';
@@ -148,7 +149,14 @@ async function handle(
 
   if (resource === 'templates' && id !== undefined) {
     if (method === 'GET' && sub === 'versions') {
-      return send(response, 200, { versions: await listVersions(config.historyDir, id) });
+      return send(response, 200, { versions: await describeVersions(id) });
+    }
+
+    // Eén versie ophalen, om te downloaden of naast de huidige te leggen.
+    if (method === 'GET' && sub === 'version') {
+      const stamp = url.searchParams.get('stamp');
+      if (!stamp) return send(response, 400, { error: 'Geef een versie op.' });
+      return send(response, 200, { stamp, json: await readVersion(config.historyDir, id, stamp) });
     }
 
     if (method === 'GET' && sub === undefined) {
@@ -374,6 +382,41 @@ async function handle(
 }
 
 // --- Helpers --------------------------------------------------------------
+
+/**
+ * De versielijst met per regel wat die opslag veranderde. Een versie bevat de
+ * inhoud van vlak voor het opslaan, dus het verschil met de eerstvolgende
+ * nieuwere staat is precies wat er toen gebeurde.
+ */
+async function describeVersions(id: string) {
+  const versions = (await listVersions(config.historyDir, id)).slice(0, 25);
+  if (versions.length === 0) return [];
+
+  const huidig = await readFile(templatePath(id), 'utf8').catch(() => null);
+  const beschreven = [];
+
+  for (const [index, version] of versions.entries()) {
+    const nieuwer = index === 0 ? huidig : await readVersion(config.historyDir, id, versions[index - 1]!.stamp);
+
+    let summary = '';
+    try {
+      if (nieuwer) {
+        summary = summarizeDiff(
+          diffTemplates(
+            parseTemplate(JSON.parse(await readVersion(config.historyDir, id, version.stamp))),
+            parseTemplate(JSON.parse(nieuwer)),
+          ),
+        );
+      }
+    } catch {
+      summary = '';
+    }
+
+    beschreven.push({ ...version, summary });
+  }
+
+  return beschreven;
+}
 
 async function describeGuild(guild: Guild) {
   const me = await guild.members.fetchMe();

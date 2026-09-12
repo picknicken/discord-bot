@@ -97,6 +97,39 @@ export function ask({
   });
 }
 
+/** Een lijst keuzes als dialoog. Levert de gekozen waarde, of false. */
+export function kiesUit({ title, body = '', opties }) {
+  const dialog = document.getElementById('dialog');
+
+  dialog.innerHTML =
+    '<form method="dialog">' +
+    '<div class="dhead"><h3>' + escapeHtml(title) + '</h3></div>' +
+    (body ? '<div class="dbody">' + escapeHtml(body) + '</div>' : '') +
+    '<div class="keuzes">' +
+    opties
+      .map(
+        (optie) =>
+          '<button value="' + escapeHtml(optie.waarde) + '" type="submit" class="keuze">' +
+          '<strong>' + escapeHtml(optie.naam) + '</strong>' +
+          (optie.uitleg ? '<span>' + escapeHtml(optie.uitleg) + '</span>' : '') +
+          '</button>',
+      )
+      .join('') +
+    '</div>' +
+    '<div class="dfoot"><button value="cancel" type="submit">Annuleren</button></div>' +
+    '</form>';
+
+  dialog.showModal();
+
+  return new Promise((resolve) => {
+    dialog.addEventListener(
+      'close',
+      () => resolve(dialog.returnValue && dialog.returnValue !== 'cancel' ? dialog.returnValue : false),
+      { once: true },
+    );
+  });
+}
+
 export const busy = (label = 'Bezig…') => '<div class="busy"><span class="spinner"></span>' + escapeHtml(label) + '</div>';
 
 export function emptyState(iconName, message) {

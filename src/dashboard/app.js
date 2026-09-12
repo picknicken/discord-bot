@@ -347,15 +347,68 @@ function renderTree() {
 }
 
 async function renderVersions() {
-  const select = $('versions');
-  if (!state.selected) { select.innerHTML = ''; return; }
+  const lijst = $('versions');
+  if (!state.selected) { lijst.innerHTML = ''; return; }
 
   const data = await api('/templates/' + state.selected + '/versions');
-  select.innerHTML =
-    '<option value="">Versies (' + data.versions.length + ')</option>' +
-    data.versions
-      .map((version) => '<option value="' + escape(version.stamp) + '">' + escape(prettyStamp(version.stamp)) + '</option>')
-      .join('');
+  $('versieblok').querySelector('summary').innerHTML =
+    icon('history', 'sm') + ' Versies (' + data.versions.length + ')';
+
+  if (data.versions.length === 0) {
+    lijst.innerHTML = '<p class="hint">Nog geen eerdere versies. Elke keer dat je opslaat komt er een bij.</p>';
+    return;
+  }
+
+  lijst.innerHTML = data.versions
+    .map((version) =>
+      '<div class="versie"><span>' +
+      '<div class="wat">' + escape(version.summary || 'opgeslagen zonder wijziging') + '</div>' +
+      '<div class="toen">' + escape(prettyStamp(version.stamp)) + '</div></span>' +
+      '<span class="knoppen">' +
+      '<button class="btn-sm" data-versie="' + escape(version.stamp) + '">Terug</button>' +
+      '<button class="btn-icon" data-versiedownload="' + escape(version.stamp) + '" title="Download">' +
+      icon('download', 'sm') + '</button></span></div>')
+    .join('');
+
+  for (const knop of lijst.querySelectorAll('[data-versie]')) {
+    knop.onclick = () => zetVersieTerug(knop.dataset.versie);
+  }
+  for (const knop of lijst.querySelectorAll('[data-versiedownload]')) {
+    knop.onclick = async () => {
+      const data = await api('/templates/' + state.selected + '/version?stamp=' + encodeURIComponent(knop.dataset.versiedownload));
+      bewaarBestand(state.selected + '-' + knop.dataset.versiedownload + '.json', data.json);
+    };
+  }
+}
+
+/** Zet tekst als bestand klaar in de browser. */
+function bewaarBestand(naam, inhoud) {
+  const blob = new Blob([inhoud], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = naam;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+async function zetVersieTerug(stamp) {
+  const akkoord = await ask({
+    title: 'Versie terugzetten?',
+    body: prettyStamp(stamp) + '\n\nDe huidige inhoud wordt eerst als versie bewaard.',
+    confirmLabel: 'Terugzetten',
+  });
+  if (!akkoord) return;
+
+  const data = await api('/templates/' + state.selected + '/restore', {
+    method: 'POST',
+    body: JSON.stringify({ stamp }),
+  });
+  $('editor').value = data.json;
+  state.original = data.json;
+  setDirty(false);
+  renderTree();
+  await renderVersions();
+  toast('Versie teruggezet', 'ok');
 }
 
 const prettyStamp = (stamp) => stamp.slice(0, 16).replace('T', ' ').replace(/-(\d{2})$/, ':$1');
@@ -411,6 +464,44 @@ async function runCompare() {
       body: JSON.stringify({ json: $('editor').value, guildId }),
     });
     target.innerHTML = renderCompare(data);
+
+    const knop = $('herstelMist');
+    if (knop) knop.onclick = () => herstelWatMist(guildId);
+  } catch (error) {
+    target.innerHTML = '<div class="note bad">' + escape(error.message) + '</div>';
+  }
+}
+
+/** Vult aan wat er in de template staat maar niet op de server; raakt de rest niet aan. */
+async function herstelWatMist(guildId) {
+  const server = state.guilds.find((kandidaat) => kandidaat.id === guildId);
+
+  const akkoord = await ask({
+    title: 'Herstel wat mist?',
+    body:
+      'Op "' + (server ? server.name : guildId) + '" wordt alleen aangemaakt wat ontbreekt.\n\n' +
+      'Bestaande kanalen en rollen blijven ongemoeid en er wordt niets verwijderd.',
+    confirmLabel: 'Aanvullen',
+  });
+  if (!akkoord) return;
+
+  const target = $('compareResult');
+  target.innerHTML = busy('Aanvullen…');
+
+  try {
+    const data = await api('/apply', {
+      method: 'POST',
+      body: JSON.stringify({
+        templateId: state.selected,
+        guildIds: [guildId],
+        prune: false,
+        update: false,
+      }),
+    });
+
+    const resultaat = data.results[0] || {};
+    toast(resultaat.note || resultaat.applied + ' onderdelen aangevuld', data.failed ? 'bad' : 'ok');
+    await runCompare();
   } catch (error) {
     target.innerHTML = '<div class="note bad">' + escape(error.message) + '</div>';
   }
@@ -477,8 +568,16 @@ function renderCompare(data) {
       data.loose.map((channel) => comparedRow(channel, CHANNEL_ICONS[channel.type] || 'hash')).join('') + '</ul></div>'
     : '';
 
+  const herstel = data.counts.new > 0
+    ? '<button id="herstelMist" class="btn-primary" style="margin-bottom:14px">' + icon('zap', 'sm') +
+      'Herstel wat mist (' + data.counts.new + ')</button>' +
+      '<p class="hint">Maakt alleen aan wat ontbreekt. Bestaande kanalen en rollen blijven zoals ze zijn, ' +
+      'en er wordt niets verwijderd.</p>'
+    : '';
+
   return (
     '<p class="hint">Vergeleken met <strong>' + escape(data.guildName) + '</strong></p>' +
+    herstel +
     counts + legend + roles +
     '<h4 style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:18px 0 6px">Kanalen</h4>' +
     categories + loose
@@ -804,27 +903,37 @@ $('exportGuild').onclick = async () => {
   }
 };
 
-$('versions').onchange = async () => {
-  const stamp = $('versions').value;
-  if (!stamp) return;
+$('download').onclick = () => {
+  if (!state.selected) return;
+  bewaarBestand(state.selected + '.json', $('editor').value);
+};
 
-  const confirmed = await ask({
-    title: 'Versie terugzetten?',
-    body: prettyStamp(stamp) + '\n\nDe huidige inhoud wordt eerst als versie bewaard.',
-    confirmLabel: 'Terugzetten',
-  });
-  if (!confirmed) return renderVersions();
+$('importTemplate').onclick = () => $('importFile').click();
 
-  const data = await api('/templates/' + state.selected + '/restore', {
-    method: 'POST',
-    body: JSON.stringify({ stamp }),
+$('importFile').onchange = async () => {
+  const bestand = $('importFile').files[0];
+  if (!bestand) return;
+
+  const inhoud = await bestand.text();
+  $('importFile').value = '';
+
+  const naam = await ask({
+    title: 'Template importeren',
+    body: 'Uit ' + bestand.name + '.',
+    confirmLabel: 'Importeren',
+    input: { value: bestand.name.replace(/\.json$/i, '') },
   });
-  $('editor').value = data.json;
-  state.original = data.json;
-  setDirty(false);
-  renderTree();
-  await renderVersions();
-  toast('Versie teruggezet', 'ok');
+  if (!naam) return;
+
+  try {
+    const gemaakt = await api('/templates', { method: 'POST', body: JSON.stringify({ id: naam }) });
+    await api('/templates/' + gemaakt.id, { method: 'PUT', body: JSON.stringify({ json: inhoud }) });
+    await refresh();
+    await select(gemaakt.id);
+    toast('Geïmporteerd als "' + gemaakt.id + '"', 'ok');
+  } catch (error) {
+    toast(error.message.split('\n')[0], 'bad', 6000);
+  }
 };
 
 document.addEventListener('keydown', (event) => {

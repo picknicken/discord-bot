@@ -3,11 +3,101 @@
  * zodra er iets verandert; opslaan en valideren blijft aan app.js.
  */
 
-import { CHANNEL_ICONS, emptyState, escapeHtml, icon } from './ui.js';
+import { CHANNEL_ICONS, emptyState, escapeHtml, icon, kiesUit } from './ui.js';
 
 const CHANNEL_TYPES = ['text', 'voice', 'forum', 'announcement', 'stage'];
 const STATES = { 1: '✓', 0: '·', '-1': '✗' };
 const STATE_TITLES = { 1: 'toestaan', 0: 'niet ingesteld', '-1': 'weigeren' };
+
+/**
+ * Kant-en-klare brokken om aan een template toe te voegen: een categorie met
+ * kanalen, en de rollen die de rechten nodig hebben. Eenvoudiger dan losse
+ * modulebestanden, want de template blijft een plat leesbaar geheel.
+ */
+const kanaal = (naam, extra = {}) => ({
+  name: naam, type: 'text', nsfw: false, slowmodeSeconds: 0,
+  overwrites: [], messages: [], tags: [], ...extra,
+});
+
+const BLOKKEN = {
+  welkom: {
+    naam: 'Welkomstzone',
+    uitleg: 'Welkom, regels en aankondigingen. Iedereen leest mee, niemand post.',
+    rollen: [],
+    categorie: {
+      name: '👋 Welkom',
+      overwrites: [{ role: '@everyone', allow: ['ViewChannel', 'ReadMessageHistory'], deny: ['SendMessages'] }],
+      channels: [
+        kanaal('👋│welkom', { topic: 'Start hier.' }),
+        kanaal('✅│regels', {
+          topic: 'De huisregels van deze server.',
+          messages: [{ content: '**Huisregels**\n\n1. Blijf respectvol.\n2. Geen spam of reclame.\n3. Houd het onderwerp in het juiste kanaal.', pin: true }],
+        }),
+      ],
+    },
+  },
+
+  staf: {
+    naam: 'Stafzone',
+    uitleg: 'Besloten categorie voor je team, met chat, logboek en spraak.',
+    rollen: [{ key: 'staf', name: 'Staf', color: '#5865f2', hoist: true, mentionable: true,
+      permissions: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'ManageMessages', 'ModerateMembers'] }],
+    categorie: {
+      name: '🛡️ Staf',
+      overwrites: [
+        { role: '@everyone', allow: [], deny: ['ViewChannel'] },
+        { role: 'staf', allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'], deny: [] },
+      ],
+      channels: [
+        kanaal('🛡️│staf-chat', { topic: 'Intern overleg.' }),
+        kanaal('📚│logboek', { topic: 'Automatische logs.' }),
+        kanaal('🔒│Staf Voice', { type: 'voice' }),
+      ],
+    },
+  },
+
+  tickets: {
+    naam: 'Supportzone',
+    uitleg: 'Een forum waar leden een vraag openen, met een besloten logboek ernaast.',
+    rollen: [{ key: 'support', name: 'Support', color: '#e67e22', hoist: false, mentionable: true,
+      permissions: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'ManageMessages', 'ManageThreads'] }],
+    categorie: {
+      name: '🎫 Support',
+      overwrites: [
+        { role: '@everyone', allow: ['ViewChannel', 'ReadMessageHistory'], deny: [] },
+        { role: 'support', allow: ['ManageMessages', 'ManageThreads'], deny: [] },
+      ],
+      channels: [
+        kanaal('🎫│vragen', {
+          type: 'forum',
+          topic: 'Open hier je vraag; het team reageert in je eigen draadje.',
+          tags: [{ name: 'Open', moderated: false }, { name: 'Opgelost', moderated: true }],
+        }),
+        kanaal('📋│support-log', {
+          overwrites: [
+            { role: '@everyone', allow: [], deny: ['ViewChannel'] },
+            { role: 'support', allow: ['ViewChannel'], deny: [] },
+          ],
+        }),
+      ],
+    },
+  },
+
+  spraak: {
+    naam: 'Spraakzone',
+    uitleg: 'Een lounge en twee kleinere kamers.',
+    rollen: [],
+    categorie: {
+      name: '🔊 Spraak',
+      overwrites: [],
+      channels: [
+        kanaal('🔊│Lounge', { type: 'voice', userLimit: 0 }),
+        kanaal('🎮│Kamer 1', { type: 'voice', userLimit: 5 }),
+        kanaal('🎮│Kamer 2', { type: 'voice', userLimit: 5 }),
+      ],
+    },
+  },
+};
 
 let ctx = null;
 let selection = { type: 'none' };
@@ -92,6 +182,8 @@ function tree() {
         moveButtons('category', categoryIndex, template.categories.length) +
         '<button class="btn-icon" data-add="channel" data-category="' + categoryIndex +
         '" title="Kanaal toevoegen">' + icon('plus', 'sm') + '</button>' +
+        '<button class="btn-icon" data-dup="' + categoryIndex + '" title="Categorie dupliceren">' +
+        icon('copy', 'sm') + '</button>' +
         '<button class="btn-icon" data-del="category" data-index="' + categoryIndex + '" title="Verwijderen">' +
         icon('trash', 'sm') + '</button>' +
         '</span></div><ul>' + channels + '</ul></li>'
@@ -118,8 +210,9 @@ function tree() {
     'Rol</button></div>' +
     '<p class="hint">Bovenaan staat de hoogste rol.</p>' +
     '<ul>' + (roles || '<li class="hint">nog geen rollen</li>') + '</ul>' +
-    '<div class="treehead"><h4>Kanalen</h4><button class="btn-sm" data-add="category">' + icon('plus', 'sm') +
-    'Categorie</button></div>' +
+    '<div class="treehead"><h4>Kanalen</h4><span class="row" style="gap:4px">' +
+    '<button class="btn-sm" data-add="blok">' + icon('copy', 'sm') + 'Blok</button>' +
+    '<button class="btn-sm" data-add="category">' + icon('plus', 'sm') + 'Categorie</button></span></div>' +
     '<ul>' + categories + '</ul>' +
     (loose ? '<div class="treehead"><h4>Zonder categorie</h4></div><ul>' + loose + '</ul>' : '')
   );
@@ -186,7 +279,8 @@ function roleProps(role) {
         items
           .map(
             (permission) =>
-              '<label class="check"><input type="checkbox" data-perm="' + permission.name + '"' +
+              '<label class="check" title="' + esc(permission.uitleg || permission.label) + '">' +
+              '<input type="checkbox" data-perm="' + permission.name + '"' +
               (role.permissions.includes(permission.name) ? ' checked' : '') + '><span>' +
               esc(permission.label) + '</span></label>',
           )
@@ -306,7 +400,11 @@ function matrix(overwrites, title, hint) {
           );
         })
         .join('');
-      return '<tr><th>' + esc(permission.label) + '</th>' + cells + '</tr>';
+      return (
+        '<tr><th><span class="wat">' + esc(permission.label) + '</span>' +
+        (permission.uitleg ? '<span class="waarom">' + esc(permission.uitleg) + '</span>' : '') +
+        '</th>' + cells + '</tr>'
+      );
     })
     .join('');
 
@@ -377,8 +475,47 @@ function bind(container) {
     draw(container);
   });
 
-  on('data-add', (data) => {
+  on('data-dup', (data) => {
     const template = ctx.template;
+    const origineel = template.categories[Number(data.dup)];
+    const kopie = structuredClone(origineel);
+    kopie.name = kopie.name + ' kopie';
+
+    template.categories.splice(Number(data.dup) + 1, 0, kopie);
+    selection = { type: 'category', index: Number(data.dup) + 1 };
+    changed();
+  });
+
+  on('data-add', async (data) => {
+    const template = ctx.template;
+
+    if (data.add === 'blok') {
+      const keuze = await kiesUit({
+        title: 'Blok toevoegen',
+        body: 'Een categorie met kanalen, en de rollen die de rechten nodig hebben.',
+        opties: Object.entries(BLOKKEN).map(([waarde, blok]) => ({ waarde, naam: blok.naam, uitleg: blok.uitleg })),
+      });
+      if (!keuze) return;
+
+      const blok = BLOKKEN[keuze];
+      // Alleen rollen toevoegen die er nog niet zijn; een bestaande "Staf" blijft staan.
+      for (const rol of blok.rollen) {
+        if (!template.roles.some((bestaand) => bestaand.key === rol.key)) {
+          template.roles.push(structuredClone(rol));
+        }
+      }
+
+      const categorie = structuredClone(blok.categorie);
+      while (template.categories.some((bestaand) => bestaand.name === categorie.name)) {
+        categorie.name += ' 2';
+      }
+
+      template.categories.push(categorie);
+      selection = { type: 'category', index: template.categories.length - 1 };
+      changed();
+      return;
+    }
+
     if (data.add === 'role') {
       template.roles.push({ key: uniqueKey('rol'), name: 'Nieuwe rol', hoist: false, mentionable: false, permissions: [] });
       selection = { type: 'role', index: template.roles.length - 1 };
