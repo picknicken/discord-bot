@@ -12,7 +12,8 @@ import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadTemplate } from '../templates.js';
 import { auditSummary, countBySeverity, lintTemplate } from '../lint.js';
 import { PERMISSION_CATALOGUE } from '../permissionCatalogue.js';
-import { INVITE_PERMISSIONS } from '../botPermissions.js';
+import { buildInviteUrl, INVITE_PERMISSIONS } from '../botPermissions.js';
+import { explainShortfalls, permissionShortfalls } from '../preflight.js';
 import {
   buildAuthorizeUrl,
   buildGuildInviteUrl,
@@ -301,12 +302,18 @@ async function handle(
         const guild = client.guilds.cache.get(guildId);
         if (!guild) continue;
         const plan = planSetup(await snapshotGuildFresh(guild), template, options);
+        const me = await guild.members.fetchMe();
+        const tekort = permissionShortfalls(template, me.permissions);
+
         plans.push({
           guildId,
           guildName: guild.name,
           summary: summarizePlan(plan),
           actions: describeActions(plan, 1000),
-          warnings: plan.warnings,
+          // De rechten die de bot mist horen bij het plan: dat wil je zien
+          // voordat je op uitrollen drukt, niet pas in de foutenlijst erna.
+          warnings: [...plan.warnings, ...explainShortfalls(tekort, null)],
+          shortfalls: tekort,
           count: plan.actions.length,
         });
       }
@@ -347,6 +354,18 @@ async function handle(
           applied: 0,
           failed: 0,
           errors: [`de bot mist rechten: ${missing.join(', ')}`],
+        });
+        continue;
+      }
+
+      const tekort = permissionShortfalls(template, me.permissions);
+      if (tekort.length > 0) {
+        results.push({
+          guildId,
+          guildName: guild.name,
+          applied: 0,
+          failed: 0,
+          errors: explainShortfalls(tekort, buildInviteUrl(config.clientId)),
         });
         continue;
       }

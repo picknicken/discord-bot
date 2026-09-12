@@ -1,7 +1,8 @@
 import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { config } from './config.js';
 import { applyPlan } from './applier.js';
-import { missingPermissions } from './botPermissions.js';
+import { buildInviteUrl, missingPermissions } from './botPermissions.js';
+import { explainShortfalls, permissionShortfalls } from './preflight.js';
 import { describeActions, planSetup, summarizePlan } from './planner.js';
 import { snapshotGuildFresh } from './snapshot.js';
 import { loadTemplate } from './templates.js';
@@ -19,10 +20,12 @@ interface Options {
   template: string;
   apply: boolean;
   prune: boolean;
+  /** Toch uitvoeren terwijl de bot rechten mist. Levert een halve server op. */
+  force: boolean;
 }
 
 function parseArguments(argv: string[]): Options | null {
-  const options: Options = { guildId: '', template: '', apply: false, prune: false };
+  const options: Options = { guildId: '', template: '', apply: false, prune: false, force: false };
 
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index];
@@ -30,6 +33,7 @@ function parseArguments(argv: string[]): Options | null {
     else if (argument === '--template') options.template = argv[++index] ?? '';
     else if (argument === '--apply') options.apply = true;
     else if (argument === '--prune') options.prune = true;
+    else if (argument === '--toch-doorgaan') options.force = true;
   }
 
   return options.guildId && options.template ? options : null;
@@ -47,6 +51,7 @@ if (!options) {
       '    --template  bestandsnaam zonder .json uit de templates-map',
       '    --apply     voer het plan echt uit; zonder dit laat hij alleen zien wat hij zou doen',
       '    --prune     verwijder kanalen die niet in de template staan (alleen samen met --apply)',
+      '    --toch-doorgaan  uitvoeren ook als de bot rechten mist (levert een halve server op)',
       '',
     ].join('\n'),
   );
@@ -85,15 +90,31 @@ client.once(Events.ClientReady, async (ready) => {
     for (const line of describeActions(plan, 200)) console.log(`   ${line}`);
     for (const warning of plan.warnings) logger.warn(warning);
 
+    // De rechtencontrole hoort bij het plan, niet bij het uitvoeren: juist in de
+    // preview wil je weten dat het niet gaat lukken.
+    const me = await guild.members.fetchMe();
+    const tekort = permissionShortfalls(template, me.permissions);
+    for (const line of explainShortfalls(tekort, config.clientId ? buildInviteUrl(config.clientId) : null)) {
+      logger.warn(line);
+    }
+
     if (!options.apply) {
       logger.info('Preview — er is niets gewijzigd. Voeg --apply toe om dit uit te voeren.');
       return;
     }
 
-    const me = await guild.members.fetchMe();
     const missing = missingPermissions(me);
     if (missing.length > 0) {
       logger.error(`De bot mist rechten in deze server: ${missing.join(', ')}`);
+      logger.error(`Uitnodigen met de juiste rechten: ${buildInviteUrl(config.clientId)}`);
+      process.exitCode = 1;
+      return;
+    }
+
+    if (tekort.length > 0 && !options.force) {
+      logger.error('');
+      logger.error('Gestopt voordat er iets gewijzigd is.');
+      logger.error('Wil je het toch proberen, met een half ingerichte server als uitkomst: --toch-doorgaan');
       process.exitCode = 1;
       return;
     }

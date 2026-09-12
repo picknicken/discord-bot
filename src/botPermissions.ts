@@ -22,18 +22,29 @@ export const RECOMMENDED_PERMISSIONS = [
   PermissionFlagsBits.ReadMessageHistory,
 ] as const;
 
-export const INVITE_PERMISSIONS = new PermissionsBitField([
+/**
+ * Waarom Administrator: de bot maakt rollen aan met rechten erin, en Discord
+ * laat een bot geen recht uitdelen dat hij zelf niet heeft. Een template met een
+ * beheerdersrol vraagt dus een bot met Administrator. Community-modus aanzetten
+ * kan bovendien met niets minder. Zonder dit lukt een deel van het werk wel en
+ * een deel niet — en dat is precies het soort halve server dat je niet wilt.
+ */
+export const INVITE_PERMISSIONS = new PermissionsBitField([PermissionFlagsBits.Administrator]);
+
+/** Genoeg voor templates zonder community-modus en zonder bijzondere rolrechten. */
+export const BEPERKTE_PERMISSIONS = new PermissionsBitField([
   ...REQUIRED_PERMISSIONS,
   ...RECOMMENDED_PERMISSIONS,
 ]);
 
 export const INVITE_SCOPES = [OAuth2Scopes.Bot, OAuth2Scopes.ApplicationsCommands] as const;
 
-export function buildInviteUrl(clientId: string): string {
+export function buildInviteUrl(clientId: string, opties: { beperkt?: boolean } = {}): string {
+  const permissions = opties.beperkt ? BEPERKTE_PERMISSIONS : INVITE_PERMISSIONS;
   const params = new URLSearchParams({
     client_id: clientId,
     scope: INVITE_SCOPES.join(' '),
-    permissions: INVITE_PERMISSIONS.bitfield.toString(),
+    permissions: permissions.bitfield.toString(),
   });
   return `https://discord.com/oauth2/authorize?${params.toString()}`;
 }

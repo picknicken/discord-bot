@@ -328,6 +328,33 @@ export function summarizePlan(plan: Plan): string {
   return [...counts.entries()].map(([kind, count]) => `${count}x ${labels[kind]}`).join(' · ');
 }
 
+/**
+ * Korte naam van één actie, voor foutmeldingen. "create-role" alleen zegt niets;
+ * je wilt weten welke rol of welk kanaal het niet deed.
+ */
+export function actionLabel(action: PlanAction): string {
+  switch (action.kind) {
+    case 'create-role':
+    case 'update-role':
+      return `${action.kind} @${action.role.name}`;
+    case 'create-category':
+    case 'update-category':
+      return `${action.kind} ${action.category.name}`;
+    case 'create-channel':
+    case 'update-channel':
+      return `${action.kind} #${action.channel.name}`;
+    case 'delete-channel':
+      return `delete-channel ${action.name}`;
+    case 'create-emoji':
+      return `create-emoji :${action.emoji.name}:`;
+    case 'create-automod':
+    case 'update-automod':
+      return `${action.kind} "${action.rule.name}"`;
+    default:
+      return action.kind;
+  }
+}
+
 export function describeActions(plan: Plan, limit = 25): string[] {
   const lines = plan.actions.map((action) => {
     switch (action.kind) {

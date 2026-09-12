@@ -73,9 +73,37 @@ invite en staat geen escalatie achteraf toe. Wat wel automatisch kan, doet dit p
   kunnen niet uit elkaar lopen. Wil je er een recht bij? Voeg het daar toe en draai
   `npm run configure-install` opnieuw.
 
-Gevraagd wordt: `ManageChannels`, `ManageRoles`, `ManageGuild` (verplicht) plus
-`ViewChannel`, `SendMessages`, `EmbedLinks`, `AttachFiles`, `ReadMessageHistory` om te
-kunnen terugkoppelen. Bewust **geen** Administrator.
+### Waarom Administrator
+
+De invite-link vraagt **Administrator**. Dat is geen gemakzucht — het zijn twee regels van
+Discord waar niet omheen te komen is:
+
+1. **Een bot mag geen recht uitdelen dat hij zelf niet heeft.** Een rol met `KickMembers`
+   aanmaken lukt alleen als de bot zelf mag kicken. Hetzelfde geldt voor de rechten die je
+   per kanaal aan- of uitzet. Een template met een beheerdersrol vraagt dus een bot met
+   Administrator.
+2. **Community-modus aanzetten vraagt Administrator.** Niets minder, ook niet met
+   `ManageGuild`. En zonder community-modus bestaan forum-, aankondigings- en
+   stagekanalen niet.
+
+Zonder die rechten lukt een deel van het werk wel en een deel niet: een half ingerichte
+server met rollen die ontbreken. Daarom kijkt de bot vooraf of hij alles mag wat de
+template vraagt, en stopt hij vóór de eerste wijziging als dat niet zo is:
+
+```
+De bot mist 9 rechten voor deze template:
+  - community-modus aanzetten: Administrator
+  - rol @Clan Owner: Administrator
+  - rol @Officier: KickMembers, ManageMessages, MentionEveryone, ...
+```
+
+Wil je het toch zonder Administrator, dan kan dat met de beperkte link uit
+`npm run invite`. Die is genoeg voor templates zonder community-modus en zonder rollen met
+bijzondere rechten: `ManageChannels`, `ManageRoles`, `ManageGuild` plus `ViewChannel`,
+`SendMessages`, `EmbedLinks`, `AttachFiles`, `ReadMessageHistory`. Loopt een run daarop
+vast, dan zegt hij precies welk recht waar ontbreekt. Met `--toch-doorgaan` (vinkje *Doorgaan
+ook als de bot rechten mist* in de Action) forceer je het alsnog; reken dan op fouten
+onderweg.
 
 ## Naam van de bot
 

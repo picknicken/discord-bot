@@ -18,7 +18,7 @@ import {
 } from 'discord.js';
 import { logger } from './util/logger.js';
 import { toBitfield } from './permissions.js';
-import type { Plan } from './planner.js';
+import { actionLabel, type Plan } from './planner.js';
 import type { AutomodSpec, ChannelSpec, Overwrite, ServerTemplate } from './types.js';
 
 /**
@@ -161,14 +161,25 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
   };
 
   /** Berichten horen bij het aanmaken: opnieuw toepassen post dus niets dubbel. */
+  /**
+   * Berichten posten telt apart. Het kanaal staat er dan al; als het posten
+   * misgaat - een kanaal waar niemand mag praten, of pinnen zonder
+   * ManageMessages - is dat geen mislukte aanmaak.
+   */
   const postMessages = async (channelId: string, spec: ChannelSpec): Promise<void> => {
     if (spec.messages.length === 0) return;
     const channel = await guild.channels.fetch(channelId);
     if (!channel?.isTextBased()) return;
 
     for (const message of spec.messages) {
-      const sent = await channel.send({ content: message.content, allowedMentions: { parse: [] } });
-      if (message.pin) await sent.pin(reason);
+      try {
+        const sent = await channel.send({ content: message.content, allowedMentions: { parse: [] } });
+        if (message.pin) await sent.pin(reason);
+      } catch (error) {
+        const uitleg = error instanceof Error ? error.message : String(error);
+        result.errors.push(`bericht in #${spec.name} niet geplaatst: ${uitleg}`);
+        logger.warn(`Bericht in #${spec.name} niet geplaatst: ${uitleg}`);
+      }
     }
   };
 
@@ -368,7 +379,8 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
         }
 
         case 'guild-settings': {
-          await applyGuildSettings(guild, template, channelIds, reason);
+          const meldingen = await applyGuildSettings(guild, template, channelIds, reason);
+          result.errors.push(...meldingen);
           break;
         }
       }
@@ -376,8 +388,9 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
     } catch (error) {
       result.failed += 1;
       const message = error instanceof Error ? error.message : String(error);
-      result.errors.push(`${action.kind}: ${message}`);
-      logger.warn(`Actie mislukt (${action.kind})`, message);
+      const label = actionLabel(action);
+      result.errors.push(`${label}: ${message}`);
+      logger.warn(`Actie mislukt (${label})`, message);
     }
   }
 
@@ -567,7 +580,8 @@ async function applyGuildSettings(
   template: ServerTemplate,
   channelIds: Map<string, string>,
   reason: string,
-): Promise<void> {
+): Promise<string[]> {
+  const meldingen: string[] = [];
   const settings = template.guild;
   const channelId = (name: string | undefined) => (name ? channelIds.get(normalize(name)) : undefined);
 
@@ -594,12 +608,51 @@ async function applyGuildSettings(
     reason,
   });
 
-  // Kanaalverwijzingen pas hierna: de kanalen moeten bestaan.
-  await guild.edit({
-    systemChannel: channelId(settings.systemChannel) ?? undefined,
-    afkChannel: channelId(settings.afkChannel) ?? undefined,
-    reason,
-  });
+  // Kanaalverwijzingen pas hierna: de kanalen moeten bestaan. Verse lijst, want
+  // een kanaal dat we net maakten moet Discord ook echt kennen.
+  await guild.channels.fetch(undefined, { cache: true, force: true });
+
+  /**
+   * Eén verwijzing per opdracht. Samen in één opdracht betekent dat een kanaal
+   * dat Discord weigert de andere verwijzingen meesleurt - zo bleef eerder het
+   * systeemkanaal liggen door een regelskanaal dat nog niet mocht.
+   */
+  const zetVerwijzing = async (
+    wat: string,
+    naam: string | undefined,
+    soort: 'text' | 'voice',
+    veld: 'systemChannel' | 'afkChannel' | 'rulesChannel' | 'publicUpdatesChannel',
+  ) => {
+    if (!naam) return;
+
+    const id = channelId(naam);
+    if (!id) {
+      meldingen.push(`${wat} niet gezet: kanaal "${naam}" is niet aangemaakt.`);
+      return;
+    }
+
+    const kanaal = guild.channels.cache.get(id);
+    const klopt =
+      soort === 'text' ? kanaal?.type === ChannelType.GuildText : kanaal?.type === ChannelType.GuildVoice;
+
+    if (!klopt) {
+      meldingen.push(
+        `${wat} niet gezet: "${naam}" bestaat niet meer of is geen ${soort === 'text' ? 'tekst' : 'spraak'}kanaal.`,
+      );
+      return;
+    }
+
+    try {
+      await guild.edit({ [veld]: id, reason });
+    } catch (error) {
+      const uitleg = error instanceof Error ? error.message : String(error);
+      meldingen.push(`${wat} niet gezet ("${naam}"): ${uitleg}`);
+      logger.warn(`${wat} niet gezet ("${naam}"): ${uitleg}`);
+    }
+  };
+
+  await zetVerwijzing('systeemkanaal', settings.systemChannel, 'text', 'systemChannel');
+  await zetVerwijzing('afk-kanaal', settings.afkChannel, 'voice', 'afkChannel');
 
   const rulesChannel = channelId(settings.rulesChannel);
   const updatesChannel = channelId(settings.updatesChannel);
@@ -608,17 +661,14 @@ async function applyGuildSettings(
   // de kanalen er toen nog niet waren.
   if (settings.community && rulesChannel && updatesChannel && !guild.features.includes('COMMUNITY')) {
     await enableCommunity(guild, template, channelIds, reason);
-    return;
+    return meldingen;
   }
 
-  // Het regels- en updateskanaal bestaan alleen op een community-server. Op een
-  // gewone server weigert Discord ze, en dan gaat de hele opdracht mee onderuit,
-  // inclusief het systeemkanaal. Dus alleen sturen als het kan.
-  if (!guild.features.includes('COMMUNITY') || (!rulesChannel && !updatesChannel)) return;
+  // Het regels- en updateskanaal bestaan alleen op een community-server; op een
+  // gewone server weigert Discord ze.
+  if (!guild.features.includes('COMMUNITY')) return meldingen;
 
-  await guild.edit({
-    rulesChannel: rulesChannel ?? undefined,
-    publicUpdatesChannel: updatesChannel ?? undefined,
-    reason,
-  });
+  await zetVerwijzing('regelskanaal', settings.rulesChannel, 'text', 'rulesChannel');
+  await zetVerwijzing('updateskanaal', settings.updatesChannel, 'text', 'publicUpdatesChannel');
+  return meldingen;
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PermissionFlagsBits, PermissionsBitField } from 'discord.js';
 import {
+  BEPERKTE_PERMISSIONS,
   INVITE_PERMISSIONS,
   INVITE_SCOPES,
   REQUIRED_PERMISSIONS,
@@ -15,8 +16,22 @@ describe('invite-rechten', () => {
     }
   });
 
-  it('vraagt geen Administrator', () => {
-    expect(INVITE_PERMISSIONS.has(PermissionFlagsBits.Administrator)).toBe(false);
+  it('vraagt Administrator, want anders kan hij zijn werk niet af maken', () => {
+    // Discord laat een bot geen recht uitdelen dat hij zelf niet heeft, en
+    // community-modus aanzetten kan met niets minder.
+    expect(INVITE_PERMISSIONS.has(PermissionFlagsBits.Administrator)).toBe(true);
+  });
+
+  it('houdt een beperkte variant voor wie dat niet wil', () => {
+    expect(BEPERKTE_PERMISSIONS.has(PermissionFlagsBits.Administrator)).toBe(false);
+    for (const permission of REQUIRED_PERMISSIONS) {
+      expect(BEPERKTE_PERMISSIONS.has(permission), permissionLabel(permission)).toBe(true);
+    }
+  });
+
+  it('bouwt op verzoek de beperkte link', () => {
+    const url = new URL(buildInviteUrl('123456789', { beperkt: true }));
+    expect(url.searchParams.get('permissions')).toBe(BEPERKTE_PERMISSIONS.bitfield.toString());
   });
 
   it('bouwt een invite-link met scopes en permissiebits', () => {

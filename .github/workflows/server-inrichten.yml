@@ -32,6 +32,11 @@ on:
         required: false
         default: false
         type: boolean
+      toch_doorgaan:
+        description: 'Doorgaan ook als de bot rechten mist (levert een half ingerichte server op)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   inrichten:
@@ -70,6 +75,7 @@ jobs:
           TEMPLATE: ${{ inputs.template }}
           MODE: ${{ inputs.mode }}
           PRUNE: ${{ inputs.prune }}
+          FORCE: ${{ inputs.toch_doorgaan }}
         run: |
           args=(--guild "$GUILD_ID" --template "$TEMPLATE")
           if [ "$MODE" = "apply" ]; then
@@ -77,6 +83,10 @@ jobs:
             if [ "$PRUNE" = "true" ]; then
               args+=(--prune)
               echo "::warning::prune staat aan — kanalen buiten de template worden verwijderd."
+            fi
+            if [ "$FORCE" = "true" ]; then
+              args+=(--toch-doorgaan)
+              echo "::warning::de rechtencontrole staat uit — wat de bot niet mag, mislukt onderweg."
             fi
           fi
           node dist/apply-once.js "${args[@]}"
