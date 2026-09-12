@@ -107,14 +107,31 @@ export function emptyState(iconName, message) {
 
 const THEME_KEY = 'setupbot-theme';
 
+// In een afgeschermde iframe gooit localStorage een fout in plaats van leeg
+// terug te geven. Zonder deze omweg stopt het hele script daarop.
+const onthoud = (waarde) => {
+  try {
+    localStorage.setItem(THEME_KEY, waarde);
+  } catch {
+    // Geen opslag beschikbaar; de keuze geldt dan alleen voor dit bezoek.
+  }
+};
+
+const opgeslagen = () => {
+  try {
+    return localStorage.getItem(THEME_KEY);
+  } catch {
+    return null;
+  }
+};
+
 export function initTheme(button) {
-  const stored = localStorage.getItem(THEME_KEY);
   const system = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  apply(stored || system);
+  apply(opgeslagen() || system);
 
   button.onclick = () => {
     const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-    localStorage.setItem(THEME_KEY, next);
+    onthoud(next);
     apply(next);
   };
 

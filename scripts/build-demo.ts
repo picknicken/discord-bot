@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { compare } from '../src/compare.js';
-import { countBySeverity, lintTemplate } from '../src/lint.js';
+import { auditSummary, countBySeverity, lintTemplate } from '../src/lint.js';
 import { PERMISSION_CATALOGUE } from '../src/permissionCatalogue.js';
 import { describeActions, planSetup, summarizePlan } from '../src/planner.js';
 import { simulate, simulatableRoles } from '../src/simulate.js';
@@ -101,6 +101,7 @@ async function main() {
           {
             findings,
             counts: countBySeverity(findings),
+            summary: auditSummary(template),
             roles,
             simulations: Object.fromEntries(roles.map((role) => [role.key, simulate(template, role.key)])),
           },
@@ -136,19 +137,19 @@ async function main() {
     JSON.stringify(data).replace(/</g, '\\u003c') +
     '</' + 'script>';
 
-  for (const file of ['app.js', 'editor.js', 'ui.js']) {
-    await copyFile(path.join(SOURCE, file), path.join(OUT, file));
-  }
   await copyFile('assets/logo.png', path.join(OUT, 'logo.png'));
-  await writeFile(path.join(OUT, 'mock.js'), mockScript(), 'utf8');
+
+  // Alles in een script in de pagina. Losse modulebestanden worden met CORS
+  // opgehaald, en in een afgeschermde iframe (oorsprong "null") weigert de
+  // browser dat - dan draait er niets. Inline modules worden niet opgehaald.
+  const bundel = await bundleScripts();
 
   const page = await readFile(path.join(SOURCE, 'index.html'), 'utf8');
   const withMock = page
     .replace('<title>Setup Bot — dashboard</title>', '<title>Setup Bot Dashboard</title>')
     .replace(
       '<script type="module" src="app.js"></script>',
-      banner() + '\n' + inlineData +
-        '\n<script type="module" src="mock.js"></script>\n<script type="module" src="app.js"></script>',
+      banner() + '\n' + inlineData + '\n<script type="module">\n' + bundel + '\n</' + 'script>',
     );
 
   await writeFile(path.join(OUT, 'index.html'), withMock, 'utf8');
@@ -163,12 +164,57 @@ async function main() {
   console.log(`demo gebouwd in ${OUT}/ — ${templates.length} templates, ${PERMISSION_CATALOGUE.length} permissies`);
 }
 
+/**
+ * Voegt de dashboardscripts samen tot een module. De import-regels vervallen -
+ * alles staat in dezelfde scope - behalve waar een naam hernoemd werd; die
+ * krijgt een eigen regel terug, anders wijst hij naar iets anders.
+ */
+async function bundleScripts(): Promise<string> {
+  const delen: string[] = [];
+
+  for (const file of ['ui.js', 'editor.js', '__mock__', 'app.js']) {
+    const bron = file === '__mock__' ? mockScript() : await readFile(path.join(SOURCE, file), 'utf8');
+
+    const schoon = bron
+      .split('\n')
+      .flatMap((regel) => {
+        const invoer = regel.match(/^import\s+\{([^}]+)\}\s+from\s+'[^']+';$/);
+        if (invoer) {
+          return (invoer[1] ?? '')
+            .split(',')
+            .map((naam) => naam.trim().match(/^(\w+)\s+as\s+(\w+)$/))
+            .filter((hernoemd): hernoemd is RegExpMatchArray => hernoemd !== null)
+            .map((hernoemd) => `const ${hernoemd[2]} = ${hernoemd[1]};`);
+        }
+        if (/^import\s+/.test(regel)) return [];
+        return [regel.replace(/^export\s+(?=(function|const|class|let)\s)/, '')];
+      })
+      .join('\n');
+
+    delen.push(`// ---- ${file} ----\n${schoon}`);
+  }
+
+  return delen.join('\n\n');
+}
+
 function banner(): string {
-  return `<div style="position:fixed;left:0;right:0;bottom:0;z-index:70;background:var(--accent);color:#fff;
-  font:12.5px/1.5 system-ui,sans-serif;padding:7px 14px;text-align:center">
+  // De balk staat onder de navigatie, niet erover: anders vangt hij de tikken
+  // op de knoppen onderin op en kun je op een telefoon nergens meer heen.
+  return `<div class="demobalk">
   Demo met verzonnen gegevens — er is geen bot verbonden en er verandert niets aan een echte server.
 </div>
-<style>.grid { padding-bottom: 52px; }</style>`;
+<style>
+  .demobalk {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
+    background: var(--accent); color: #fff; text-align: center;
+    font: 12.5px/1.5 system-ui, sans-serif; padding: 7px 14px;
+  }
+  .grid { padding-bottom: 64px; }
+  @media (max-width: 900px) {
+    .mobilenav { bottom: 54px; z-index: 40; }
+    .grid { padding-bottom: 140px; }
+  }
+</style>`;
 }
 
 /** Onderschept fetch en beantwoordt de dashboard-API uit het vooraf gebouwde bestand. */
@@ -206,7 +252,10 @@ window.fetch = async (input, options = {}) => {
     let role = null;
     try { role = JSON.parse(body).role; } catch {}
     const chosen = found.simulations[role] ?? Object.values(found.simulations)[0];
-    return json({ findings: found.findings, counts: found.counts, roles: found.roles, simulation: chosen });
+    return json({
+      findings: found.findings, counts: found.counts, summary: found.summary,
+      roles: found.roles, simulation: chosen,
+    });
   }
 
   if (path === '/compare') return json(named(body, 'comparisons'));
