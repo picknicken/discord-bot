@@ -30,7 +30,13 @@ export type PlanAction =
   | { kind: 'order-channels'; count: number }
   | { kind: 'order-roles'; count: number }
   | { kind: 'onboarding'; prompts: number }
+  | { kind: 'guild-community' }
   | { kind: 'guild-settings'; changes: string[] };
+
+/** Deze kanaaltypes bestaan alleen op een Community-server. */
+const COMMUNITY_ONLY: readonly ChannelSpec['type'][] = ['announcement', 'forum', 'stage'];
+
+export const needsCommunity = (type: ChannelSpec['type']) => COMMUNITY_ONLY.includes(type);
 
 export interface Plan {
   templateName: string;
@@ -223,7 +229,7 @@ function planGuildSettings(template: ServerTemplate): PlanAction[] {
 
 export function planSetup(snapshot: GuildSnapshot, template: ServerTemplate, options: PlanOptions): Plan {
   const warnings: string[] = [];
-  const actions: PlanAction[] = [...planRoles(snapshot, template, options)];
+  let actions: PlanAction[] = [...planRoles(snapshot, template, options)];
 
   const channelPlan = planChannels(snapshot, template, options);
   actions.push(...channelPlan.actions);
@@ -238,6 +244,19 @@ export function planSetup(snapshot: GuildSnapshot, template: ServerTemplate, opt
       if (!channelPlan.keptCategoryIds.has(category.id)) {
         actions.push({ kind: 'delete-channel', channelId: category.id, name: category.name, isCategory: true });
       }
+    }
+  }
+
+  // Discord weigert forum-, announcement- en stagekanalen zolang de server geen
+  // Community-server is. Die moeten dus wachten tot dat aanstaat, en dat kan pas
+  // als het regels- en updateskanaal bestaan.
+  if (template.guild.community) {
+    const later = actions.filter(
+      (action) => action.kind === 'create-channel' && needsCommunity(action.channel.type),
+    );
+    if (later.length > 0) {
+      actions = actions.filter((action) => !later.includes(action));
+      actions.push({ kind: 'guild-community' }, ...later);
     }
   }
 
@@ -302,6 +321,7 @@ export function summarizePlan(plan: Plan): string {
     'order-channels': 'kanaalvolgorde zetten',
     'order-roles': 'rolvolgorde zetten',
     onboarding: 'onboarding instellen',
+    'guild-community': 'community-modus aanzetten',
     'guild-settings': 'serverinstellingen',
   };
 
@@ -346,6 +366,8 @@ export function describeActions(plan: Plan, limit = 25): string[] {
         return `~ volgorde van ${action.count} rollen`;
       case 'onboarding':
         return `~ onboarding (${action.prompts} vragen)`;
+      case 'guild-community':
+        return '~ community-modus aanzetten (nodig voor forum- en announcementkanalen)';
       case 'guild-settings':
         return `~ serverinstellingen (${action.changes.join(', ')})`;
     }

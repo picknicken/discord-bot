@@ -1,3 +1,4 @@
+import { needsCommunity } from './planner.js';
 import { channelsNobodySees } from './simulate.js';
 import type { ServerTemplate } from './types.js';
 
@@ -159,6 +160,20 @@ export function lintTemplate(template: ServerTemplate): Finding[] {
     if (channel.type === 'forum' && channel.tags.length > LIMITS.forumTags) {
       add('error', `kanaal ${channel.name}`, `${channel.tags.length} tags; het maximum is ${LIMITS.forumTags}.`);
     }
+  }
+
+  // --- Kanaaltypes die een Community-server vereisen -----------------------
+  const communityTypes = [...new Set(
+    allChannels.filter(({ channel }) => needsCommunity(channel.type)).map(({ channel }) => channel.type),
+  )];
+
+  if (communityTypes.length > 0 && !template.guild.community) {
+    add(
+      'error',
+      'template',
+      `${communityTypes.join('- en ')}kanalen bestaan alleen op een Community-server. ` +
+        'Zet guild.community aan, met een rulesChannel en updatesChannel erbij.',
+    );
   }
 
   // --- Onboarding en community -------------------------------------------

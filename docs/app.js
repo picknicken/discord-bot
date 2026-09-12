@@ -48,10 +48,22 @@ function renderUndo() {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch('/api' + path, {
-    ...options,
-    headers: options.body ? { 'content-type': 'application/json' } : {},
-  });
+  let response;
+  try {
+    // Zonder deadline blijft de pagina eeuwig "laden" als er niets terugkomt.
+    response = await fetch('/api' + path, {
+      ...options,
+      headers: options.body ? { 'content-type': 'application/json' } : {},
+      signal: AbortSignal.timeout(30000),
+    });
+  } catch (error) {
+    throw new Error(
+      error.name === 'TimeoutError'
+        ? 'De server reageert niet. Draait het dashboard nog?'
+        : 'Geen verbinding met het dashboard: ' + error.message,
+    );
+  }
+
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || 'HTTP ' + response.status);
   return data;
@@ -830,5 +842,10 @@ checkSession()
   .then((allowed) => (allowed ? refresh() : undefined))
   .catch((error) => {
     $('botName').textContent = 'Verbinding mislukt';
-    $('botSub').innerHTML = '<span style="color:var(--bad)">' + escape(error.message) + '</span>';
+    $('botSub').innerHTML =
+      '<span style="color:var(--bad)">' + escape(error.message) + '</span>';
+    $('templateList').innerHTML =
+      '<div class="note bad" style="margin:12px">' + escape(error.message) +
+      '<br><br>Herlaad de pagina zodra het dashboard weer draait.</div>';
+    $('gate').hidden = true;
   });

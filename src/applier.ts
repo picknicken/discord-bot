@@ -217,7 +217,7 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
         case 'create-role': {
           const created = await guild.roles.create({
             name: action.role.name,
-            color: hexToInt(action.role.color),
+            ...roleColor(action.role.color),
             hoist: action.role.hoist,
             mentionable: action.role.mentionable,
             permissions: toBitfield(action.role.permissions),
@@ -231,7 +231,7 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
           const role = await guild.roles.fetch(action.roleId);
           if (!role) throw new Error('rol niet gevonden');
           await role.edit({
-            color: hexToInt(action.role.color),
+            ...roleColor(action.role.color),
             hoist: action.role.hoist,
             mentionable: action.role.mentionable,
             permissions: toBitfield(action.role.permissions),
@@ -361,6 +361,11 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
           break;
         }
 
+        case 'guild-community': {
+          await enableCommunity(guild, template, channelIds, reason);
+          break;
+        }
+
         case 'guild-settings': {
           await applyGuildSettings(guild, template, channelIds, reason);
           break;
@@ -378,8 +383,13 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
   return result;
 }
 
-function hexToInt(color: string | undefined): number | undefined {
-  return color ? Number.parseInt(color.replace('#', ''), 16) : undefined;
+/**
+ * Sinds discord.js 14.27 heet dit `colors` en waarschuwt `color` bij elk gebruik.
+ * Geen kleur in de template betekent: laat de kleur met rust.
+ */
+function roleColor(color: string | undefined): { colors?: { primaryColor: number } } {
+  if (!color) return {};
+  return { colors: { primaryColor: Number.parseInt(color.replace('#', ''), 16) } };
 }
 
 /** Categorieen en kanalen in de volgorde zetten waarin ze in de template staan. */
@@ -438,6 +448,35 @@ async function orderRoles(
   return null;
 }
 
+/** Zet community-modus aan. Kan pas als het regels- en updateskanaal bestaan. */
+async function enableCommunity(
+  guild: Guild,
+  template: ServerTemplate,
+  channelIds: Map<string, string>,
+  reason: string,
+): Promise<void> {
+  const settings = template.guild;
+  const rulesChannel = settings.rulesChannel ? channelIds.get(normalize(settings.rulesChannel)) : undefined;
+  const updatesChannel = settings.updatesChannel ? channelIds.get(normalize(settings.updatesChannel)) : undefined;
+
+  if (!rulesChannel || !updatesChannel) {
+    throw new Error('community-modus vereist een bestaand regels- en updateskanaal');
+  }
+  if (guild.features.includes('COMMUNITY')) return;
+
+  await guild.edit({ rulesChannel, publicUpdatesChannel: updatesChannel, reason });
+
+  // Discord accepteert COMMUNITY alleen met filter op alle leden en verificatie
+  // minstens laag; wat de template daarvoor zegt wordt hier dus overruled.
+  const level = VERIFICATION_LEVELS[settings.verificationLevel ?? 'low'];
+  await guild.edit({
+    features: [...guild.features, 'COMMUNITY'],
+    verificationLevel: level === GuildVerificationLevel.None ? GuildVerificationLevel.Low : level,
+    explicitContentFilter: GuildExplicitContentFilter.AllMembers,
+    reason,
+  });
+}
+
 async function applyGuildSettings(
   guild: Guild,
   template: ServerTemplate,
@@ -475,15 +514,9 @@ async function applyGuildSettings(
     reason,
   });
 
+  // Meestal staat community al aan door de eerdere stap; dit vangt het geval waarin
+  // de kanalen er toen nog niet waren.
   if (settings.community && rulesChannel && updatesChannel && !guild.features.includes('COMMUNITY')) {
-    // Discord accepteert COMMUNITY alleen met filter op alle leden en verificatie
-    // minstens laag; wat de template daarvoor zegt wordt hier dus overruled.
-    const level = VERIFICATION_LEVELS[settings.verificationLevel ?? 'low'];
-    await guild.edit({
-      features: [...guild.features, 'COMMUNITY'],
-      verificationLevel: level === GuildVerificationLevel.None ? GuildVerificationLevel.Low : level,
-      explicitContentFilter: GuildExplicitContentFilter.AllMembers,
-      reason,
-    });
+    await enableCommunity(guild, template, channelIds, reason);
   }
 }

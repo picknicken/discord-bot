@@ -1,4 +1,6 @@
-const data = await (await fetch('demo-data.json')).json();
+// Naast dit script, niet naast de pagina-URL: die kan met of zonder
+// slash op het eind staan en dan wijst een relatief pad de verkeerde kant op.
+const data = await (await fetch(new URL('demo-data.json', import.meta.url))).json();
 const templates = { ...data.templates };
 const order = Object.keys(templates);
 

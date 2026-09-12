@@ -182,6 +182,25 @@ describe('controles vooraf', () => {
     }
   });
 
+  it('meldt forumkanalen zonder community-modus als fout', () => {
+    const template = parseTemplate({
+      name: 'X',
+      categories: [{ name: 'Cat', channels: [{ name: 'vragen', type: 'forum' }] }],
+    });
+
+    const fout = lintTemplate(template).find((f) => f.message.includes('Community-server'));
+    expect(fout?.severity).toBe('error');
+  });
+
+  it('meldt niets als community wel aanstaat', () => {
+    const template = parseTemplate({
+      name: 'X',
+      guild: { community: true, rulesChannel: 'regels', updatesChannel: 'regels' },
+      categories: [{ name: 'Cat', channels: [{ name: 'regels' }, { name: 'vragen', type: 'forum' }] }],
+    });
+    expect(lintTemplate(template).some((f) => f.message.includes('Community-server'))).toBe(false);
+  });
+
   it('meldt hoofdletters in een tekstkanaal', () => {
     const template = parseTemplate({ name: 'X', uncategorizedChannels: [{ name: 'Mijn Kanaal' }] });
     expect(lintTemplate(template).some((finding) => finding.message.includes('kleine letters'))).toBe(true);

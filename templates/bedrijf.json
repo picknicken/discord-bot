@@ -6,7 +6,10 @@
     "explicitContentFilter": "all_members",
     "defaultMessageNotifications": "only_mentions",
     "systemChannel": "📌│start-hier",
-    "afkTimeoutSeconds": 1800
+    "afkTimeoutSeconds": 1800,
+    "community": true,
+    "rulesChannel": "📌│start-hier",
+    "updatesChannel": "🔔│discord-updates"
   },
   "roles": [
     {
@@ -277,6 +280,16 @@
           "type": "text",
           "topic": "Rapportages en KPI's.",
           "overwrites": []
+        },
+        {
+          "name": "🔔│discord-updates",
+          "type": "text",
+          "topic": "Berichten van Discord zelf over deze server.",
+          "nsfw": false,
+          "slowmodeSeconds": 0,
+          "overwrites": [],
+          "messages": [],
+          "tags": []
         }
       ]
     }

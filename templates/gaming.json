@@ -6,7 +6,10 @@
     "explicitContentFilter": "all_members",
     "defaultMessageNotifications": "only_mentions",
     "systemChannel": "👋│welkom",
-    "afkTimeoutSeconds": 300
+    "afkTimeoutSeconds": 300,
+    "community": true,
+    "rulesChannel": "✅│regels",
+    "updatesChannel": "🔔│discord-updates"
   },
   "roles": [
     {
@@ -340,6 +343,16 @@
           "type": "text",
           "topic": "Automatische logs.",
           "overwrites": []
+        },
+        {
+          "name": "🔔│discord-updates",
+          "type": "text",
+          "topic": "Berichten van Discord zelf over deze server.",
+          "nsfw": false,
+          "slowmodeSeconds": 0,
+          "overwrites": [],
+          "messages": [],
+          "tags": []
         }
       ]
     }

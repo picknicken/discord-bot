@@ -38,6 +38,52 @@ const template = parseTemplate({
   ],
 });
 
+describe('community-kanalen', () => {
+  const metForum = parseTemplate({
+    name: 'T',
+    guild: { community: true, rulesChannel: 'regels', updatesChannel: 'nieuws' },
+    categories: [{
+      name: 'Info',
+      channels: [
+        { name: 'regels' },
+        { name: 'nieuws' },
+        { name: 'vragen', type: 'forum' },
+        { name: 'mededelingen', type: 'announcement' },
+      ],
+    }],
+  });
+
+  const plan = planSetup(emptyGuild, metForum, { prune: false, update: true });
+  const soorten = plan.actions.map((action) => action.kind);
+
+  it('zet community-modus aan voor de kanalen die het nodig hebben', () => {
+    const community = soorten.indexOf('guild-community');
+    const forum = plan.actions.findIndex(
+      (action) => action.kind === 'create-channel' && action.channel.type === 'forum',
+    );
+
+    expect(community).toBeGreaterThan(-1);
+    expect(community).toBeLessThan(forum);
+  });
+
+  it('maakt de gewone kanalen wel eerst aan, want daar hangt community aan vast', () => {
+    const regels = plan.actions.findIndex(
+      (action) => action.kind === 'create-channel' && action.channel.name === 'regels',
+    );
+    expect(regels).toBeLessThan(soorten.indexOf('guild-community'));
+  });
+
+  it('laat de volgorde met rust als er niets is dat community nodig heeft', () => {
+    const gewoon = parseTemplate({
+      name: 'T',
+      guild: { community: true, rulesChannel: 'regels', updatesChannel: 'regels' },
+      categories: [{ name: 'Info', channels: [{ name: 'regels' }] }],
+    });
+    expect(planSetup(emptyGuild, gewoon, { prune: false, update: true }).actions
+      .some((action) => action.kind === 'guild-community')).toBe(false);
+  });
+});
+
 describe('planSetup', () => {
   it('maakt alles aan op een lege server', () => {
     const plan = planSetup(emptyGuild, template, { prune: false, update: true });
