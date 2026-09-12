@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { channelsNobodySees, simulate, simulatableRoles } from '../src/simulate.js';
-import { lintTemplate, countBySeverity } from '../src/lint.js';
+import { auditSummary, lintTemplate, countBySeverity } from '../src/lint.js';
 import { loadTemplate } from '../src/templates.js';
 import { parseTemplate } from '../src/types.js';
 
@@ -199,6 +199,39 @@ describe('controles vooraf', () => {
       categories: [{ name: 'Cat', channels: [{ name: 'regels' }, { name: 'vragen', type: 'forum' }] }],
     });
     expect(lintTemplate(template).some((f) => f.message.includes('Community-server'))).toBe(false);
+  });
+
+  it('telt wat er gecontroleerd is', () => {
+    const s = auditSummary(community);
+    expect(s.roles).toBe(4);
+    expect(s.channels).toBeGreaterThan(10);
+    expect(s.overwrites).toBeGreaterThan(0);
+    expect(s.automod).toBe(3);
+  });
+
+  it('waarschuwt als automod naar een openbaar kanaal meldt', () => {
+    const template = parseTemplate({
+      name: 'X',
+      roles: [{ key: 'mod', name: 'Mod' }],
+      categories: [{ name: 'Cat', channels: [{ name: 'meldingen' }] }],
+      automod: [{ name: 'R', trigger: 'spam', action: 'alert', alertChannel: 'meldingen' }],
+    });
+
+    const finding = lintTemplate(template).find((f) => f.message.includes('kan iedereen zien'));
+    expect(finding?.severity).toBe('warning');
+  });
+
+  it('waarschuwt bij te korte automod-woorden', () => {
+    const template = parseTemplate({
+      name: 'X',
+      automod: [{ name: 'R', trigger: 'keyword', keywords: ['ass', 'xx'] }],
+    });
+    expect(lintTemplate(template).some((f) => f.message.includes('stukken van gewone woorden'))).toBe(true);
+  });
+
+  it('meldt een ontbrekend systeemkanaal', () => {
+    const template = parseTemplate({ name: 'X' });
+    expect(lintTemplate(template).some((f) => f.message.includes('systeemkanaal'))).toBe(true);
   });
 
   it('meldt hoofdletters in een tekstkanaal', () => {

@@ -1,5 +1,5 @@
 import { needsCommunity } from './planner.js';
-import { channelsNobodySees } from './simulate.js';
+import { channelsNobodySees, simulate } from './simulate.js';
 import type { ServerTemplate } from './types.js';
 
 /**
@@ -36,6 +36,36 @@ const RISKY_FOR_EVERYONE = [
   'ManageWebhooks',
   'MentionEveryone',
 ];
+
+/** Wat er gecontroleerd is, zodat een schoon rapport ook iets zegt. */
+export interface AuditSummary {
+  roles: number;
+  categories: number;
+  channels: number;
+  overwrites: number;
+  automod: number;
+  emojis: number;
+  messages: number;
+}
+
+export function auditSummary(template: ServerTemplate): AuditSummary {
+  const channels = [
+    ...template.categories.flatMap((category) => category.channels),
+    ...template.uncategorizedChannels,
+  ];
+
+  return {
+    roles: template.roles.length,
+    categories: template.categories.length,
+    channels: channels.length,
+    overwrites:
+      template.categories.reduce((sum, category) => sum + category.overwrites.length, 0) +
+      channels.reduce((sum, channel) => sum + channel.overwrites.length, 0),
+    automod: template.automod.length,
+    emojis: template.emojis.length,
+    messages: channels.reduce((sum, channel) => sum + channel.messages.length, 0),
+  };
+}
 
 export function lintTemplate(template: ServerTemplate): Finding[] {
   const findings: Finding[] = [];
@@ -174,6 +204,47 @@ export function lintTemplate(template: ServerTemplate): Finding[] {
       `${communityTypes.join('- en ')}kanalen bestaan alleen op een Community-server. ` +
         'Zet guild.community aan, met een rulesChannel en updatesChannel erbij.',
     );
+  }
+
+  // --- AutoMod -------------------------------------------------------------
+  for (const rule of template.automod) {
+    if (rule.action === 'timeout' && rule.timeoutSeconds === undefined) {
+      add('info', `automod "${rule.name}"`, 'geen time-outduur opgegeven; Discord gebruikt dan 5 minuten.');
+    }
+
+    const kort = rule.keywords.filter((keyword) => keyword.replace(/\*/g, '').length < 3);
+    if (kort.length > 0) {
+      add(
+        'warning',
+        `automod "${rule.name}"`,
+        `korte woorden (${kort.join(', ')}) raken ook stukken van gewone woorden.`,
+      );
+    }
+
+    if (rule.exemptRoles.length === 0 && rule.action !== 'alert') {
+      add('info', `automod "${rule.name}"`, 'geen rol uitgezonderd; ook je eigen staf loopt hiertegenaan.');
+    }
+
+    // Een meldkanaal toont de tegengehouden berichten; dat hoort niet openbaar te zijn.
+    if (rule.alertChannel) {
+      const zichtbaar = simulate(template, '@everyone')
+        .categories.flatMap((category) => category.channels)
+        .find((channel) => channel.name === rule.alertChannel);
+
+      if (zichtbaar?.visible) {
+        add(
+          'warning',
+          `automod "${rule.name}"`,
+          `meldingen gaan naar "${rule.alertChannel}", en dat kanaal kan iedereen zien. ` +
+            'Tegengehouden berichten komen daar dus alsnog in beeld.',
+        );
+      }
+    }
+  }
+
+  // --- Serverinstellingen --------------------------------------------------
+  if (!template.guild.systemChannel) {
+    add('info', 'guild', 'geen systeemkanaal; Discord zet welkomstberichten dan nergens neer.');
   }
 
   // --- Onboarding en community -------------------------------------------

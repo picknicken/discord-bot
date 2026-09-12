@@ -508,6 +508,19 @@ async function runCheck(role) {
 }
 
 function renderCheck(data) {
+  const s = data.summary;
+  const gecontroleerd = s
+    ? '<p class="hint" style="margin-bottom:10px">Gecontroleerd: ' +
+      [
+        s.roles + ' rollen',
+        s.categories + ' categorieen',
+        s.channels + ' kanalen',
+        s.overwrites + ' rechtenregels',
+        s.automod ? s.automod + ' automod-regels' : '',
+        s.messages ? s.messages + ' berichten' : '',
+      ].filter(Boolean).join(' · ') + '</p>'
+    : '';
+
   const counts =
     '<div class="counts">' +
     [['error', 'fouten'], ['warning', 'waarschuwingen'], ['info', 'opmerkingen']]
@@ -551,7 +564,7 @@ function renderCheck(data) {
     : '';
 
   return (
-    counts +
+    gecontroleerd + counts +
     '<div style="border:1px solid var(--border);border-radius:var(--r-2);padding:4px 12px;margin-bottom:18px">' +
     findings + '</div>' +
     '<div class="spread" style="margin-bottom:8px"><h4 style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)">Wat ziet deze rol?</h4>' +

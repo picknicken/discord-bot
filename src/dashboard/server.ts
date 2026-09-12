@@ -10,7 +10,7 @@ import { exportGuild } from '../exporter.js';
 import { describeActions, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadTemplate } from '../templates.js';
-import { countBySeverity, lintTemplate } from '../lint.js';
+import { auditSummary, countBySeverity, lintTemplate } from '../lint.js';
 import { PERMISSION_CATALOGUE } from '../permissionCatalogue.js';
 import { INVITE_PERMISSIONS } from '../botPermissions.js';
 import {
@@ -239,6 +239,7 @@ async function handle(
       return send(response, 200, {
         findings,
         counts: countBySeverity(findings),
+        summary: auditSummary(template),
         roles,
         simulation: role ? simulate(template, role.key) : null,
       });
