@@ -419,6 +419,31 @@ npm run apply -- --guild 123456789 --template community          # alleen tonen
 npm run apply -- --guild 123456789 --template community --apply  # uitvoeren
 ```
 
+### Een testserver weer leeghalen
+
+Bouwen, kijken, leeghalen, opnieuw — dat is de ronde waarmee je een template aanscherpt.
+`prune` haalt alleen kanalen weg; dit haalt de hele inrichting eruit.
+
+```bash
+npm run reset -- --guild 123456789                        # alleen tonen
+npm run reset -- --guild 123456789 --bevestig "Testserver" # echt leeghalen
+```
+
+De bevestiging moet exact de naam van die server zijn, anders gebeurt er niets. Vanaf je
+telefoon kan het ook: **Actions → Server leeghalen**, met dezelfde bevestiging. Dat is een
+aparte workflow, zodat je hem niet per ongeluk aantikt naast "inrichten".
+
+| Gaat weg | Blijft staan |
+| --- | --- |
+| alle kanalen en categorieen | @everyone |
+| rollen die de bot mag beheren | rollen van bots en integraties |
+| AutoMod-regels | rollen die even hoog of hoger staan dan de bot |
+| | leden, emoji's, de servernaam |
+
+Vooraf gaat er een momentopname naar `backups/` (de GitHub Action hangt hem aan de run als
+download). Die brengt de structuur terug, geen berichten: een verwijderd kanaal komt terug
+als leeg kanaal. Doe dit dus op een testserver, niet op een server met mensen erin.
+
 ### Naast andere diensten op een VPS
 
 In `deploy/` staan een systemd-unit en een nginx-serverblok. De aanpak:

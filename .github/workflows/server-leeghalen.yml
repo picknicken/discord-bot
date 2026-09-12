@@ -1,0 +1,63 @@
+# Een testserver leeghalen. Aparte workflow met opzet: dit is de enige knop hier
+# die dingen weggooit, en die hoort niet naast "inrichten" te staan waar je hem
+# per ongeluk aantikt.
+#
+# Er gaat altijd eerst een momentopname van de structuur naar de artifacts van
+# deze run; die kun je downloaden en later weer toepassen.
+name: Server leeghalen
+
+on:
+  workflow_dispatch:
+    inputs:
+      guild_id:
+        description: 'Server-id van de server die leeg moet'
+        required: true
+        type: string
+      bevestig:
+        description: 'Typ de naam van die server exact over'
+        required: true
+        type: string
+
+jobs:
+  leeghalen:
+    name: leeghalen
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Controleer of de secrets ingesteld zijn
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+        run: |
+          if [ -z "$DISCORD_TOKEN" ] || [ -z "$DISCORD_CLIENT_ID" ]; then
+            echo "::error::Zet DISCORD_TOKEN en DISCORD_CLIENT_ID onder Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Leeghalen
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+          GUILD_ID: ${{ inputs.guild_id }}
+          BEVESTIG: ${{ inputs.bevestig }}
+        run: node dist/reset-once.js --guild "$GUILD_ID" --bevestig "$BEVESTIG"
+
+      - name: Momentopname bewaren
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: momentopname-voor-leeghalen
+          path: backups/*.json
+          if-no-files-found: ignore
+          retention-days: 30
