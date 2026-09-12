@@ -11,6 +11,7 @@ import {
   GuildVerificationLevel,
   type CategoryChannel,
   type Guild,
+  type GuildFeature,
   type GuildChannelCreateOptions,
   type GuildMember,
   type OverwriteResolvable,
@@ -422,6 +423,39 @@ async function orderChannels(
 }
 
 /**
+ * Welke plekken de rollen krijgen, gegeven de plek van de bot zelf.
+ *
+ * Een bot mag niets verplaatsen naar zijn eigen hoogte of hoger, dus alles komt
+ * onder `botTop`. Plek 0 is @everyone en telt niet mee. Passen er niet genoeg
+ * rollen onder de bot, dan doen we er zoveel als er passen en zeggen we dat -
+ * beter een halve volgorde dan een geweigerde opdracht.
+ */
+export function rolePositions(
+  ids: readonly string[],
+  botTop: number,
+): { positions: { role: string; position: number }[]; warning: string | null } {
+  const ruimte = botTop - 1;
+
+  if (ruimte < 1) {
+    return {
+      positions: [],
+      warning: `rolvolgorde overgeslagen: de rol van de bot staat te laag (${botTop}). Sleep hem in Discord boven de rollen van de template.`,
+    };
+  }
+
+  const passen = ids.slice(0, ruimte);
+  const positions = passen.map((id, index) => ({ role: id, position: ruimte - index }));
+
+  return {
+    positions,
+    warning:
+      passen.length < ids.length
+        ? `rolvolgorde deels gezet: er passen ${passen.length} van ${ids.length} rollen onder de rol van de bot (plek ${botTop}).`
+        : null,
+  };
+}
+
+/**
  * Rollen krijgen de volgorde van de template, direct onder de rol van de bot.
  * Hoger dan zichzelf mag een bot niet komen, dus dat wordt gemeld in plaats van geprobeerd.
  */
@@ -432,20 +466,81 @@ async function orderRoles(
   me: GuildMember,
   reason: string,
 ): Promise<string | null> {
+  // Verse plekken ophalen. Elke nieuwe rol schuift de rest omhoog, dus wat er
+  // in het geheugen staat klopt na het aanmaken niet meer - en op een verkeerde
+  // plek mikken levert een kale "Missing Permissions" op.
+  await guild.roles.fetch(undefined, { cache: true, force: true });
+
+  const botTop = me.roles.highest.position;
+
   const ids = template.roles
     .map((role) => roleIds.get(role.key))
-    .filter((id): id is string => Boolean(id) && id !== guild.id);
+    .filter((id): id is string => Boolean(id) && id !== guild.id)
+    .filter((id) => {
+      const role = guild.roles.cache.get(id);
+      // Rollen die door een bot of boost beheerd worden mag niemand verslepen,
+      // en boven de bot uit mag het ook niet.
+      return !role || (!role.managed && role.position < botTop);
+    });
 
   if (ids.length === 0) return null;
 
-  const top = me.roles.highest.position - 1;
-  if (top < ids.length) {
-    return `rolvolgorde overgeslagen: de rol van de bot staat te laag (${top + 1}) voor ${ids.length} rollen.`;
-  }
-
-  await guild.roles.setPositions(ids.map((id, index) => ({ role: id, position: top - index })));
+  const { positions, warning } = rolePositions(ids, botTop);
+  if (positions.length > 0) await guild.roles.setPositions(positions);
   void reason;
-  return null;
+  return warning;
+}
+
+/**
+ * Verificatie en inhoudsfilter zoals Discord ze op een community-server accepteert:
+ * filter op alle leden, verificatie minstens laag. Op een gewone server blijft
+ * staan wat de template zegt.
+ */
+export function communitySafeSettings(
+  verificationLevel: GuildVerificationLevel | undefined,
+  explicitContentFilter: GuildExplicitContentFilter | undefined,
+  community: boolean,
+): { verificationLevel: GuildVerificationLevel | undefined; explicitContentFilter: GuildExplicitContentFilter | undefined } {
+  if (!community) return { verificationLevel, explicitContentFilter };
+
+  return {
+    verificationLevel:
+      verificationLevel === undefined || verificationLevel === GuildVerificationLevel.None
+        ? GuildVerificationLevel.Low
+        : verificationLevel,
+    explicitContentFilter: GuildExplicitContentFilter.AllMembers,
+  };
+}
+
+/** Zoals discord.js de kenmerken van een server teruggeeft: platte tekst. */
+type Feature = `${GuildFeature}`;
+
+/**
+ * Wat er naar Discord gaat om community-modus aan te zetten.
+ *
+ * Dit moet in één keer. Een regelskanaal instellen op een server die nog geen
+ * community is, weigert Discord ("Server rules channel is required"), en
+ * COMMUNITY aanzetten zonder regelskanaal in hetzelfde verzoek weigert hij om
+ * dezelfde reden. Twee losse verzoeken lopen dus altijd stuk; samen lukt het.
+ *
+ * Discord accepteert COMMUNITY bovendien alleen met het inhoudsfilter op alle
+ * leden en verificatie minstens laag; wat de template daarvoor zegt wordt hier
+ * overruled.
+ */
+export function communityEdit(
+  features: readonly Feature[],
+  verificationLevel: GuildVerificationLevel,
+  rulesChannel: string,
+  updatesChannel: string,
+) {
+  return {
+    features: features.includes('COMMUNITY') ? [...features] : [...features, 'COMMUNITY' as Feature],
+    rulesChannel,
+    publicUpdatesChannel: updatesChannel,
+    verificationLevel:
+      verificationLevel === GuildVerificationLevel.None ? GuildVerificationLevel.Low : verificationLevel,
+    explicitContentFilter: GuildExplicitContentFilter.AllMembers,
+  };
 }
 
 /** Zet community-modus aan. Kan pas als het regels- en updateskanaal bestaan. */
@@ -462,19 +557,9 @@ async function enableCommunity(
   if (!rulesChannel || !updatesChannel) {
     throw new Error('community-modus vereist een bestaand regels- en updateskanaal');
   }
-  if (guild.features.includes('COMMUNITY')) return;
 
-  await guild.edit({ rulesChannel, publicUpdatesChannel: updatesChannel, reason });
-
-  // Discord accepteert COMMUNITY alleen met filter op alle leden en verificatie
-  // minstens laag; wat de template daarvoor zegt wordt hier dus overruled.
   const level = VERIFICATION_LEVELS[settings.verificationLevel ?? 'low'];
-  await guild.edit({
-    features: [...guild.features, 'COMMUNITY'],
-    verificationLevel: level === GuildVerificationLevel.None ? GuildVerificationLevel.Low : level,
-    explicitContentFilter: GuildExplicitContentFilter.AllMembers,
-    reason,
-  });
+  await guild.edit({ ...communityEdit(guild.features, level, rulesChannel, updatesChannel), reason });
 }
 
 async function applyGuildSettings(
@@ -486,11 +571,19 @@ async function applyGuildSettings(
   const settings = template.guild;
   const channelId = (name: string | undefined) => (name ? channelIds.get(normalize(name)) : undefined);
 
+  // Community-modus staat op dit moment meestal al aan. Discord houdt daar dan
+  // regels aan vast; sturen we hier toch iets anders, dan weigert hij de hele
+  // opdracht en blijft ook de rest van de instellingen liggen.
+  const community = settings.community || guild.features.includes('COMMUNITY');
+  const { verificationLevel, explicitContentFilter } = communitySafeSettings(
+    settings.verificationLevel ? VERIFICATION_LEVELS[settings.verificationLevel] : undefined,
+    settings.explicitContentFilter ? CONTENT_FILTERS[settings.explicitContentFilter] : undefined,
+    community,
+  );
+
   await guild.edit({
-    verificationLevel: settings.verificationLevel ? VERIFICATION_LEVELS[settings.verificationLevel] : undefined,
-    explicitContentFilter: settings.explicitContentFilter
-      ? CONTENT_FILTERS[settings.explicitContentFilter]
-      : undefined,
+    verificationLevel,
+    explicitContentFilter,
     defaultMessageNotifications: settings.defaultMessageNotifications
       ? NOTIFICATION_LEVELS[settings.defaultMessageNotifications]
       : undefined,
@@ -501,22 +594,31 @@ async function applyGuildSettings(
     reason,
   });
 
-  // Kanaalverwijzingen en community-modus pas hierna: de kanalen moeten bestaan,
-  // en Discord accepteert COMMUNITY alleen met een regels- en updateskanaal.
-  const rulesChannel = channelId(settings.rulesChannel);
-  const updatesChannel = channelId(settings.updatesChannel);
-
+  // Kanaalverwijzingen pas hierna: de kanalen moeten bestaan.
   await guild.edit({
     systemChannel: channelId(settings.systemChannel) ?? undefined,
     afkChannel: channelId(settings.afkChannel) ?? undefined,
-    rulesChannel: rulesChannel ?? undefined,
-    publicUpdatesChannel: updatesChannel ?? undefined,
     reason,
   });
+
+  const rulesChannel = channelId(settings.rulesChannel);
+  const updatesChannel = channelId(settings.updatesChannel);
 
   // Meestal staat community al aan door de eerdere stap; dit vangt het geval waarin
   // de kanalen er toen nog niet waren.
   if (settings.community && rulesChannel && updatesChannel && !guild.features.includes('COMMUNITY')) {
     await enableCommunity(guild, template, channelIds, reason);
+    return;
   }
+
+  // Het regels- en updateskanaal bestaan alleen op een community-server. Op een
+  // gewone server weigert Discord ze, en dan gaat de hele opdracht mee onderuit,
+  // inclusief het systeemkanaal. Dus alleen sturen als het kan.
+  if (!guild.features.includes('COMMUNITY') || (!rulesChannel && !updatesChannel)) return;
+
+  await guild.edit({
+    rulesChannel: rulesChannel ?? undefined,
+    publicUpdatesChannel: updatesChannel ?? undefined,
+    reason,
+  });
 }

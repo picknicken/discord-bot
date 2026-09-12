@@ -13,17 +13,20 @@ const visible = (template: Parameters<typeof simulate>[0], role: string) =>
     .map((channel) => channel.name);
 
 describe('simulatie van zichtbaarheid', () => {
-  it('laat @everyone alleen de welkomstzone zien', () => {
+  it('laat @everyone de openbare kanalen zien, maar niet de staf', () => {
+    // De gesprekken staan open: Discord zet onboarding alleen aan als nieuwe
+    // leden de standaardkanalen kunnen zien en er in kunnen praten.
     const names = visible(community, '@everyone');
     expect(names).toContain('👋│welkom');
-    expect(names).not.toContain('🗣️│algemeen');
+    expect(names).toContain('🗣️│algemeen');
+    expect(names).not.toContain('🔊│Lounge');
     expect(names).not.toContain('🛡️│staf-chat');
   });
 
-  it('geeft een lid toegang tot de gesprekken maar niet tot de staf', () => {
+  it('geeft een lid er de spraakkanalen bij, maar niet de staf', () => {
     const names = visible(community, 'lid');
     expect(names).toContain('🗣️│algemeen');
-    expect(names).toContain('❓│vragen');
+    expect(names).toContain('🔊│Lounge');
     expect(names).not.toContain('🛡️│staf-chat');
   });
 

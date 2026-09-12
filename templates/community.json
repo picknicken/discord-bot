@@ -3,13 +3,13 @@
   "description": "Algemene community-server met welkomstzone, gesprekskanalen, hulp en voice.",
   "guild": {
     "verificationLevel": "medium",
-    "explicitContentFilter": "members_without_roles",
+    "explicitContentFilter": "all_members",
     "defaultMessageNotifications": "only_mentions",
     "systemChannel": "👋│welkom",
     "afkChannel": "💤│afk",
     "afkTimeoutSeconds": 900,
     "rulesChannel": "✅│regels",
-    "updatesChannel": "📣│aankondigingen",
+    "updatesChannel": "🔔│discord-updates",
     "community": true,
     "description": "Een community-server, ingericht met Setup Bot."
   },
@@ -156,15 +156,10 @@
       "overwrites": [
         {
           "role": "@everyone",
-          "allow": [],
-          "deny": [
-            "ViewChannel"
-          ]
-        },
-        {
-          "role": "lid",
           "allow": [
-            "ViewChannel"
+            "ViewChannel",
+            "SendMessages",
+            "ReadMessageHistory"
           ],
           "deny": []
         }
@@ -196,15 +191,10 @@
       "overwrites": [
         {
           "role": "@everyone",
-          "allow": [],
-          "deny": [
-            "ViewChannel"
-          ]
-        },
-        {
-          "role": "lid",
           "allow": [
-            "ViewChannel"
+            "ViewChannel",
+            "SendMessages",
+            "ReadMessageHistory"
           ],
           "deny": []
         }
@@ -341,6 +331,12 @@
           "overwrites": []
         },
         {
+          "name": "🔔│discord-updates",
+          "type": "text",
+          "topic": "Discord stuurt hier berichten voor servereigenaren naartoe.",
+          "overwrites": []
+        },
+        {
           "name": "🔒│Staf Voice",
           "type": "voice",
           "overwrites": []
@@ -396,7 +392,8 @@
       "🗣️│algemeen",
       "🖼️│media",
       "🎲│off-topic",
-      "❓│vragen"
+      "❓│vragen",
+      "💡│suggesties"
     ],
     "prompts": [
       {

@@ -1,6 +1,23 @@
+import { hidesFromEveryone } from './applier.js';
 import { needsCommunity } from './planner.js';
 import { channelsNobodySees, simulate } from './simulate.js';
-import type { ServerTemplate } from './types.js';
+import type { CategorySpec, ChannelSpec, ServerTemplate } from './types.js';
+
+/**
+ * Ziet @everyone dit kanaal staan? Een kanaal met eigen rechten erft niets meer
+ * van zijn categorie, precies zoals Discord het doet.
+ */
+function verstoptVoorIedereen(channel: ChannelSpec, category: CategorySpec | null): boolean {
+  if (channel.overwrites.length > 0) return hidesFromEveryone(channel.overwrites);
+  return category ? hidesFromEveryone(category.overwrites) : false;
+}
+
+/** Mag @everyone hier berichten sturen? Dezelfde overerving als hierboven. */
+function magIedereenPraten(channel: ChannelSpec, category: CategorySpec | null): boolean {
+  const geldend = channel.overwrites.length > 0 ? channel.overwrites : (category?.overwrites ?? []);
+  const iedereen = geldend.find((overwrite) => overwrite.role === '@everyone');
+  return !iedereen || !iedereen.deny.includes('SendMessages');
+}
 
 /**
  * Controles die een template niet ongeldig maken, maar wel problemen opleveren
@@ -259,6 +276,33 @@ export function lintTemplate(template: ServerTemplate): Finding[] {
     if (template.onboarding.prompts.length === 0 && template.onboarding.mode === 'advanced') {
       add('warning', 'onboarding', 'modus "advanced" zonder vragen heeft geen effect.');
     }
+
+    // Discord weigert onboarding als nieuwe leden de standaardkanalen niet zien,
+    // of als er minder dan vijf zijn waar ze mogen praten.
+    let magPraten = 0;
+
+    for (const naam of template.onboarding.defaultChannels) {
+      const gevonden = allChannels.find(({ channel }) => channel.name === naam);
+      if (!gevonden) continue;
+
+      if (verstoptVoorIedereen(gevonden.channel, gevonden.category)) {
+        add(
+          'error',
+          'onboarding',
+          `standaardkanaal ${naam} is verstopt voor @everyone; een nieuw lid ziet het dus niet en Discord weigert onboarding.`,
+        );
+      } else if (magIedereenPraten(gevonden.channel, gevonden.category)) {
+        magPraten += 1;
+      }
+    }
+
+    if (template.onboarding.enabled && magPraten < 5) {
+      add(
+        'warning',
+        'onboarding',
+        `in ${magPraten} standaardkanalen mag @everyone praten; Discord wil er minstens 5 voor het aanzetten van onboarding.`,
+      );
+    }
   }
 
   if (template.guild.community) {
@@ -267,6 +311,44 @@ export function lintTemplate(template: ServerTemplate): Finding[] {
     }
     if (template.guild.verificationLevel === 'none') {
       add('info', 'guild', 'community-modus vereist minstens verificatieniveau laag.');
+    }
+
+    // Het regels- en updateskanaal moeten er al zijn voordat community aangaat,
+    // en juist de kanaaltypes die community vereisen kunnen dan nog niet bestaan.
+    for (const [veld, naam] of [
+      ['rulesChannel', template.guild.rulesChannel],
+      ['updatesChannel', template.guild.updatesChannel],
+    ] as const) {
+      if (!naam) continue;
+      const gevonden = allChannels.find(({ channel }) => channel.name === naam)?.channel;
+      if (!gevonden) continue;
+
+      if (needsCommunity(gevonden.type)) {
+        add(
+          'error',
+          'guild',
+          `${veld} wijst naar ${naam}, een ${gevonden.type}kanaal. Dat bestaat pas als community-modus aanstaat, ` +
+            'en community-modus gaat pas aan als dit kanaal er is. Kies een gewoon tekstkanaal.',
+        );
+      } else if (gevonden.type !== 'text') {
+        add(
+          'error',
+          'guild',
+          `${veld} wijst naar ${naam}, een ${gevonden.type}kanaal. Discord accepteert hier alleen een tekstkanaal.`,
+        );
+      }
+    }
+
+    const regels = template.guild.rulesChannel
+      ? allChannels.find(({ channel }) => channel.name === template.guild.rulesChannel)
+      : undefined;
+
+    if (regels && verstoptVoorIedereen(regels.channel, regels.category)) {
+      add(
+        'warning',
+        'guild',
+        `het regelskanaal ${regels.channel.name} is verstopt voor @everyone; nieuwe leden moeten de regels juist kunnen lezen.`,
+      );
     }
   }
 
