@@ -1,6 +1,7 @@
 import { PermissionFlagsBits, PermissionsBitField } from 'discord.js';
 import { permissionLabel } from './botPermissions.js';
 import { toBitfield } from './permissions.js';
+import type { Plan } from './planner.js';
 import type { ServerTemplate } from './types.js';
 
 /**
@@ -25,6 +26,54 @@ export interface Shortfall {
 
 const ADMINISTRATOR = PermissionFlagsBits.Administrator;
 
+/** Welke rechten de bot mist voor deze set, gemeten aan wat hij zelf mag. */
+function missend(permissions: readonly string[], botPermissions: PermissionsBitField): string[] {
+  const nodig = new PermissionsBitField(toBitfield([...permissions]));
+  return nodig.toArray().filter((name) => !botPermissions.has(PermissionFlagsBits[name]));
+}
+
+/**
+ * Hetzelfde, maar dan voor wat er deze keer echt gaat gebeuren. Werk je alleen
+ * de rollen bij, dan hoeft de bot niets te kunnen voor de kanalen - en een
+ * template met community-modus hoeft je dan niet in de weg te zitten.
+ */
+export function planShortfalls(plan: Plan, botPermissions: PermissionsBitField): Shortfall[] {
+  if (botPermissions.has(ADMINISTRATOR)) return [];
+
+  const shortfalls: Shortfall[] = [];
+  const voegToe = (where: string, permissions: readonly string[]) => {
+    const missing = missend(permissions, botPermissions);
+    if (missing.length > 0) shortfalls.push({ where, permissions: missing });
+  };
+
+  const uitOverwrites = (overwrites: readonly { allow: readonly string[]; deny: readonly string[] }[]) =>
+    overwrites.flatMap((overwrite) => [...overwrite.allow, ...overwrite.deny]);
+
+  for (const action of plan.actions) {
+    switch (action.kind) {
+      case 'guild-community':
+        shortfalls.push({ where: 'community-modus aanzetten', permissions: [permissionLabel(ADMINISTRATOR)] });
+        break;
+      case 'create-role':
+      case 'update-role':
+        voegToe(`rol @${action.role.name}`, action.role.permissions);
+        break;
+      case 'create-category':
+      case 'update-category':
+        voegToe(`categorie ${action.category.name}`, uitOverwrites(action.category.overwrites));
+        break;
+      case 'create-channel':
+      case 'update-channel':
+        voegToe(`kanaal ${action.channel.name}`, uitOverwrites(action.channel.overwrites));
+        break;
+      default:
+        break;
+    }
+  }
+
+  return shortfalls;
+}
+
 /** Alles wat de template aan rechten uitdeelt, per plek waar dat gebeurt. */
 export function permissionShortfalls(
   template: ServerTemplate,
@@ -35,13 +84,8 @@ export function permissionShortfalls(
 
   const shortfalls: Shortfall[] = [];
 
-  const missend = (permissions: readonly string[]): string[] => {
-    const nodig = new PermissionsBitField(toBitfield([...permissions]));
-    return nodig.toArray().filter((name) => !botPermissions.has(PermissionFlagsBits[name]));
-  };
-
   const voegToe = (where: string, permissions: readonly string[]) => {
-    const missing = missend(permissions);
+    const missing = missend(permissions, botPermissions);
     if (missing.length > 0) shortfalls.push({ where, permissions: missing });
   };
 

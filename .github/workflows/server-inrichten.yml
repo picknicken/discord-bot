@@ -32,6 +32,11 @@ on:
         required: false
         default: false
         type: boolean
+      onderdelen:
+        description: 'Welke delen: alles, of bijv. rollen,kanalen (rollen categorieen kanalen automod emojis instellingen onboarding)'
+        required: false
+        default: alles
+        type: string
       toch_doorgaan:
         description: 'Doorgaan ook als de bot rechten mist (levert een half ingerichte server op)'
         required: false
@@ -76,8 +81,9 @@ jobs:
           MODE: ${{ inputs.mode }}
           PRUNE: ${{ inputs.prune }}
           FORCE: ${{ inputs.toch_doorgaan }}
+          ONDERDELEN: ${{ inputs.onderdelen }}
         run: |
-          args=(--guild "$GUILD_ID" --template "$TEMPLATE")
+          args=(--guild "$GUILD_ID" --template "$TEMPLATE" --alleen "${ONDERDELEN:-alles}")
           if [ "$MODE" = "apply" ]; then
             args+=(--apply)
             if [ "$PRUNE" = "true" ]; then

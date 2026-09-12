@@ -12,8 +12,9 @@ import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadTemplate } from '../templates.js';
 import { auditSummary, countBySeverity, lintTemplate } from '../lint.js';
 import { PERMISSION_CATALOGUE } from '../permissionCatalogue.js';
+import { filterPlan, leesOnderdelen, ONDERDELEN, UITLEG } from '../onderdelen.js';
 import { buildInviteUrl, INVITE_PERMISSIONS } from '../botPermissions.js';
-import { explainShortfalls, permissionShortfalls } from '../preflight.js';
+import { explainShortfalls, planShortfalls } from '../preflight.js';
 import {
   buildAuthorizeUrl,
   buildGuildInviteUrl,
@@ -121,6 +122,7 @@ async function handle(
       templates: await describeTemplates(),
       backups: await listBackups(config.backupsDir),
       permissions: PERMISSION_CATALOGUE,
+      onderdelen: ONDERDELEN.map((onderdeel) => ({ naam: onderdeel, uitleg: UITLEG[onderdeel] })),
     });
   }
 
@@ -286,6 +288,7 @@ async function handle(
       prune?: boolean;
       update?: boolean;
       backup?: boolean;
+      onderdelen?: string[];
     }>(request);
 
     const guildIds = body.guildIds?.length ? body.guildIds : body.guildId ? [body.guildId] : [];
@@ -296,14 +299,19 @@ async function handle(
     const template = await loadTemplate(config.templatesDir, body.templateId);
     const options = { prune: body.prune ?? false, update: body.update ?? true };
 
+    const onderdelen = leesOnderdelen(body.onderdelen?.join(','));
+    if (!onderdelen) {
+      return send(response, 400, { error: `Onbekend onderdeel. Kies uit: ${ONDERDELEN.join(', ')}.` });
+    }
+
     if (resource === 'plan') {
       const plans = [];
       for (const guildId of guildIds) {
         const guild = client.guilds.cache.get(guildId);
         if (!guild) continue;
-        const plan = planSetup(await snapshotGuildFresh(guild), template, options);
+        const plan = filterPlan(planSetup(await snapshotGuildFresh(guild), template, options), onderdelen);
         const me = await guild.members.fetchMe();
-        const tekort = permissionShortfalls(template, me.permissions);
+        const tekort = planShortfalls(plan, me.permissions);
 
         plans.push({
           guildId,
@@ -358,7 +366,9 @@ async function handle(
         continue;
       }
 
-      const tekort = permissionShortfalls(template, me.permissions);
+      const plan = filterPlan(planSetup(await snapshotGuildFresh(guild), template, options), onderdelen);
+
+      const tekort = planShortfalls(plan, me.permissions);
       if (tekort.length > 0) {
         results.push({
           guildId,
@@ -370,7 +380,6 @@ async function handle(
         continue;
       }
 
-      const plan = planSetup(await snapshotGuildFresh(guild), template, options);
       if (plan.actions.length === 0) {
         results.push({ guildId, guildName: guild.name, applied: 0, failed: 0, errors: [], note: 'niets te doen' });
         continue;

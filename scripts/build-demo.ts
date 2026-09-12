@@ -3,6 +3,7 @@ import path from 'node:path';
 import { compare } from '../src/compare.js';
 import { auditSummary, countBySeverity, lintTemplate } from '../src/lint.js';
 import { PERMISSION_CATALOGUE } from '../src/permissionCatalogue.js';
+import { ONDERDELEN, onderdeelVan, UITLEG } from '../src/onderdelen.js';
 import { describeActions, planSetup, summarizePlan } from '../src/planner.js';
 import { simulate, simulatableRoles } from '../src/simulate.js';
 import type { GuildSnapshot, SnapshotChannel } from '../src/snapshot.js';
@@ -73,6 +74,7 @@ async function main() {
       templatesDir: './templates',
       guilds: demoGuilds,
       permissions: PERMISSION_CATALOGUE,
+      onderdelen: ONDERDELEN.map((onderdeel) => ({ naam: onderdeel, uitleg: UITLEG[onderdeel] })),
       backups: [
         { file: 'demo-1.json', guildId: '1', guildName: 'Mijn Testserver', createdAt: '2026-09-10T14:02:00.000Z', roles: 2, channels: 4 },
       ],
@@ -121,6 +123,8 @@ async function main() {
             guildName: 'Mijn Testserver',
             summary: summarizePlan(plan),
             actions: describeActions(plan, 1000),
+            // Bij elke regel het onderdeel, zodat de demo de vinkjes echt volgt.
+            onderdeelPerActie: plan.actions.map((action) => onderdeelVan(action)),
             warnings: plan.warnings,
             count: plan.actions.length,
           },
@@ -262,6 +266,21 @@ window.fetch = async (input, options = {}) => {
 
   if (path === '/plan') {
     const plan = named(body, 'plans');
+    const keuze = JSON.parse(body || '{}').onderdelen;
+
+    if (Array.isArray(keuze) && keuze.length < data.state.onderdelen.length) {
+      const regels = plan.actions.filter((_, i) => keuze.includes(plan.onderdeelPerActie[i]));
+      const uit = data.state.onderdelen.map((o) => o.naam).filter((naam) => !keuze.includes(naam));
+      const gefilterd = {
+        ...plan,
+        actions: regels,
+        count: regels.length,
+        summary: regels.length + ' acties in: ' + keuze.join(', '),
+        warnings: [...plan.warnings, 'Niet meegenomen: ' + uit.join(', ') + '.'],
+      };
+      return json({ plans: [gefilterd], ...gefilterd });
+    }
+
     return json({ plans: [plan], ...plan });
   }
 

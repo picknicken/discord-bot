@@ -2,7 +2,15 @@ import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { config } from './config.js';
 import { applyPlan } from './applier.js';
 import { buildInviteUrl, missingPermissions } from './botPermissions.js';
-import { explainShortfalls, permissionShortfalls } from './preflight.js';
+import { explainShortfalls, planShortfalls } from './preflight.js';
+import {
+  beschrijfOnderdelen,
+  filterPlan,
+  leesOnderdelen,
+  ONDERDELEN,
+  UITLEG,
+  type Onderdeel,
+} from './onderdelen.js';
 import { describeActions, planSetup, summarizePlan } from './planner.js';
 import { snapshotGuildFresh } from './snapshot.js';
 import { loadTemplate } from './templates.js';
@@ -22,10 +30,20 @@ interface Options {
   prune: boolean;
   /** Toch uitvoeren terwijl de bot rechten mist. Levert een halve server op. */
   force: boolean;
+  /** Welke delen van de template meedoen. */
+  onderdelen: Onderdeel[];
 }
 
 function parseArguments(argv: string[]): Options | null {
-  const options: Options = { guildId: '', template: '', apply: false, prune: false, force: false };
+  const options: Options = {
+    guildId: '',
+    template: '',
+    apply: false,
+    prune: false,
+    force: false,
+    onderdelen: [...ONDERDELEN],
+  };
+  let onderdelenInvoer: string | undefined;
 
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index];
@@ -34,7 +52,15 @@ function parseArguments(argv: string[]): Options | null {
     else if (argument === '--apply') options.apply = true;
     else if (argument === '--prune') options.prune = true;
     else if (argument === '--toch-doorgaan') options.force = true;
+    else if (argument === '--onderdelen' || argument === '--alleen') onderdelenInvoer = argv[++index] ?? '';
   }
+
+  const gekozen = leesOnderdelen(onderdelenInvoer);
+  if (!gekozen) {
+    logger.error(`Onbekend onderdeel. Kies uit: ${ONDERDELEN.join(', ')} — of "alles".`);
+    return null;
+  }
+  options.onderdelen = gekozen;
 
   return options.guildId && options.template ? options : null;
 }
@@ -52,6 +78,13 @@ if (!options) {
       '    --apply     voer het plan echt uit; zonder dit laat hij alleen zien wat hij zou doen',
       '    --prune     verwijder kanalen die niet in de template staan (alleen samen met --apply)',
       '    --toch-doorgaan  uitvoeren ook als de bot rechten mist (levert een halve server op)',
+      '    --alleen    welke delen meedoen, met komma\'s; standaard alles',
+      '',
+      '  Onderdelen:',
+      ...ONDERDELEN.map((onderdeel) => `    ${onderdeel.padEnd(13)} ${UITLEG[onderdeel]}`),
+      '',
+      '  Bijvoorbeeld: --alleen rollen        (alleen de rollen bijwerken)',
+      '                --alleen kanalen,categorieen',
       '',
     ].join('\n'),
   );
@@ -80,12 +113,16 @@ client.once(Events.ClientReady, async (ready) => {
     }
 
     const template = await loadTemplate(config.templatesDir, options.template);
-    const plan = planSetup(await snapshotGuildFresh(guild), template, {
-      prune: options.prune && options.apply,
-      update: true,
-    });
+    const plan = filterPlan(
+      planSetup(await snapshotGuildFresh(guild), template, {
+        prune: options.prune && options.apply,
+        update: true,
+      }),
+      options.onderdelen,
+    );
 
     logger.info(`Server: ${guild.name} (${guild.id})`);
+    logger.info(beschrijfOnderdelen(options.onderdelen));
     logger.info(`Template: ${template.name} — ${summarizePlan(plan)}`);
     for (const line of describeActions(plan, 200)) console.log(`   ${line}`);
     for (const warning of plan.warnings) logger.warn(warning);
@@ -93,7 +130,7 @@ client.once(Events.ClientReady, async (ready) => {
     // De rechtencontrole hoort bij het plan, niet bij het uitvoeren: juist in de
     // preview wil je weten dat het niet gaat lukken.
     const me = await guild.members.fetchMe();
-    const tekort = permissionShortfalls(template, me.permissions);
+    const tekort = planShortfalls(plan, me.permissions);
     for (const line of explainShortfalls(tekort, config.clientId ? buildInviteUrl(config.clientId) : null)) {
       logger.warn(line);
     }

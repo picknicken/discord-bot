@@ -474,6 +474,34 @@ npm run apply -- --guild 123456789 --template community          # alleen tonen
 npm run apply -- --guild 123456789 --template community --apply  # uitvoeren
 ```
 
+**Alleen een deel toepassen.** Een template hoeft niet in zijn geheel. Wil je alleen de
+rollen bijwerken en de kanalen met rust laten:
+
+```bash
+npm run apply -- --guild 123456789 --template community --apply --alleen rollen
+```
+
+| Onderdeel | Wat eronder valt |
+| --- | --- |
+| `rollen` | rollen aanmaken, bijwerken en op volgorde zetten |
+| `categorieen` | categorieen aanmaken en bijwerken, met hun rechten |
+| `kanalen` | kanalen aanmaken, bijwerken, verwijderen en op volgorde zetten, met hun rechten en berichten |
+| `automod` | de AutoMod-regels |
+| `emojis` | de emoji uit de template |
+| `instellingen` | serverinstellingen, het systeem- en regelskanaal, en community-modus |
+| `onboarding` | de vragen die nieuwe leden krijgen |
+
+Meerdere tegelijk mag: `--alleen kanalen,categorieen`. Het plan wordt altijd volledig
+berekend en daarna gefilterd, zodat de volgorde klopt — community-modus gaat nog steeds
+vóór de kanalen die hem nodig hebben. Kies je kanalen zonder categorieen, dan slaat hij de
+kanalen over die in een nog niet bestaande categorie horen en zegt hij dat, in plaats van ze
+los op de server te zetten.
+
+In de Action is het het veld **onderdelen** (standaard `alles`), in het dashboard een rijtje
+vinkjes onder *Welke onderdelen* op het uitrolscherm. Ook de rechtencontrole kijkt mee naar
+je keuze: werk je alleen de rollen bij, dan houdt een template met community-modus je niet
+tegen.
+
 ### Een testserver weer leeghalen
 
 Bouwen, kijken, leeghalen, opnieuw — dat is de ronde waarmee je een template aanscherpt.

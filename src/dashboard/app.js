@@ -194,6 +194,7 @@ async function refresh() {
   state.guilds = data.guilds;
   state.backups = data.backups || [];
   state.permissions = data.permissions || [];
+  state.onderdelen = data.onderdelen || [];
 
   $('avatar').src = data.avatarUrl;
   $('botName').textContent = data.botName;
@@ -205,6 +206,7 @@ async function refresh() {
 
   renderTemplates();
   renderGuilds();
+  renderOnderdelen();
   renderBackups();
 }
 
@@ -236,6 +238,42 @@ function renderTemplates() {
 
   $('dupTemplate').disabled = !state.selected;
   $('delTemplate').disabled = !state.selected;
+}
+
+/** De vinkjes voor "welke onderdelen doen mee". Standaard staat alles aan. */
+function renderOnderdelen() {
+  const lijst = $('onderdelenLijst');
+  if (!lijst) return;
+
+  const aan = new Set(gekozenOnderdelen());
+  lijst.innerHTML = state.onderdelen
+    .map(
+      (onderdeel) =>
+        '<label class="check"><input type="checkbox" class="onderdeelpick" value="' + escape(onderdeel.naam) + '"' +
+        (aan.size === 0 || aan.has(onderdeel.naam) ? ' checked' : '') + '><span>' + escape(onderdeel.naam) +
+        '<br><small class="muted">' + escape(onderdeel.uitleg) + '</small></span></label>',
+    )
+    .join('');
+
+  for (const vinkje of lijst.querySelectorAll('.onderdeelpick')) {
+    vinkje.onchange = toonOnderdeelKop;
+  }
+  toonOnderdeelKop();
+}
+
+function gekozenOnderdelen() {
+  return [...document.querySelectorAll('.onderdeelpick:checked')].map((vinkje) => vinkje.value);
+}
+
+/** In de kop zien of je iets hebt uitgezet, ook als het blok dichtgeklapt is. */
+function toonOnderdeelKop() {
+  const blok = $('onderdelenBlok');
+  if (!blok) return;
+  const gekozen = gekozenOnderdelen();
+  const alles = gekozen.length === state.onderdelen.length;
+  blok.querySelector('summary').innerHTML =
+    icon('shield', 'sm') + ' Welke onderdelen ' +
+    (alles ? '(alles)' : '<span class="badge warn">' + gekozen.length + ' van ' + state.onderdelen.length + '</span>');
 }
 
 function renderGuilds() {
@@ -704,11 +742,13 @@ const planBody = () => ({
   guildIds: selectedGuilds(),
   prune: $('prune').checked,
   update: $('update').checked,
+  onderdelen: gekozenOnderdelen(),
 });
 
 async function preview() {
   if (!state.selected) return toast('Kies eerst een template.', 'bad');
   if (selectedGuilds().length === 0) return toast('Vink minstens een server aan.', 'bad');
+  if (gekozenOnderdelen().length === 0) return toast('Vink minstens een onderdeel aan.', 'bad');
 
   $('planResult').innerHTML = busy('Plan berekenen…');
   try {
@@ -730,6 +770,7 @@ async function apply() {
   if (!state.selected) return toast('Kies eerst een template.', 'bad');
   const targets = state.guilds.filter((guild) => selectedGuilds().includes(guild.id));
   if (targets.length === 0) return toast('Vink minstens een server aan.', 'bad');
+  if (gekozenOnderdelen().length === 0) return toast('Vink minstens een onderdeel aan.', 'bad');
 
   const names = targets.map((guild) => guild.name);
   const requireText = targets.length === 1 ? names[0] : 'TOEPASSEN';
@@ -738,6 +779,9 @@ async function apply() {
     title: 'Template toepassen?',
     body:
       ($('prune').checked ? 'LET OP: kanalen die niet in de template staan worden VERWIJDERD.\n\n' : '') +
+      (gekozenOnderdelen().length < state.onderdelen.length
+        ? 'Alleen deze onderdelen: ' + gekozenOnderdelen().join(', ') + '.\n\n'
+        : '') +
       '"' + state.selected + '" gaat naar:\n· ' + names.join('\n· ') +
       '\n\nVan elke server wordt eerst een back-up gemaakt.\n\nTyp ter bevestiging: ' + requireText,
     confirmLabel: 'Toepassen',
@@ -833,6 +877,15 @@ $('allGuilds').onclick = () => {
 };
 $('noGuilds').onclick = () => {
   for (const input of document.querySelectorAll('.guildpick')) input.checked = false;
+};
+
+$('allOnderdelen').onclick = () => {
+  for (const input of document.querySelectorAll('.onderdeelpick')) input.checked = true;
+  toonOnderdeelKop();
+};
+$('noOnderdelen').onclick = () => {
+  for (const input of document.querySelectorAll('.onderdeelpick')) input.checked = false;
+  toonOnderdeelKop();
 };
 
 $('newTemplate').onclick = async () => {
