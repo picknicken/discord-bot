@@ -5,11 +5,11 @@
     "verificationLevel": "medium",
     "explicitContentFilter": "members_without_roles",
     "defaultMessageNotifications": "only_mentions",
-    "systemChannel": "welkom",
-    "afkChannel": "afk",
+    "systemChannel": "👋│welkom",
+    "afkChannel": "💤│afk",
     "afkTimeoutSeconds": 900,
-    "rulesChannel": "regels",
-    "updatesChannel": "aankondigingen",
+    "rulesChannel": "✅│regels",
+    "updatesChannel": "📣│aankondigingen",
     "community": true,
     "description": "Een community-server, ingericht met Setup Bot."
   },
@@ -86,7 +86,7 @@
   ],
   "categories": [
     {
-      "name": "Welkom",
+      "name": "👋 Welkom",
       "overwrites": [
         {
           "role": "@everyone",
@@ -101,19 +101,19 @@
       ],
       "channels": [
         {
-          "name": "welkom",
+          "name": "👋│welkom",
           "type": "text",
           "topic": "Start hier: lees de regels en stel jezelf voor.",
           "overwrites": [],
           "messages": [
             {
-              "content": "**Welkom!**\n\nLeuk dat je er bent. Lees even de regels in <#regels> en stel jezelf voor in de gesprekken.\n\nVeel plezier.",
+              "content": "**Welkom!**\n\nLeuk dat je er bent. Lees even de regels in ✅│regels en stel jezelf voor in de gesprekken.\n\nVeel plezier.",
               "pin": true
             }
           ]
         },
         {
-          "name": "regels",
+          "name": "✅│regels",
           "type": "text",
           "topic": "De huisregels van deze server.",
           "overwrites": [],
@@ -125,7 +125,7 @@
           ]
         },
         {
-          "name": "aankondigingen",
+          "name": "📣│aankondigingen",
           "type": "announcement",
           "topic": "Belangrijke updates van het team.",
           "overwrites": [
@@ -152,7 +152,7 @@
       ]
     },
     {
-      "name": "Gesprekken",
+      "name": "💬 Gesprekken",
       "overwrites": [
         {
           "role": "@everyone",
@@ -171,20 +171,20 @@
       ],
       "channels": [
         {
-          "name": "algemeen",
+          "name": "🗣️│algemeen",
           "type": "text",
           "topic": "Waar alles mag, zolang het aardig blijft.",
           "overwrites": []
         },
         {
-          "name": "media",
+          "name": "🖼️│media",
           "type": "text",
           "topic": "Fotos, clips en memes.",
           "slowmodeSeconds": 10,
           "overwrites": []
         },
         {
-          "name": "off-topic",
+          "name": "🎲│off-topic",
           "type": "text",
           "topic": "Alles wat nergens anders past.",
           "overwrites": []
@@ -192,7 +192,7 @@
       ]
     },
     {
-      "name": "Hulp",
+      "name": "❓ Hulp",
       "overwrites": [
         {
           "role": "@everyone",
@@ -211,7 +211,7 @@
       ],
       "channels": [
         {
-          "name": "vragen",
+          "name": "❓│vragen",
           "type": "forum",
           "topic": "Stel je vraag als nieuw bericht.",
           "overwrites": [],
@@ -233,7 +233,7 @@
           "autoArchiveMinutes": 4320
         },
         {
-          "name": "suggesties",
+          "name": "💡│suggesties",
           "type": "text",
           "topic": "Ideeen voor de server.",
           "slowmodeSeconds": 30,
@@ -242,7 +242,7 @@
       ]
     },
     {
-      "name": "Voice",
+      "name": "🔊 Spraak",
       "overwrites": [
         {
           "role": "@everyone",
@@ -263,19 +263,19 @@
       ],
       "channels": [
         {
-          "name": "Lounge",
+          "name": "🔊│Lounge",
           "type": "voice",
           "userLimit": 0,
           "overwrites": []
         },
         {
-          "name": "Chill",
+          "name": "🎮│Chill",
           "type": "voice",
           "userLimit": 6,
           "overwrites": []
         },
         {
-          "name": "afk",
+          "name": "💤│afk",
           "type": "voice",
           "userLimit": 0,
           "overwrites": [
@@ -301,7 +301,7 @@
       ]
     },
     {
-      "name": "Staf",
+      "name": "🛡️ Staf",
       "overwrites": [
         {
           "role": "@everyone",
@@ -329,19 +329,19 @@
       ],
       "channels": [
         {
-          "name": "staf-chat",
+          "name": "🛡️│staf-chat",
           "type": "text",
           "topic": "Intern overleg.",
           "overwrites": []
         },
         {
-          "name": "logboek",
+          "name": "📚│logboek",
           "type": "text",
           "topic": "Automatische logs.",
           "overwrites": []
         },
         {
-          "name": "Staf Voice",
+          "name": "🔒│Staf Voice",
           "type": "voice",
           "overwrites": []
         }
@@ -379,7 +379,7 @@
       "name": "Spam",
       "trigger": "spam",
       "action": "alert",
-      "alertChannel": "logboek",
+      "alertChannel": "📚│logboek",
       "exemptRoles": [
         "moderator",
         "admin"
@@ -390,13 +390,13 @@
     "enabled": true,
     "mode": "default",
     "defaultChannels": [
-      "welkom",
-      "regels",
-      "aankondigingen",
-      "algemeen",
-      "media",
-      "off-topic",
-      "vragen"
+      "👋│welkom",
+      "✅│regels",
+      "📣│aankondigingen",
+      "🗣️│algemeen",
+      "🖼️│media",
+      "🎲│off-topic",
+      "❓│vragen"
     ],
     "prompts": [
       {
@@ -411,7 +411,7 @@
               "lid"
             ],
             "channels": [
-              "algemeen"
+              "🗣️│algemeen"
             ]
           },
           {
@@ -421,7 +421,7 @@
               "lid"
             ],
             "channels": [
-              "vragen"
+              "❓│vragen"
             ]
           }
         ]

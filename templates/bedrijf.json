@@ -5,7 +5,7 @@
     "verificationLevel": "high",
     "explicitContentFilter": "all_members",
     "defaultMessageNotifications": "only_mentions",
-    "systemChannel": "start-hier",
+    "systemChannel": "📌│start-hier",
     "afkTimeoutSeconds": 1800
   },
   "roles": [
@@ -76,7 +76,7 @@
   ],
   "categories": [
     {
-      "name": "Start",
+      "name": "🏢 Start",
       "overwrites": [
         {
           "role": "@everyone",
@@ -91,13 +91,13 @@
       ],
       "channels": [
         {
-          "name": "start-hier",
+          "name": "📌│start-hier",
           "type": "text",
           "topic": "Uitleg over deze werkruimte.",
           "overwrites": []
         },
         {
-          "name": "mededelingen",
+          "name": "📣│mededelingen",
           "type": "announcement",
           "topic": "Bedrijfsbrede updates.",
           "overwrites": [
@@ -124,7 +124,7 @@
       ]
     },
     {
-      "name": "Werkvloer",
+      "name": "💼 Werkvloer",
       "overwrites": [
         {
           "role": "@everyone",
@@ -143,31 +143,31 @@
       ],
       "channels": [
         {
-          "name": "algemeen",
+          "name": "🗣️│algemeen",
           "type": "text",
           "topic": "Dagelijkse afstemming.",
           "overwrites": []
         },
         {
-          "name": "planning",
+          "name": "📅│planning",
           "type": "text",
           "topic": "Roosters en beschikbaarheid.",
           "overwrites": []
         },
         {
-          "name": "projecten",
+          "name": "📁│projecten",
           "type": "forum",
           "topic": "Een thread per project.",
           "overwrites": []
         },
         {
-          "name": "Overleg",
+          "name": "🔊│Overleg",
           "type": "voice",
           "userLimit": 10,
           "overwrites": []
         },
         {
-          "name": "Focusruimte",
+          "name": "🎧│Focusruimte",
           "type": "voice",
           "userLimit": 4,
           "overwrites": []
@@ -175,7 +175,7 @@
       ]
     },
     {
-      "name": "Klanten",
+      "name": "🤝 Klanten",
       "overwrites": [
         {
           "role": "@everyone",
@@ -201,13 +201,13 @@
       ],
       "channels": [
         {
-          "name": "support",
+          "name": "🎫│support",
           "type": "forum",
           "topic": "Meld hier je vraag of probleem.",
           "overwrites": []
         },
         {
-          "name": "status",
+          "name": "📊│status",
           "type": "text",
           "topic": "Storingen en onderhoud.",
           "overwrites": [
@@ -239,7 +239,7 @@
       ]
     },
     {
-      "name": "Directie",
+      "name": "🔒 Directie",
       "overwrites": [
         {
           "role": "@everyone",
@@ -267,13 +267,13 @@
       ],
       "channels": [
         {
-          "name": "management",
+          "name": "💼│management",
           "type": "text",
           "topic": "Besloten overleg.",
           "overwrites": []
         },
         {
-          "name": "cijfers",
+          "name": "📈│cijfers",
           "type": "text",
           "topic": "Rapportages en KPI's.",
           "overwrites": []

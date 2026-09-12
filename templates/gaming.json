@@ -5,7 +5,7 @@
     "verificationLevel": "high",
     "explicitContentFilter": "all_members",
     "defaultMessageNotifications": "only_mentions",
-    "systemChannel": "welkom",
+    "systemChannel": "👋│welkom",
     "afkTimeoutSeconds": 300
   },
   "roles": [
@@ -81,7 +81,7 @@
   ],
   "categories": [
     {
-      "name": "Info",
+      "name": "📋 Info",
       "overwrites": [
         {
           "role": "@everyone",
@@ -96,19 +96,19 @@
       ],
       "channels": [
         {
-          "name": "welkom",
+          "name": "👋│welkom",
           "type": "text",
           "topic": "Welkom bij de clan.",
           "overwrites": []
         },
         {
-          "name": "regels",
+          "name": "✅│regels",
           "type": "text",
           "topic": "Clanregels en verwachtingen.",
           "overwrites": []
         },
         {
-          "name": "aankondigingen",
+          "name": "📣│aankondigingen",
           "type": "announcement",
           "topic": "Clannieuws en events.",
           "overwrites": [
@@ -133,7 +133,7 @@
           ]
         },
         {
-          "name": "sollicitaties",
+          "name": "📝│sollicitaties",
           "type": "forum",
           "topic": "Lid worden? Open hier een aanvraag.",
           "overwrites": [
@@ -149,7 +149,7 @@
       ]
     },
     {
-      "name": "Clan",
+      "name": "⚔️ Clan",
       "overwrites": [
         {
           "role": "@everyone",
@@ -175,26 +175,26 @@
       ],
       "channels": [
         {
-          "name": "algemeen",
+          "name": "🗣️│algemeen",
           "type": "text",
           "topic": "Clanchat.",
           "overwrites": []
         },
         {
-          "name": "lfg",
+          "name": "🔎│lfg",
           "type": "text",
           "topic": "Looking for group — zoek hier medespelers.",
           "overwrites": []
         },
         {
-          "name": "clips",
+          "name": "🎬│clips",
           "type": "text",
           "topic": "Je beste momenten.",
           "slowmodeSeconds": 15,
           "overwrites": []
         },
         {
-          "name": "builds-en-loadouts",
+          "name": "⚙️│builds-en-loadouts",
           "type": "forum",
           "topic": "Deel en bespreek setups.",
           "overwrites": []
@@ -202,7 +202,7 @@
       ]
     },
     {
-      "name": "Competitief",
+      "name": "🏆 Competitief",
       "overwrites": [
         {
           "role": "@everyone",
@@ -221,25 +221,25 @@
       ],
       "channels": [
         {
-          "name": "scrims",
+          "name": "📅│scrims",
           "type": "text",
           "topic": "Planning van scrims en matches.",
           "overwrites": []
         },
         {
-          "name": "vod-review",
+          "name": "🎥│vod-review",
           "type": "text",
           "topic": "Analyse van opnames.",
           "overwrites": []
         },
         {
-          "name": "Team A",
+          "name": "⚔️│Team A",
           "type": "voice",
           "userLimit": 5,
           "overwrites": []
         },
         {
-          "name": "Team B",
+          "name": "⚔️│Team B",
           "type": "voice",
           "userLimit": 5,
           "overwrites": []
@@ -247,7 +247,7 @@
       ]
     },
     {
-      "name": "Voice",
+      "name": "🔊 Spraak",
       "overwrites": [
         {
           "role": "@everyone",
@@ -277,32 +277,32 @@
       ],
       "channels": [
         {
-          "name": "Lobby",
+          "name": "🔊│Lobby",
           "type": "voice",
           "userLimit": 0,
           "overwrites": []
         },
         {
-          "name": "Squad 1",
+          "name": "🎮│Squad 1",
           "type": "voice",
           "userLimit": 4,
           "overwrites": []
         },
         {
-          "name": "Squad 2",
+          "name": "🎮│Squad 2",
           "type": "voice",
           "userLimit": 4,
           "overwrites": []
         },
         {
-          "name": "Stage",
+          "name": "🎤│Stage",
           "type": "stage",
           "overwrites": []
         }
       ]
     },
     {
-      "name": "Staf",
+      "name": "🛡️ Staf",
       "overwrites": [
         {
           "role": "@everyone",
@@ -330,13 +330,13 @@
       ],
       "channels": [
         {
-          "name": "officieren",
+          "name": "🛡️│officieren",
           "type": "text",
           "topic": "Intern overleg.",
           "overwrites": []
         },
         {
-          "name": "logboek",
+          "name": "📚│logboek",
           "type": "text",
           "topic": "Automatische logs.",
           "overwrites": []

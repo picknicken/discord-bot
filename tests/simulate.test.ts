@@ -15,16 +15,16 @@ const visible = (template: Parameters<typeof simulate>[0], role: string) =>
 describe('simulatie van zichtbaarheid', () => {
   it('laat @everyone alleen de welkomstzone zien', () => {
     const names = visible(community, '@everyone');
-    expect(names).toContain('welkom');
-    expect(names).not.toContain('algemeen');
-    expect(names).not.toContain('staf-chat');
+    expect(names).toContain('👋│welkom');
+    expect(names).not.toContain('🗣️│algemeen');
+    expect(names).not.toContain('🛡️│staf-chat');
   });
 
   it('geeft een lid toegang tot de gesprekken maar niet tot de staf', () => {
     const names = visible(community, 'lid');
-    expect(names).toContain('algemeen');
-    expect(names).toContain('vragen');
-    expect(names).not.toContain('staf-chat');
+    expect(names).toContain('🗣️│algemeen');
+    expect(names).toContain('❓│vragen');
+    expect(names).not.toContain('🛡️│staf-chat');
   });
 
   it('laat een rol met Administrator alles zien', () => {
@@ -35,7 +35,7 @@ describe('simulatie van zichtbaarheid', () => {
 
   it('legt per kanaal uit waarom het wel of niet zichtbaar is', () => {
     const staf = simulate(community, 'moderator')
-      .categories.find((category) => category.name === 'Staf')
+      .categories.find((category) => category.name === '🛡️ Staf')
       ?.channels[0];
     expect(staf?.visible).toBe(true);
     expect(staf?.reason).toMatch(/deze rol krijgt toegang/);
@@ -77,6 +77,26 @@ describe('simulatie van zichtbaarheid', () => {
 
     expect(channelsNobodySees(template)).toEqual(['onvindbaar']);
     expect(channelsNobodySees(community)).toEqual([]);
+  });
+});
+
+describe('namen met emoji', () => {
+  it('houdt emoji en scheidingsteken in de kanaalnaam', () => {
+    const namen = community.categories.flatMap((category) => category.channels.map((c) => c.name));
+    expect(namen).toContain('✅│regels');
+    expect(namen.every((naam) => naam.includes('│'))).toBe(true);
+  });
+
+  it('zet geen scheidingsteken in categorienamen', () => {
+    for (const category of community.categories) {
+      expect(category.name, category.name).not.toContain('│');
+      expect(category.name).toMatch(/^\p{Extended_Pictographic}/u);
+    }
+  });
+
+  it('waarschuwt niet over emoji in een tekstkanaal', () => {
+    const overNamen = lintTemplate(community).filter((f) => f.message.includes('kleine letters'));
+    expect(overNamen).toEqual([]);
   });
 });
 

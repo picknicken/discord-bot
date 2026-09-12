@@ -299,6 +299,12 @@ in het commando kiest. Meegeleverd: `community`, `gaming` en `bedrijf`.
   `ViewChannel`, `SendMessages`, `ManageMessages`, `Connect`, `Speak`, `Administrator`.
   Een onbekende naam laat de template bij het laden falen, niet halverwege het uitvoeren.
 - `channels[].type` — `text`, `voice`, `forum`, `announcement` of `stage`.
+- **Emoji in namen** mag gewoon; wat je hier neerzet komt er zo in te staan. De meegeleverde
+  templates volgen de opmaak die je op veel servers ziet:
+  categorie `📋 Algemeen` (emoji, spatie, naam) en kanaal `🗣️│algemeen` (emoji, een
+  `│` — dat is U+2502, niet de gewone `|` — en dan de naam). Discord maakt van tekstkanalen
+  zelf kleine letters met streepjes; de emoji en het streepje blijven staan. Voicekanalen
+  mogen hoofdletters en spaties houden: `🔊│Staf Voice`.
 - `slowmodeSeconds` (0–21600), `userLimit` (0–99, voice/stage), `nsfw`, `topic`.
 - `channels[].messages` — berichten die bij het **aanmaken** in het kanaal gezet worden,
   standaard vastgepind. Opnieuw toepassen post niets dubbel. Alleen text en announcement.
