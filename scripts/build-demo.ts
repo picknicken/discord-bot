@@ -275,7 +275,15 @@ window.fetch = async (input, options = {}) => {
   const templateMatch = path.match(/^\\/templates\\/([\\w-]+)(\\/(\\w+))?$/);
   if (templateMatch) {
     const [, id, , sub] = templateMatch;
-    if (sub === 'versions') return json({ versions: [] });
+    if (sub === 'versions') {
+      // Verzonnen geschiedenis, zodat je in de demo ziet hoe het eruitziet.
+      return json({ versions: [
+        { stamp: '2026-09-11T09-14-02-000Z', createdAt: '2026-09-11T09:14:02.000Z', size: 0, door: 'Jij', summary: '1 kanaal erbij \u00b7 1 rol aangepast' },
+        { stamp: '2026-09-10T16-40-55-000Z', createdAt: '2026-09-10T16:40:55.000Z', size: 0, door: 'Jij', summary: '2 kanalen erbij' },
+      ] });
+    }
+    if (sub === 'version') return json({ json: templates[id]?.json ?? Object.values(templates)[0].json });
+    if (sub === 'restore') return json({ error: 'In de demo zetten we niets terug.' });
     if (method === 'PUT') {
       templates[id] = { ...templates[id], json: JSON.parse(body).json };
       return json({ id, saved: true });

@@ -59,6 +59,12 @@ export const authEnabled = () => Boolean(config.clientSecret);
 
 const redirectUri = () => `${config.dashboardUrl}/auth/callback`;
 
+/** Wie er opsloeg, voor de versiegeschiedenis. Zonder inloggen weten we dat niet. */
+function wie(session: Session | null): string | undefined {
+  if (!session) return undefined;
+  return session.user.globalName || session.user.username;
+}
+
 async function handle(
   client: Client<true>,
   request: IncomingMessage,
@@ -170,7 +176,7 @@ async function handle(
         const template = parseTemplate(JSON.parse(body.json ?? ''));
         // Eerst de oude inhoud bewaren, dan pas overschrijven.
         const previous = await readFile(templatePath(id), 'utf8').catch(() => null);
-        if (previous) await recordVersion(config.historyDir, id, previous);
+        if (previous) await recordVersion(config.historyDir, id, previous, wie(session));
         await writeTemplate(id, template);
         return send(response, 200, { id, template, saved: true });
       } catch (error) {
@@ -192,7 +198,7 @@ async function handle(
     const template = parseTemplate(JSON.parse(contents));
 
     const current = await readFile(templatePath(id), 'utf8').catch(() => null);
-    if (current) await recordVersion(config.historyDir, id, current);
+    if (current) await recordVersion(config.historyDir, id, current, wie(session));
     await writeTemplate(id, template);
 
     return send(response, 200, { id, json: JSON.stringify(template, null, 2), restored: body.stamp });

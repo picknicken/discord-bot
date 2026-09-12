@@ -363,7 +363,8 @@ async function renderVersions() {
     .map((version) =>
       '<div class="versie"><span>' +
       '<div class="wat">' + escape(version.summary || 'opgeslagen zonder wijziging') + '</div>' +
-      '<div class="toen">' + escape(prettyStamp(version.stamp)) + '</div></span>' +
+      '<div class="toen">' + escape(prettyStamp(version.stamp)) +
+      (version.door ? ' · door ' + escape(version.door) : '') + '</div></span>' +
       '<span class="knoppen">' +
       '<button class="btn-sm" data-versie="' + escape(version.stamp) + '">Terug</button>' +
       '<button class="btn-icon" data-versiedownload="' + escape(version.stamp) + '" title="Download">' +

@@ -104,6 +104,8 @@ let selection = { type: 'none' };
 let showAllPermissions = false;
 /** Welke rol de lijstweergave toont. Op een telefoon past geen raster. */
 let matrixRole = '@everyone';
+/** Zoekterm voor de boom: naam van een rol, kanaal of recht. */
+let zoekterm = '';
 
 export function renderEditor(container, context) {
   ctx = context;
@@ -128,6 +130,38 @@ function draw(container) {
     '<div class="editor' + detail + '"><div class="tree">' + tree() + '</div>' +
     '<div class="props">' + props() + '</div></div>';
   bind(container);
+
+  // Na het opnieuw tekenen is het zoekveld nieuw; zet de cursor terug zodat
+  // je gewoon door kunt typen.
+  if (zoekterm) {
+    const veld = container.querySelector('#treeZoek');
+    if (veld) {
+      veld.focus();
+      veld.setSelectionRange(veld.value.length, veld.value.length);
+    }
+  }
+}
+
+/** Of een naam of recht op de zoekterm lijkt. */
+function raakt(tekst) {
+  return String(tekst ?? '').toLowerCase().includes(zoekterm);
+}
+
+/** Of een rol, categorie of kanaal bij de zoekterm hoort. */
+function roleRaakt(role) {
+  return raakt(role.name) || (role.permissions ?? []).some((naam) => raakt(naam));
+}
+
+function overwritesRaken(overwrites) {
+  return (overwrites ?? []).some(
+    (entry) =>
+      raakt(entry.role) ||
+      [...(entry.allow ?? []), ...(entry.deny ?? [])].some((naam) => raakt(naam)),
+  );
+}
+
+function channelRaakt(channel) {
+  return raakt(channel.name) || raakt(channel.type) || overwritesRaken(channel.overwrites);
 }
 
 const esc = escapeHtml;
@@ -138,7 +172,9 @@ function tree() {
   const template = ctx.template;
 
   const roles = template.roles
-    .map((role, index) => {
+    .map((role, index) => [role, index])
+    .filter(([role]) => !zoekterm || roleRaakt(role))
+    .map(([role, index]) => {
       const active = selection.type === 'role' && selection.index === index;
       return (
         '<li class="node' + (active ? ' on' : '') + '" data-pick="role" data-index="' + index + '">' +
@@ -154,10 +190,20 @@ function tree() {
     .join('');
 
   const categories = template.categories
-    .map((category, categoryIndex) => {
+    .map((category, categoryIndex) => [category, categoryIndex])
+    .filter(
+      ([category]) =>
+        !zoekterm ||
+        raakt(category.name) ||
+        overwritesRaken(category.overwrites) ||
+        category.channels.some((channel) => channelRaakt(channel)),
+    )
+    .map(([category, categoryIndex]) => {
       const activeCategory = selection.type === 'category' && selection.index === categoryIndex;
       const channels = category.channels
-        .map((channel, channelIndex) => {
+        .map((channel, channelIndex) => [channel, channelIndex])
+        .filter(([channel]) => !zoekterm || raakt(category.name) || channelRaakt(channel))
+        .map(([channel, channelIndex]) => {
           const active =
             selection.type === 'channel' &&
             selection.category === categoryIndex &&
@@ -194,7 +240,9 @@ function tree() {
     .join('');
 
   const loose = template.uncategorizedChannels
-    .map((channel, index) => {
+    .map((channel, index) => [channel, index])
+    .filter(([channel]) => !zoekterm || channelRaakt(channel))
+    .map(([channel, index]) => {
       const active = selection.type === 'channel' && selection.category === null && selection.index === index;
       return (
         '<li class="node' + (active ? ' on' : '') + '" data-pick="channel" data-category="" data-index="' +
@@ -207,11 +255,16 @@ function tree() {
     })
     .join('');
 
+  const leeg = zoekterm && !roles && !categories && !loose;
+
   return (
+    '<input type="search" id="treeZoek" class="zoek" placeholder="Zoek rol, kanaal of recht…" ' +
+    'value="' + esc(zoekterm) + '" autocomplete="off">' +
+    (leeg ? '<p class="hint">Niets gevonden voor \u201c' + esc(zoekterm) + '\u201d.</p>' : '') +
     '<div class="treehead"><h4>Rollen</h4><button class="btn-sm" data-add="role">' + icon('plus', 'sm') +
     'Rol</button></div>' +
     '<p class="hint">Bovenaan staat de hoogste rol.</p>' +
-    '<ul>' + (roles || '<li class="hint">nog geen rollen</li>') + '</ul>' +
+    '<ul>' + (roles || '<li class="hint">' + (zoekterm ? 'geen rol met deze naam of dit recht' : 'nog geen rollen') + '</li>') + '</ul>' +
     '<div class="treehead"><h4>Kanalen</h4><span class="row" style="gap:4px">' +
     '<button class="btn-sm" data-add="blok">' + icon('copy', 'sm') + 'Blok</button>' +
     '<button class="btn-sm" data-add="category">' + icon('plus', 'sm') + 'Categorie</button></span></div>' +
@@ -682,6 +735,14 @@ function bind(container) {
     input.onchange = () => {
       currentChannel().messages[Number(input.dataset.messagepin)].pin = input.checked;
       ctx.onChange();
+    };
+  }
+
+  const zoekveld = container.querySelector('#treeZoek');
+  if (zoekveld) {
+    zoekveld.oninput = () => {
+      zoekterm = zoekveld.value.trim().toLowerCase();
+      draw(container);
     };
   }
 

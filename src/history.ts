@@ -10,6 +10,8 @@ export interface Version {
   stamp: string;
   createdAt: string;
   size: number;
+  /** Wie deze versie opsloeg. Leeg als er niemand ingelogd was. */
+  door?: string;
 }
 
 const safeId = (id: string) => {
@@ -17,24 +19,44 @@ const safeId = (id: string) => {
   return id;
 };
 
-export async function recordVersion(dir: string, id: string, contents: string): Promise<void> {
+export async function recordVersion(
+  dir: string,
+  id: string,
+  contents: string,
+  door?: string,
+): Promise<void> {
   const target = path.join(dir, safeId(id));
   await mkdir(target, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   await writeFile(path.join(target, `${stamp}.json`), contents, 'utf8');
+  // De naam gaat naast het bestand, niet erin: het bestand moet een geldig
+  // template blijven dat je zo kunt terugzetten of downloaden.
+  if (door) await writeFile(path.join(target, `${stamp}.door`), door, 'utf8');
 }
 
 export async function listVersions(dir: string, id: string): Promise<Version[]> {
   try {
-    const names = await readdir(path.join(dir, safeId(id)));
-    return names
-      .filter((name) => name.endsWith('.json'))
-      .map((name) => ({
-        stamp: name.replace(/\.json$/, ''),
-        createdAt: name.replace(/\.json$/, '').replace(/-(\d{2})-(\d{2})-(\d{3})Z$/, ':$1:$2.$3Z'),
-        size: 0,
-      }))
-      .sort((a, b) => b.stamp.localeCompare(a.stamp));
+    const target = path.join(dir, safeId(id));
+    const names = await readdir(target);
+
+    const versions = await Promise.all(
+      names
+        .filter((name) => name.endsWith('.json'))
+        .map(async (name) => {
+          const stamp = name.replace(/\.json$/, '');
+          const door = names.includes(`${stamp}.door`)
+            ? await readFile(path.join(target, `${stamp}.door`), 'utf8').catch(() => '')
+            : '';
+          return {
+            stamp,
+            createdAt: stamp.replace(/-(\d{2})-(\d{2})-(\d{3})Z$/, ':$1:$2.$3Z'),
+            size: 0,
+            ...(door ? { door } : {}),
+          };
+        }),
+    );
+
+    return versions.sort((a, b) => b.stamp.localeCompare(a.stamp));
   } catch {
     return [];
   }
