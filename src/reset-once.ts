@@ -106,6 +106,10 @@ client.once(Events.ClientReady, async (ready) => {
     const result = await applyReset(guild, plan, `Leeghalen door ${ready.user.tag}`);
     logger.info(`Klaar: ${result.deleted} verwijderd, ${result.failed} mislukt.`);
     for (const error of result.errors) logger.warn(error);
+    if (result.hint) {
+      logger.error('');
+      logger.error(result.hint);
+    }
     if (result.failed > 0) process.exitCode = 1;
   } catch (error) {
     logger.error(error instanceof Error ? error.message : String(error));

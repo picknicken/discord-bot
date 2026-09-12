@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countReset, describeReset, planReset } from '../src/reset.js';
+import { countReset, describeReset, explainDeleteFailure, planReset } from '../src/reset.js';
 import type { GuildSnapshot, SnapshotRole } from '../src/snapshot.js';
 
 const role = (id: string, name: string, position: number, extra: Partial<SnapshotRole> = {}): SnapshotRole => ({
@@ -69,5 +69,22 @@ describe('leeghalen', () => {
   it('doet niets op een lege server', () => {
     const leeg = planReset({ ...snapshot, roles: [], categories: [], channels: [], automod: [] }, 5);
     expect(countReset(leeg)).toBe(0);
+  });
+});
+
+describe('uitleg bij een mislukte verwijdering', () => {
+  const discordError = (code: number, message: string) => Object.assign(new Error(message), { code });
+
+  it('legt uit dat de bot het kanaal niet kan zien', () => {
+    const uitleg = explainDeleteFailure(discordError(50001, 'Missing Access'));
+    expect(uitleg).toContain('niet zien');
+  });
+
+  it('wijst bij ontbrekende rechten naar de rolvolgorde', () => {
+    expect(explainDeleteFailure(discordError(50013, 'Missing Permissions'))).toContain('rol hoog genoeg');
+  });
+
+  it('laat onbekende fouten staan zoals ze zijn', () => {
+    expect(explainDeleteFailure(new Error('iets anders'))).toBe('iets anders');
   });
 });

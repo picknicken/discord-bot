@@ -1,4 +1,5 @@
 import {
+  PermissionFlagsBits,
   AutoModerationActionType,
   AutoModerationRuleEventType,
   AutoModerationRuleKeywordPresetType,
@@ -18,6 +19,14 @@ import { logger } from './util/logger.js';
 import { toBitfield } from './permissions.js';
 import type { Plan } from './planner.js';
 import type { AutomodSpec, ChannelSpec, Overwrite, ServerTemplate } from './types.js';
+
+/**
+ * Verstopt deze set overwrites het kanaal voor @everyone? Zo ja, dan verliest de
+ * bot zelf ook de toegang — die hoort immers ook bij @everyone.
+ */
+export function hidesFromEveryone(overwrites: readonly Overwrite[]): boolean {
+  return overwrites.some((overwrite) => overwrite.role === '@everyone' && overwrite.deny.includes('ViewChannel'));
+}
 
 export interface ApplyResult {
   applied: number;
@@ -84,6 +93,10 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
     if (existing) roleIds.set(role.key, existing.id);
   }
 
+  // De eigen rol van de bot, zodat hij zichzelf toegang kan geven tot wat hij verstopt.
+  const me = await guild.members.fetchMe();
+  const botAccessId = me.roles.botRole?.id ?? me.id;
+
   /** Namen -> echte kanaal-ids, bijgewerkt zodra er iets wordt aangemaakt. */
   const categoryIds = new Map<string, string>();
   const channelIds = new Map<string, string>();
@@ -102,6 +115,14 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
       }
       resolved.push({ id, allow: toBitfield(overwrite.allow), deny: toBitfield(overwrite.deny) });
     }
+
+    // Verstopt de template dit kanaal voor @everyone, dan raakt de bot het zelf
+    // ook kwijt: hij is ook maar een lid. Daarna kan hij het niet meer bijwerken
+    // of verwijderen. Daarom houdt hij hier een sleutel achter.
+    if (hidesFromEveryone(overwrites) && !resolved.some((entry) => entry.id === botAccessId)) {
+      resolved.push({ id: botAccessId, allow: PermissionFlagsBits.ViewChannel });
+    }
+
     return resolved;
   };
 

@@ -30,6 +30,9 @@ Het commando is standaard alleen beschikbaar voor leden met **Server beheren**.
 - **Verwijderen is opt-in**: zonder `prune:true` wordt er nooit iets verwijderd.
 - **Rechtencheck vooraf**: de bot controleert of hij zelf Kanalen beheren, Rollen beheren en
   Server beheren heeft voordat hij begint.
+- **De bot sluit zichzelf niet buiten**: verstopt een template een kanaal voor `@everyone`, dan
+  zet hij er een uitzondering voor zichzelf bij. Zonder dat kan hij zijn eigen kanalen daarna
+  niet meer bijwerken of opruimen — hij hoort immers ook bij `@everyone`.
 
 ## Installatie
 

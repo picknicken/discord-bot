@@ -30,7 +30,38 @@ export interface ResetResult {
   deleted: number;
   failed: number;
   errors: string[];
+  /** Extra uitleg als alle fouten dezelfde oorzaak hebben. */
+  hint: string | null;
 }
+
+const UNKNOWN_CHANNEL = 10003;
+const MISSING_ACCESS = 50001;
+const MISSING_PERMISSIONS = 50013;
+
+function codeOf(error: unknown): number | null {
+  const code = (error as { code?: unknown })?.code;
+  return typeof code === 'number' ? code : null;
+}
+
+/** Discord's foutteksten zijn kort; dit zegt wat het in de praktijk betekent. */
+export function explainDeleteFailure(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+
+  switch (codeOf(error)) {
+    case MISSING_ACCESS:
+      return `${message} — de bot kan dit kanaal niet zien, dus hij kan het ook niet verwijderen.`;
+    case MISSING_PERMISSIONS:
+      return `${message} — de bot mist het recht hiervoor. Staat zijn rol hoog genoeg?`;
+    default:
+      return message;
+  }
+}
+
+export const ACCESS_HINT =
+  'De bot kan een deel van deze server niet zien. Dat gebeurt bij kanalen die @everyone ' +
+  'niet mag bekijken: de bot hoort ook bij @everyone. Servers die vanaf nu worden ingericht ' +
+  'houden een uitzondering voor de bot. Voor deze server: geef de bot tijdelijk Administrator ' +
+  '(Serverinstellingen -> Rollen), haal hem leeg, en zet het daarna weer uit.';
 
 export function planReset(snapshot: GuildSnapshot, botHighestPosition: number): ResetPlan {
   const skipped: string[] = [];
@@ -76,30 +107,38 @@ export function countReset(plan: ResetPlan): number {
 }
 
 export async function applyReset(guild: Guild, plan: ResetPlan, reason: string): Promise<ResetResult> {
-  const result: ResetResult = { deleted: 0, failed: 0, errors: [] };
+  const result: ResetResult = { deleted: 0, failed: 0, errors: [], hint: null };
+  let geenToegang = false;
 
   const remove = async (what: string, run: () => Promise<unknown>) => {
     try {
       await run();
       result.deleted += 1;
     } catch (error) {
+      // Al weg is ook goed; daar hoeft niemand iets mee.
+      if (codeOf(error) === UNKNOWN_CHANNEL) {
+        result.deleted += 1;
+        return;
+      }
+      if (codeOf(error) === MISSING_ACCESS) geenToegang = true;
+
       result.failed += 1;
-      const message = error instanceof Error ? error.message : String(error);
-      result.errors.push(`${what}: ${message}`);
-      logger.warn(`Verwijderen mislukt (${what})`, message);
+      const uitleg = explainDeleteFailure(error);
+      result.errors.push(`${what}: ${uitleg}`);
+      logger.warn(`Verwijderen mislukt (${what}): ${uitleg}`);
     }
   };
 
   for (const channel of plan.channels) {
     await remove(`kanaal ${channel.name}`, async () => {
-      const target = await guild.channels.fetch(channel.id).catch(() => null);
+      const target = await guild.channels.fetch(channel.id);
       if (target) await target.delete(reason);
     });
   }
 
   for (const role of plan.roles) {
     await remove(`rol ${role.name}`, async () => {
-      const target = await guild.roles.fetch(role.id).catch(() => null);
+      const target = await guild.roles.fetch(role.id);
       if (target) await target.delete(reason);
     });
   }
@@ -110,5 +149,6 @@ export async function applyReset(guild: Guild, plan: ResetPlan, reason: string):
     });
   }
 
+  if (geenToegang) result.hint = ACCESS_HINT;
   return result;
 }
