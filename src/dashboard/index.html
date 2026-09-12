@@ -358,6 +358,74 @@
   .joinrow img { width: 20px; height: 20px; border-radius: 6px; }
   .joinrow a { margin-left: auto; text-decoration: none; }
 
+  /* stappenrail */
+  .wizard {
+    display: flex; gap: 6px; overflow-x: auto; padding: 12px 18px 0; scrollbar-width: none;
+    max-width: 1400px; margin: 0 auto;
+  }
+  .wizard::-webkit-scrollbar { display: none; }
+  .wizard button {
+    flex: none; display: flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 99px;
+    background: var(--surface); border: 1px solid var(--border); color: var(--muted);
+    font-size: 12.5px; box-shadow: none;
+  }
+  .wizard button .bol {
+    width: 19px; height: 19px; border-radius: 50%; display: grid; place-items: center; flex: none;
+    background: var(--surface-3); color: var(--muted); font-size: 11px; font-weight: 700;
+  }
+  .wizard button.klaar { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, var(--border)); }
+  .wizard button.klaar .bol { background: var(--ok-bg); color: var(--ok); }
+  .wizard button.nu { color: var(--text); border-color: var(--accent); font-weight: 600; }
+  .wizard button.nu .bol { background: var(--accent); color: var(--accent-fg); }
+
+  /* navigatiebalk onderin, alleen op smalle schermen */
+  .mobilenav { display: none; }
+  @media (max-width: 900px) {
+    body { padding-bottom: 0; }
+    .grid { grid-template-columns: minmax(0, 1fr); padding: 10px 12px 84px; }
+    .grid > section { display: none; }
+    .grid > section.actief { display: block; }
+    .wizard { padding: 10px 12px 0; }
+
+    .mobilenav {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px;
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      backdrop-filter: saturate(1.6) blur(10px);
+      border-top: 1px solid var(--border);
+      padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    }
+    .mobilenav button {
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      background: none; border: 0; box-shadow: none; color: var(--muted);
+      font-size: 10.5px; padding: 7px 2px; border-radius: 10px;
+    }
+    .mobilenav button[aria-current="true"] { color: var(--accent); background: var(--accent-wash, var(--surface-2)); }
+    .mobilenav .icon { width: 19px; height: 19px; }
+
+    /* lijst en detail wisselen elkaar af in plaats van naast elkaar te staan */
+    .editor.detail .tree { display: none; }
+    .editor:not(.detail) .props { display: none; }
+    .node { padding: 9px 8px; }
+    .node .tools button { padding: 6px; }
+    button, select, input[type="text"], input[type="number"] { padding: 9px 12px; }
+    .btn-sm { padding: 6px 10px; }
+    .guildrow { padding: 11px 0; }
+    .guildrow input { width: 20px; height: 20px; }
+    textarea#editor { min-height: 320px; }
+    .counts { flex-wrap: wrap; }
+    .count { min-width: calc(50% - 4px); }
+
+    /* Het pad naar de templates past er niet bij en voegt onderweg niets toe. */
+    header .sub .pad { display: none; }
+    header .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  }
+  .terug {
+    display: none; align-items: center; gap: 6px; margin-bottom: 12px;
+    background: none; border: 0; box-shadow: none; color: var(--accent-ink, var(--accent)); padding: 4px 0;
+  }
+  @media (max-width: 900px) { .editor.detail .terug { display: inline-flex; } }
+
   .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border-strong);
              border-top-color: var(--accent); animation: spin .7s linear infinite; display: inline-block; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -420,8 +488,10 @@
   </div>
 </div>
 
+<nav class="wizard" id="wizard" hidden></nav>
+
 <div class="grid">
-  <section class="panel">
+  <section class="panel" id="scherm-templates">
     <div class="phead"><svg class="icon"><use href="#i-folder"/></svg><h2 class="grow">Templates</h2></div>
     <div id="templateList"></div>
     <div class="pbody">
@@ -433,7 +503,7 @@
     </div>
   </section>
 
-  <section class="panel">
+  <section class="panel" id="scherm-bewerken">
     <div class="phead">
       <svg class="icon"><use href="#i-file"/></svg>
       <h2 class="grow" id="editorTitle">Geen template gekozen</h2>
@@ -476,7 +546,7 @@
     </div>
   </section>
 
-  <section class="panel">
+  <section class="panel" id="scherm-uitrollen">
     <div class="phead"><svg class="icon"><use href="#i-server"/></svg><h2 class="grow">Uitrollen</h2></div>
     <div class="pbody">
       <div id="guildList"></div>
@@ -519,6 +589,13 @@
     </div>
   </section>
 </div>
+
+<nav class="mobilenav" id="mobilenav">
+  <button data-scherm="templates"><svg class="icon"><use href="#i-folder"/></svg><span>Templates</span></button>
+  <button data-scherm="bewerken"><svg class="icon"><use href="#i-file"/></svg><span>Bewerken</span></button>
+  <button data-scherm="controle"><svg class="icon"><use href="#i-check"/></svg><span>Controle</span></button>
+  <button data-scherm="uitrollen"><svg class="icon"><use href="#i-zap"/></svg><span>Uitrollen</span></button>
+</nav>
 
 <div class="toasts" id="toasts"></div>
 <dialog id="dialog"></dialog>

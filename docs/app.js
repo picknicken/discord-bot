@@ -4,7 +4,7 @@ import { ask, busy, CHANNEL_ICONS, emptyState, escapeHtml as escape, icon, initT
 const state = {
   templates: [], guilds: [], backups: [], permissions: [],
   selected: null, original: '', simRole: null, template: null, dirty: false,
-  session: null,
+  session: null, scherm: 'templates', fouten: null, uitgerold: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -55,6 +55,71 @@ async function api(path, options = {}) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || 'HTTP ' + response.status);
   return data;
+}
+
+// --- schermen en stappen ----------------------------------------------------
+
+/** Op een telefoon staat er een scherm tegelijk; op een breed scherm alles naast elkaar. */
+function toonScherm(naam) {
+  state.scherm = naam;
+  const paneel = naam === 'controle' ? 'bewerken' : naam;
+
+  for (const sectie of document.querySelectorAll('.grid > section')) {
+    sectie.classList.toggle('actief', sectie.id === 'scherm-' + paneel);
+  }
+  for (const knop of document.querySelectorAll('#mobilenav button')) {
+    knop.setAttribute('aria-current', String(knop.dataset.scherm === naam));
+  }
+
+  if (naam === 'controle') showTab('Check');
+  else if (naam === 'bewerken' && $('treeView').hidden) showTab('Tree');
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  tekenWizard();
+}
+
+/**
+ * De volgorde waarin je een server opbouwt. Elke stap weet zelf of hij af is,
+ * zodat de rail laat zien waar je bent zonder dat je iets hoeft af te vinken.
+ */
+function stappen() {
+  const t = state.template;
+  const kanalen = t ? t.categories.reduce((n, c) => n + c.channels.length, 0) + t.uncategorizedChannels.length : 0;
+  const overwrites = t
+    ? t.categories.some((c) => c.overwrites.length) ||
+      t.categories.some((c) => c.channels.some((k) => k.overwrites.length))
+    : false;
+
+  return [
+    { naam: 'Template', klaar: Boolean(state.selected), scherm: 'templates' },
+    { naam: 'Rollen', klaar: Boolean(t && t.roles.length), scherm: 'bewerken' },
+    { naam: 'Kanalen', klaar: kanalen > 0, scherm: 'bewerken' },
+    { naam: 'Rechten', klaar: overwrites, scherm: 'bewerken' },
+    { naam: 'Controle', klaar: state.fouten === 0, scherm: 'controle' },
+    { naam: 'Toepassen', klaar: state.uitgerold, scherm: 'uitrollen' },
+  ];
+}
+
+function tekenWizard() {
+  const rail = $('wizard');
+  const lijst = stappen();
+  const nu = lijst.findIndex((stap) => !stap.klaar);
+
+  rail.hidden = false;
+  rail.innerHTML = lijst
+    .map((stap, index) => {
+      const klasse = stap.klaar ? 'klaar' : index === nu ? 'nu' : '';
+      const bol = stap.klaar ? icon('check', 'sm') : String(index + 1);
+      return (
+        '<button class="' + klasse + '" data-stap="' + stap.scherm + '">' +
+        '<span class="bol">' + bol + '</span>' + escape(stap.naam) + '</button>'
+      );
+    })
+    .join('');
+
+  for (const knop of rail.querySelectorAll('[data-stap]')) {
+    knop.onclick = () => toonScherm(knop.dataset.stap);
+  }
 }
 
 // --- inloggen ---------------------------------------------------------------
@@ -124,7 +189,7 @@ async function refresh() {
     '<span class="dot-live"></span>' +
     escape(data.guilds.length + ' server' + (data.guilds.length === 1 ? '' : 's')) +
     ' · ' + escape(data.templates.length + ' templates') +
-    ' · <span class="mono">' + escape(data.templatesDir) + '</span>';
+    ' · <span class="mono pad">' + escape(data.templatesDir) + '</span>';
 
   renderTemplates();
   renderGuilds();
@@ -227,12 +292,19 @@ async function select(id) {
   history.past = [];
   history.future = [];
   history.last = data.json;
+  state.fouten = null;
   renderUndo();
   setDirty(false);
   resetSelection();
   renderTemplates();
   renderTree();
+  tekenWizard();
   await renderVersions();
+
+  // Op een telefoon wil je na het kiezen meteen naar het bewerkscherm.
+  if (window.matchMedia('(max-width: 900px)').matches && state.scherm === 'templates') {
+    toonScherm('bewerken');
+  }
 }
 
 function setDirty(dirty) {
@@ -412,7 +484,9 @@ async function runCheck(role) {
       body: JSON.stringify({ json: $('editor').value, role: role || state.simRole }),
     });
     state.simRole = data.simulation ? data.simulation.role : null;
+    state.fouten = data.counts.error;
     target.innerHTML = renderCheck(data);
+    tekenWizard();
 
     const picker = $('simRole');
     if (picker) picker.onchange = () => runCheck(picker.value);
@@ -548,6 +622,8 @@ async function apply() {
         '</div>')
       .join('');
 
+    state.uitgerold = data.results.some((resultaat) => resultaat.applied > 0);
+    tekenWizard();
     toast(data.failed ? data.applied + ' gelukt, ' + data.failed + ' mislukt' : 'Uitgerold: ' + data.applied + ' acties',
       data.failed ? 'bad' : 'ok');
     await refresh();
@@ -571,10 +647,19 @@ async function restoreBackup(file) {
   $('planResult').innerHTML = busy('Terugzetten…');
   try {
     const result = await api('/backups/restore', { method: 'POST', body: JSON.stringify({ file }) });
+    const rest = (result.leftover || 0) + (result.mismatch || 0);
+
     $('planResult').innerHTML =
-      '<div class="note ok" style="margin-top:12px">' +
-      escape(result.note || result.applied + ' acties gelukt, ' + result.failed + ' mislukt') + '</div>';
-    toast('Back-up teruggezet', 'ok');
+      '<div class="note ' + (result.failed ? 'warn' : 'ok') + '" style="margin-top:12px">' +
+      escape(result.note || result.applied + ' acties gelukt, ' + result.failed + ' mislukt') + '</div>' +
+      (rest > 0
+        ? '<div class="note warn" style="margin-top:8px">' + rest +
+          ' onderdeel(en) staan er nog die niet in deze back-up zaten. Terugzetten vult aan en ' +
+          'verwijdert niets, dus de server is niet identiek aan de back-up. Kijk in de tab ' +
+          'Server om te zien wat er afwijkt.</div>'
+        : '');
+
+    toast(rest > 0 ? 'Teruggezet, maar niet identiek' : 'Back-up teruggezet', rest > 0 ? 'bad' : 'ok');
     await refresh();
   } catch (error) {
     $('planResult').innerHTML = '<div class="note bad" style="margin-top:12px">' + escape(error.message) + '</div>';
@@ -582,6 +667,10 @@ async function restoreBackup(file) {
 }
 
 // --- handlers --------------------------------------------------------------
+
+for (const knop of document.querySelectorAll('#mobilenav button')) {
+  knop.onclick = () => toonScherm(knop.dataset.scherm);
+}
 
 $('tabTree').onclick = () => showTab('Tree');
 $('tabJson').onclick = () => showTab('Json');
@@ -735,6 +824,7 @@ window.addEventListener('beforeunload', (event) => {
 });
 
 initTheme($('themeToggle'));
+toonScherm('templates');
 
 checkSession()
   .then((allowed) => (allowed ? refresh() : undefined))

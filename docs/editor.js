@@ -29,8 +29,12 @@ function changed() {
 
 function draw(container) {
   ctx.container = container;
+  // Op een smal scherm staat de boom en het detail niet naast elkaar maar na
+  // elkaar: kies je iets, dan schuift het detail ervoor met een knop terug.
+  const detail = selection.type !== 'none' ? ' detail' : '';
   container.innerHTML =
-    '<div class="editor"><div class="tree">' + tree() + '</div><div class="props">' + props() + '</div></div>';
+    '<div class="editor' + detail + '"><div class="tree">' + tree() + '</div>' +
+    '<div class="props">' + props() + '</div></div>';
   bind(container);
 }
 
@@ -136,10 +140,13 @@ function moveButtons(kind, index, total, category) {
 // --- eigenschappen ---------------------------------------------------------
 
 function props() {
-  if (selection.type === 'role') return roleProps(ctx.template.roles[selection.index]);
-  if (selection.type === 'category') return categoryProps(ctx.template.categories[selection.index]);
-  if (selection.type === 'channel') return channelProps(currentChannel());
-  return emptyState('shield', 'Kies links een rol, categorie of kanaal.');
+  if (selection.type === 'none') return emptyState('shield', 'Kies links een rol, categorie of kanaal.');
+
+  const terug = '<button class="terug" data-terug>' + icon('up', 'sm') + 'Terug naar de lijst</button>';
+
+  if (selection.type === 'role') return terug + roleProps(ctx.template.roles[selection.index]);
+  if (selection.type === 'category') return terug + categoryProps(ctx.template.categories[selection.index]);
+  return terug + channelProps(currentChannel());
 }
 
 function currentChannel() {
@@ -356,6 +363,11 @@ function bind(container) {
       };
     }
   };
+
+  on('data-terug', () => {
+    selection = { type: 'none' };
+    draw(container);
+  });
 
   on('data-pick', (data) => {
     selection =
