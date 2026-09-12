@@ -213,7 +213,16 @@ async function handle(
       if (plan.actions.length === 0) return send(response, 200, { applied: 0, failed: 0, errors: [], note: 'Niets te herstellen.' });
 
       logger.info(`Dashboard herstelt "${body.file}" op "${guild.name}" (${plan.actions.length} acties)`);
-      return send(response, 200, await applyPlan(guild, backup.template, plan));
+      const result = await applyPlan(guild, backup.template, plan);
+
+      // Terugzetten vult aan maar verwijdert niets, dus de server kan na afloop
+      // nog steeds afwijken. Dat hoort de gebruiker te zien, niet te vermoeden.
+      const rest = compare(await snapshotGuildFresh(guild), backup.template);
+      return send(response, 200, {
+        ...result,
+        leftover: rest.counts.extra,
+        mismatch: rest.counts['type-mismatch'],
+      });
     }
   }
 

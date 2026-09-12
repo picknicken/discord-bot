@@ -571,10 +571,19 @@ async function restoreBackup(file) {
   $('planResult').innerHTML = busy('Terugzetten…');
   try {
     const result = await api('/backups/restore', { method: 'POST', body: JSON.stringify({ file }) });
+    const rest = (result.leftover || 0) + (result.mismatch || 0);
+
     $('planResult').innerHTML =
-      '<div class="note ok" style="margin-top:12px">' +
-      escape(result.note || result.applied + ' acties gelukt, ' + result.failed + ' mislukt') + '</div>';
-    toast('Back-up teruggezet', 'ok');
+      '<div class="note ' + (result.failed ? 'warn' : 'ok') + '" style="margin-top:12px">' +
+      escape(result.note || result.applied + ' acties gelukt, ' + result.failed + ' mislukt') + '</div>' +
+      (rest > 0
+        ? '<div class="note warn" style="margin-top:8px">' + rest +
+          ' onderdeel(en) staan er nog die niet in deze back-up zaten. Terugzetten vult aan en ' +
+          'verwijdert niets, dus de server is niet identiek aan de back-up. Kijk in de tab ' +
+          'Server om te zien wat er afwijkt.</div>'
+        : '');
+
+    toast(rest > 0 ? 'Teruggezet, maar niet identiek' : 'Back-up teruggezet', rest > 0 ? 'bad' : 'ok');
     await refresh();
   } catch (error) {
     $('planResult').innerHTML = '<div class="note bad" style="margin-top:12px">' + escape(error.message) + '</div>';
