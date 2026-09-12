@@ -1,5 +1,5 @@
 import { renderEditor, resetSelection } from './editor.js';
-import { ask, busy, CHANNEL_ICONS, emptyState, escapeHtml as escape, icon, initTheme, toast } from './ui.js';
+import { ask, busy, CHANNEL_ICONS, emptyState, escapeHtml as escape, icon, initTheme, kanDownloaden, toast, toonTekst } from './ui.js';
 
 const state = {
   templates: [], guilds: [], backups: [], permissions: [],
@@ -381,8 +381,20 @@ async function renderVersions() {
   }
 }
 
-/** Zet tekst als bestand klaar in de browser. */
+/**
+ * Zet tekst als bestand klaar in de browser. Mag de browser geen bestanden
+ * aanbieden (de demo draait in een afgeschermd venster), dan tonen we de
+ * inhoud zodat je hem alsnog kunt kopiëren.
+ */
 function bewaarBestand(naam, inhoud) {
+  if (!kanDownloaden()) {
+    toonTekst({
+      title: naam,
+      tekst: inhoud,
+      hint: 'Downloaden mag hier niet. Kopieer de tekst en bewaar hem zelf als ' + naam + '.',
+    });
+    return;
+  }
   const blob = new Blob([inhoud], { type: 'application/json' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);

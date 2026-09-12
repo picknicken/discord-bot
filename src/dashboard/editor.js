@@ -102,6 +102,8 @@ const BLOKKEN = {
 let ctx = null;
 let selection = { type: 'none' };
 let showAllPermissions = false;
+/** Welke rol de lijstweergave toont. Op een telefoon past geen raster. */
+let matrixRole = '@everyone';
 
 export function renderEditor(container, context) {
   ctx = context;
@@ -413,7 +415,48 @@ function matrix(overwrites, title, hint) {
     (hint ? '<p class="hint">' + esc(hint) + '</p>' : '') +
     '<label class="check"><input type="checkbox" data-allperms' + (showAllPermissions ? ' checked' : '') +
     '><span>alle permissies tonen</span></label>' +
-    '<div class="matrixwrap"><table class="matrix">' + header + '<tbody>' + rows + '</tbody></table></div>'
+    '<div class="matrixwrap"><table class="matrix">' + header + '<tbody>' + rows + '</tbody></table></div>' +
+    rechtenLijst(overwrites, roles, permissions)
+  );
+}
+
+/**
+ * Dezelfde rechten als de matrix, maar per rol onder elkaar. Een raster van
+ * 53 regels naast 5 rollen is op een telefoon niet te doen; deze lijst toont
+ * één rol tegelijk en past wel.
+ */
+function rechtenLijst(overwrites, roles, permissions) {
+  if (!roles.some((role) => role.key === matrixRole)) matrixRole = roles[0].key;
+
+  const keuze = roles
+    .map(
+      (role) =>
+        '<button class="rolpil' + (role.key === matrixRole ? ' aan' : '') + '" data-mrol="' +
+        esc(role.key) + '">' + esc(role.name) + '</button>',
+    )
+    .join('');
+
+  const regels = permissions
+    .map((permission) => {
+      const state = overwriteState(overwrites, matrixRole, permission.name);
+      return (
+        '<div class="rechtrij">' +
+        '<div class="rechttekst"><span class="wat">' + esc(permission.label) + '</span>' +
+        (permission.uitleg ? '<span class="waarom">' + esc(permission.uitleg) + '</span>' : '') +
+        '</div>' +
+        '<button class="tri s' + (state === -1 ? 'neg' : state) + '" data-tri="' +
+        esc(matrixRole) + '|' + permission.name + '" title="' + STATE_TITLES[state] + '">' +
+        STATES[state] + '</button></div>'
+      );
+    })
+    .join('');
+
+  return (
+    '<div class="rechtenlijst">' +
+    '<div class="rolpillen">' + keuze + '</div>' +
+    '<p class="hint">Tik op het tekentje om te wisselen: erven, mag, mag niet.</p>' +
+    regels +
+    '</div>'
   );
 }
 
@@ -563,6 +606,11 @@ function bind(container) {
 
     if (selection.type === data.move && selection.index === index) selection = { ...selection, index: target };
     changed();
+  });
+
+  on('data-mrol', (data) => {
+    matrixRole = data.mrol;
+    draw(container);
   });
 
   on('data-tri', (data) => {

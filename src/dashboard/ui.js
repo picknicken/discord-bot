@@ -173,3 +173,48 @@ export function initTheme(button) {
     button.innerHTML = icon(theme === 'dark' ? 'sun' : 'moon');
   }
 }
+
+/**
+ * Laat tekst zien om te kopiëren. Gebruikt als de browser downloaden weigert,
+ * bijvoorbeeld in de demo, die in een afgeschermd venster draait.
+ */
+export function toonTekst({ title, tekst, hint = '' }) {
+  const dialog = document.getElementById('dialog');
+
+  dialog.innerHTML =
+    '<form method="dialog">' +
+    '<div class="dhead"><h3>' + escapeHtml(title) + '</h3></div>' +
+    '<div class="dbody">' +
+    (hint ? '<p class="hint">' + escapeHtml(hint) + '</p>' : '') +
+    '<textarea id="dialogText" readonly spellcheck="false">' + escapeHtml(tekst) + '</textarea>' +
+    '</div>' +
+    '<div class="dfoot">' +
+    '<button value="cancel" type="submit">Sluiten</button>' +
+    '<button type="button" class="btn-primary" id="dialogCopy">Kopieer</button>' +
+    '</div></form>';
+
+  const field = dialog.querySelector('#dialogText');
+  dialog.querySelector('#dialogCopy').onclick = async () => {
+    field.select();
+    try {
+      await navigator.clipboard.writeText(tekst);
+      toast('Gekopieerd naar het klembord.', 'ok');
+    } catch {
+      // In een afgeschermd venster mag het klembord niet; de tekst staat dan
+      // geselecteerd zodat kopiëren met de hand nog werkt.
+      toast('Kopieer de geselecteerde tekst met Ctrl+C.', 'info');
+    }
+  };
+
+  dialog.showModal();
+  setTimeout(() => field.select(), 30);
+}
+
+/** Of de browser een bestand mag aanbieden. Afgeschermde vensters mogen dat niet. */
+export function kanDownloaden() {
+  try {
+    return window.origin !== 'null' && window.self === window.top;
+  } catch {
+    return false;
+  }
+}

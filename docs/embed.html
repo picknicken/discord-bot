@@ -240,6 +240,28 @@
   }
   table.matrix tbody tr:hover { background: var(--surface-2); }
   table.matrix td { padding: 2px 6px; text-align: center; }
+  /* Lijstweergave van dezelfde rechten, voor smalle schermen. */
+  .rechtenlijst { display: none; margin-top: 8px; }
+  .rolpillen { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+  .rolpil {
+    padding: 6px 11px; font-size: 12.5px; border-radius: 999px;
+    background: var(--surface-2); border-color: transparent; box-shadow: none;
+  }
+  .rolpil.aan { background: var(--accent); border-color: transparent; color: #fff; }
+  .rechtrij {
+    display: flex; align-items: center; gap: 10px; padding: 9px 2px;
+    border-top: 1px solid var(--border);
+  }
+  .rechtrij .rechttekst { flex: 1; min-width: 0; }
+  .rechtrij .wat { display: block; font-size: 13px; }
+  .rechtrij .waarom {
+    display: block; font-size: 11px; color: var(--muted); line-height: 1.35; margin-top: 1px;
+  }
+  .rechtrij button.tri { width: 38px; height: 30px; flex: none; font-size: 13px; }
+  @media (max-width: 720px) {
+    .matrixwrap { display: none; }
+    .rechtenlijst { display: block; }
+  }
   button.tri {
     width: 30px; height: 22px; padding: 0; justify-content: center; font-size: 11px; box-shadow: none;
     background: var(--surface-2); border-color: transparent; color: var(--muted);
@@ -326,6 +348,11 @@
   dialog h3 { font-size: 15.5px; margin-bottom: 4px; }
   dialog .dbody { padding: 8px 18px 4px; color: var(--text-2); font-size: 13px; white-space: pre-wrap; }
   dialog .dbody input { width: 100%; margin-top: 10px; }
+  dialog .dbody textarea {
+    width: 100%; margin-top: 10px; min-height: 240px; resize: vertical;
+    font-family: var(--mono); font-size: 12px; line-height: 1.5; white-space: pre;
+  }
+  dialog .dbody .hint { margin: 0 0 2px; color: var(--text-3); }
   dialog .dfoot { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 18px; }
   dialog .keuzes { display: flex; flex-direction: column; gap: 6px; padding: 12px 18px 0; }
   dialog .keuze {
@@ -814,6 +841,51 @@ function initTheme(button) {
   }
 }
 
+/**
+ * Laat tekst zien om te kopiëren. Gebruikt als de browser downloaden weigert,
+ * bijvoorbeeld in de demo, die in een afgeschermd venster draait.
+ */
+function toonTekst({ title, tekst, hint = '' }) {
+  const dialog = document.getElementById('dialog');
+
+  dialog.innerHTML =
+    '<form method="dialog">' +
+    '<div class="dhead"><h3>' + escapeHtml(title) + '</h3></div>' +
+    '<div class="dbody">' +
+    (hint ? '<p class="hint">' + escapeHtml(hint) + '</p>' : '') +
+    '<textarea id="dialogText" readonly spellcheck="false">' + escapeHtml(tekst) + '</textarea>' +
+    '</div>' +
+    '<div class="dfoot">' +
+    '<button value="cancel" type="submit">Sluiten</button>' +
+    '<button type="button" class="btn-primary" id="dialogCopy">Kopieer</button>' +
+    '</div></form>';
+
+  const field = dialog.querySelector('#dialogText');
+  dialog.querySelector('#dialogCopy').onclick = async () => {
+    field.select();
+    try {
+      await navigator.clipboard.writeText(tekst);
+      toast('Gekopieerd naar het klembord.', 'ok');
+    } catch {
+      // In een afgeschermd venster mag het klembord niet; de tekst staat dan
+      // geselecteerd zodat kopiëren met de hand nog werkt.
+      toast('Kopieer de geselecteerde tekst met Ctrl+C.', 'info');
+    }
+  };
+
+  dialog.showModal();
+  setTimeout(() => field.select(), 30);
+}
+
+/** Of de browser een bestand mag aanbieden. Afgeschermde vensters mogen dat niet. */
+function kanDownloaden() {
+  try {
+    return window.origin !== 'null' && window.self === window.top;
+  } catch {
+    return false;
+  }
+}
+
 
 // ---- editor.js ----
 /**
@@ -919,6 +991,8 @@ const BLOKKEN = {
 let ctx = null;
 let selection = { type: 'none' };
 let showAllPermissions = false;
+/** Welke rol de lijstweergave toont. Op een telefoon past geen raster. */
+let matrixRole = '@everyone';
 
 function renderEditor(container, context) {
   ctx = context;
@@ -1230,7 +1304,48 @@ function matrix(overwrites, title, hint) {
     (hint ? '<p class="hint">' + esc(hint) + '</p>' : '') +
     '<label class="check"><input type="checkbox" data-allperms' + (showAllPermissions ? ' checked' : '') +
     '><span>alle permissies tonen</span></label>' +
-    '<div class="matrixwrap"><table class="matrix">' + header + '<tbody>' + rows + '</tbody></table></div>'
+    '<div class="matrixwrap"><table class="matrix">' + header + '<tbody>' + rows + '</tbody></table></div>' +
+    rechtenLijst(overwrites, roles, permissions)
+  );
+}
+
+/**
+ * Dezelfde rechten als de matrix, maar per rol onder elkaar. Een raster van
+ * 53 regels naast 5 rollen is op een telefoon niet te doen; deze lijst toont
+ * één rol tegelijk en past wel.
+ */
+function rechtenLijst(overwrites, roles, permissions) {
+  if (!roles.some((role) => role.key === matrixRole)) matrixRole = roles[0].key;
+
+  const keuze = roles
+    .map(
+      (role) =>
+        '<button class="rolpil' + (role.key === matrixRole ? ' aan' : '') + '" data-mrol="' +
+        esc(role.key) + '">' + esc(role.name) + '</button>',
+    )
+    .join('');
+
+  const regels = permissions
+    .map((permission) => {
+      const state = overwriteState(overwrites, matrixRole, permission.name);
+      return (
+        '<div class="rechtrij">' +
+        '<div class="rechttekst"><span class="wat">' + esc(permission.label) + '</span>' +
+        (permission.uitleg ? '<span class="waarom">' + esc(permission.uitleg) + '</span>' : '') +
+        '</div>' +
+        '<button class="tri s' + (state === -1 ? 'neg' : state) + '" data-tri="' +
+        esc(matrixRole) + '|' + permission.name + '" title="' + STATE_TITLES[state] + '">' +
+        STATES[state] + '</button></div>'
+      );
+    })
+    .join('');
+
+  return (
+    '<div class="rechtenlijst">' +
+    '<div class="rolpillen">' + keuze + '</div>' +
+    '<p class="hint">Tik op het tekentje om te wisselen: erven, mag, mag niet.</p>' +
+    regels +
+    '</div>'
   );
 }
 
@@ -1380,6 +1495,11 @@ function bind(container) {
 
     if (selection.type === data.move && selection.index === index) selection = { ...selection, index: target };
     changed();
+  });
+
+  on('data-mrol', (data) => {
+    matrixRole = data.mrol;
+    draw(container);
   });
 
   on('data-tri', (data) => {
@@ -2005,8 +2125,20 @@ async function renderVersions() {
   }
 }
 
-/** Zet tekst als bestand klaar in de browser. */
+/**
+ * Zet tekst als bestand klaar in de browser. Mag de browser geen bestanden
+ * aanbieden (de demo draait in een afgeschermd venster), dan tonen we de
+ * inhoud zodat je hem alsnog kunt kopiëren.
+ */
 function bewaarBestand(naam, inhoud) {
+  if (!kanDownloaden()) {
+    toonTekst({
+      title: naam,
+      tekst: inhoud,
+      hint: 'Downloaden mag hier niet. Kopieer de tekst en bewaar hem zelf als ' + naam + '.',
+    });
+    return;
+  }
   const blob = new Blob([inhoud], { type: 'application/json' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);

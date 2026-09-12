@@ -243,6 +243,28 @@
   }
   table.matrix tbody tr:hover { background: var(--surface-2); }
   table.matrix td { padding: 2px 6px; text-align: center; }
+  /* Lijstweergave van dezelfde rechten, voor smalle schermen. */
+  .rechtenlijst { display: none; margin-top: 8px; }
+  .rolpillen { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+  .rolpil {
+    padding: 6px 11px; font-size: 12.5px; border-radius: 999px;
+    background: var(--surface-2); border-color: transparent; box-shadow: none;
+  }
+  .rolpil.aan { background: var(--accent); border-color: transparent; color: #fff; }
+  .rechtrij {
+    display: flex; align-items: center; gap: 10px; padding: 9px 2px;
+    border-top: 1px solid var(--border);
+  }
+  .rechtrij .rechttekst { flex: 1; min-width: 0; }
+  .rechtrij .wat { display: block; font-size: 13px; }
+  .rechtrij .waarom {
+    display: block; font-size: 11px; color: var(--muted); line-height: 1.35; margin-top: 1px;
+  }
+  .rechtrij button.tri { width: 38px; height: 30px; flex: none; font-size: 13px; }
+  @media (max-width: 720px) {
+    .matrixwrap { display: none; }
+    .rechtenlijst { display: block; }
+  }
   button.tri {
     width: 30px; height: 22px; padding: 0; justify-content: center; font-size: 11px; box-shadow: none;
     background: var(--surface-2); border-color: transparent; color: var(--muted);
@@ -329,6 +351,11 @@
   dialog h3 { font-size: 15.5px; margin-bottom: 4px; }
   dialog .dbody { padding: 8px 18px 4px; color: var(--text-2); font-size: 13px; white-space: pre-wrap; }
   dialog .dbody input { width: 100%; margin-top: 10px; }
+  dialog .dbody textarea {
+    width: 100%; margin-top: 10px; min-height: 240px; resize: vertical;
+    font-family: var(--mono); font-size: 12px; line-height: 1.5; white-space: pre;
+  }
+  dialog .dbody .hint { margin: 0 0 2px; color: var(--text-3); }
   dialog .dfoot { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 18px; }
   dialog .keuzes { display: flex; flex-direction: column; gap: 6px; padding: 12px 18px 0; }
   dialog .keuze {
