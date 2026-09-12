@@ -128,7 +128,13 @@ async function main() {
     ),
   };
 
-  await writeFile(path.join(OUT, 'demo-data.json'), JSON.stringify(data), 'utf8');
+  // De gegevens gaan in de pagina zelf. Een los bestand moet opgehaald worden met
+  // een relatief pad, en dat wijst de verkeerde kant op zodra de pagina onder een
+  // ander adres hangt dan verwacht.
+  const inlineData =
+    '<script type="application/json" id="demo-data">' +
+    JSON.stringify(data).replace(/</g, '\\u003c') +
+    '</' + 'script>';
 
   for (const file of ['app.js', 'editor.js', 'ui.js']) {
     await copyFile(path.join(SOURCE, file), path.join(OUT, file));
@@ -139,7 +145,11 @@ async function main() {
   const page = await readFile(path.join(SOURCE, 'index.html'), 'utf8');
   const withMock = page
     .replace('<title>Setup Bot — dashboard</title>', '<title>Setup Bot Dashboard</title>')
-    .replace('<script type="module" src="app.js"></script>', banner() + '\n<script type="module" src="mock.js"></script>\n<script type="module" src="app.js"></script>');
+    .replace(
+      '<script type="module" src="app.js"></script>',
+      banner() + '\n' + inlineData +
+        '\n<script type="module" src="mock.js"></script>\n<script type="module" src="app.js"></script>',
+    );
 
   await writeFile(path.join(OUT, 'index.html'), withMock, 'utf8');
 
@@ -163,9 +173,7 @@ function banner(): string {
 
 /** Onderschept fetch en beantwoordt de dashboard-API uit het vooraf gebouwde bestand. */
 function mockScript(): string {
-  return `// Naast dit script, niet naast de pagina-URL: die kan met of zonder
-// slash op het eind staan en dan wijst een relatief pad de verkeerde kant op.
-const data = await (await fetch(new URL('demo-data.json', import.meta.url))).json();
+  return `const data = JSON.parse(document.getElementById('demo-data').textContent);
 const templates = { ...data.templates };
 const order = Object.keys(templates);
 
