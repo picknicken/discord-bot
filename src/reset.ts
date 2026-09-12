@@ -18,6 +18,15 @@ export interface ResetTarget {
   name: string;
 }
 
+/** Wat er weg mag. Alles aan is de standaard; uitzetten laat dat deel staan. */
+export interface ResetScope {
+  channels: boolean;
+  roles: boolean;
+  automod: boolean;
+}
+
+export const ALLES: ResetScope = { channels: true, roles: true, automod: true };
+
 export interface ResetPlan {
   channels: ResetTarget[];
   roles: ResetTarget[];
@@ -63,32 +72,69 @@ export const ACCESS_HINT =
   'houden een uitzondering voor de bot. Voor deze server: geef de bot tijdelijk Administrator ' +
   '(Serverinstellingen -> Rollen), haal hem leeg, en zet het daarna weer uit.';
 
-export function planReset(snapshot: GuildSnapshot, botHighestPosition: number): ResetPlan {
+/** Eén regel die zegt wat er deze keer aan de beurt is. */
+export function describeScope(scope: ResetScope): string {
+  const weg = [
+    scope.channels ? 'kanalen' : null,
+    scope.roles ? 'rollen' : null,
+    scope.automod ? 'automod-regels' : null,
+  ].filter((deel): deel is string => deel !== null);
+
+  const blijft = [
+    scope.channels ? null : 'kanalen',
+    scope.roles ? null : 'rollen',
+    scope.automod ? null : 'automod-regels',
+  ].filter((deel): deel is string => deel !== null);
+
+  if (weg.length === 0) return 'Niets aangevinkt — er gaat niets weg.';
+  return `Weg: ${weg.join(', ')}.` + (blijft.length > 0 ? ` Blijft staan: ${blijft.join(', ')}.` : '');
+}
+
+export function planReset(
+  snapshot: GuildSnapshot,
+  botHighestPosition: number,
+  scope: ResetScope = ALLES,
+): ResetPlan {
   const skipped: string[] = [];
 
   const roles: ResetTarget[] = [];
-  for (const role of snapshot.roles) {
-    if (role.isEveryone) continue;
+  if (!scope.roles) {
+    if (snapshot.roles.some((role) => !role.isEveryone)) {
+      skipped.push('rollen blijven staan; die keuze is zo gemaakt');
+    }
+  } else {
+    for (const role of snapshot.roles) {
+      if (role.isEveryone) continue;
 
-    if (role.managed) {
-      skipped.push(`rol "${role.name}" hoort bij een bot of integratie`);
-      continue;
+      if (role.managed) {
+        skipped.push(`rol "${role.name}" hoort bij een bot of integratie`);
+        continue;
+      }
+      if (role.position >= botHighestPosition) {
+        skipped.push(`rol "${role.name}" staat even hoog als of hoger dan de bot`);
+        continue;
+      }
+      roles.push({ id: role.id, name: role.name });
     }
-    if (role.position >= botHighestPosition) {
-      skipped.push(`rol "${role.name}" staat even hoog als of hoger dan de bot`);
-      continue;
-    }
-    roles.push({ id: role.id, name: role.name });
+  }
+
+  if (!scope.channels && (snapshot.channels.length > 0 || snapshot.categories.length > 0)) {
+    skipped.push('kanalen blijven staan; die keuze is zo gemaakt');
+  }
+  if (!scope.automod && snapshot.automod.length > 0) {
+    skipped.push('automod-regels blijven staan; die keuze is zo gemaakt');
   }
 
   return {
     // Categorieen achteraan: de kanalen erin gaan eerst weg.
-    channels: [
-      ...snapshot.channels.map((channel) => ({ id: channel.id, name: channel.name })),
-      ...snapshot.categories.map((category) => ({ id: category.id, name: category.name })),
-    ],
+    channels: scope.channels
+      ? [
+          ...snapshot.channels.map((channel) => ({ id: channel.id, name: channel.name })),
+          ...snapshot.categories.map((category) => ({ id: category.id, name: category.name })),
+        ]
+      : [],
     roles,
-    automod: snapshot.automod.map((rule) => ({ id: rule.id, name: rule.name })),
+    automod: scope.automod ? snapshot.automod.map((rule) => ({ id: rule.id, name: rule.name })) : [],
     skipped,
   };
 }

@@ -17,6 +17,21 @@ on:
         description: 'Typ de naam van die server exact over'
         required: true
         type: string
+      rollen_verwijderen:
+        description: 'Ook de rollen verwijderen'
+        required: false
+        default: true
+        type: boolean
+      kanalen_verwijderen:
+        description: 'Ook de kanalen verwijderen'
+        required: false
+        default: true
+        type: boolean
+      automod_verwijderen:
+        description: 'Ook de AutoMod-regels verwijderen'
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   leeghalen:
@@ -51,7 +66,19 @@ jobs:
           DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
           GUILD_ID: ${{ inputs.guild_id }}
           BEVESTIG: ${{ inputs.bevestig }}
-        run: node dist/reset-once.js --guild "$GUILD_ID" --bevestig "$BEVESTIG"
+          ROLLEN: ${{ inputs.rollen_verwijderen }}
+          KANALEN: ${{ inputs.kanalen_verwijderen }}
+          AUTOMOD: ${{ inputs.automod_verwijderen }}
+        run: |
+          args=(--guild "$GUILD_ID" --bevestig "$BEVESTIG")
+          [ "$ROLLEN" = "true" ]  || args+=(--behoud-rollen)
+          [ "$KANALEN" = "true" ] || args+=(--behoud-kanalen)
+          [ "$AUTOMOD" = "true" ] || args+=(--behoud-automod)
+          if [ "$ROLLEN$KANALEN$AUTOMOD" = "falsefalsefalse" ]; then
+            echo "::error::Niets aangevinkt — er valt zo niets leeg te halen."
+            exit 1
+          fi
+          node dist/reset-once.js "${args[@]}"
 
       - name: Momentopname bewaren
         if: always()

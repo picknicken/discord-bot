@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countReset, describeReset, explainDeleteFailure, planReset } from '../src/reset.js';
+import { countReset, describeReset, describeScope, explainDeleteFailure, planReset } from '../src/reset.js';
 import type { GuildSnapshot, SnapshotRole } from '../src/snapshot.js';
 
 const role = (id: string, name: string, position: number, extra: Partial<SnapshotRole> = {}): SnapshotRole => ({
@@ -86,5 +86,58 @@ describe('uitleg bij een mislukte verwijdering', () => {
 
   it('laat onbekende fouten staan zoals ze zijn', () => {
     expect(explainDeleteFailure(new Error('iets anders'))).toBe('iets anders');
+  });
+});
+
+describe('kiezen wat er weg mag', () => {
+  it('laat de rollen staan als je dat kiest', () => {
+    const keuze = planReset(snapshot, 5, { channels: true, roles: false, automod: true });
+    expect(keuze.roles).toEqual([]);
+    expect(keuze.channels.length).toBeGreaterThan(0);
+    expect(keuze.automod.length).toBeGreaterThan(0);
+  });
+
+  it('zegt in het plan dat de rollen met opzet blijven', () => {
+    const keuze = planReset(snapshot, 5, { channels: true, roles: false, automod: true });
+    expect(describeReset(keuze).join('\n')).toContain('rollen blijven staan');
+  });
+
+  it('laat de kanalen staan als je alleen rollen weggooit', () => {
+    const keuze = planReset(snapshot, 5, { channels: false, roles: true, automod: false });
+    expect(keuze.channels).toEqual([]);
+    expect(keuze.automod).toEqual([]);
+    expect(keuze.roles.map((r) => r.name)).toEqual(['Lid', 'Moderator']);
+  });
+
+  it('telt niets als er niets gekozen is', () => {
+    expect(countReset(planReset(snapshot, 5, { channels: false, roles: false, automod: false }))).toBe(0);
+  });
+
+  it('gooit zonder keuze nog steeds alles weg', () => {
+    expect(countReset(planReset(snapshot, 5))).toBe(countReset(plan));
+  });
+
+  it('houdt zich ook met een keuze aan de rollen die niemand mag aanraken', () => {
+    const keuze = planReset(snapshot, 5, { channels: false, roles: true, automod: false });
+    expect(keuze.roles.map((r) => r.name)).not.toContain('Een bot');
+    expect(keuze.roles.map((r) => r.name)).not.toContain('Eigenaar');
+  });
+});
+
+describe('uitleg over de keuze', () => {
+  it('noemt wat weg gaat en wat blijft', () => {
+    expect(describeScope({ channels: true, roles: false, automod: true })).toBe(
+      'Weg: kanalen, automod-regels. Blijft staan: rollen.',
+    );
+  });
+
+  it('zegt het als alles weg gaat', () => {
+    expect(describeScope({ channels: true, roles: true, automod: true })).toBe(
+      'Weg: kanalen, rollen, automod-regels.',
+    );
+  });
+
+  it('zegt het als er niets gekozen is', () => {
+    expect(describeScope({ channels: false, roles: false, automod: false })).toMatch(/niets/);
   });
 });

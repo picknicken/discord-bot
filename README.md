@@ -452,13 +452,33 @@ Bouwen, kijken, leeghalen, opnieuw — dat is de ronde waarmee je een template a
 `prune` haalt alleen kanalen weg; dit haalt de hele inrichting eruit.
 
 ```bash
-npm run reset -- --guild 123456789                        # alleen tonen
+npm run reset -- --guild 123456789                         # alleen tonen
 npm run reset -- --guild 123456789 --bevestig "Testserver" # echt leeghalen
 ```
 
 De bevestiging moet exact de naam van die server zijn, anders gebeurt er niets. Vanaf je
 telefoon kan het ook: **Actions → Server leeghalen**, met dezelfde bevestiging. Dat is een
 aparte workflow, zodat je hem niet per ongeluk aantikt naast "inrichten".
+
+**Zelf kiezen wat er weg mag.** Standaard gaat alles weg. Wil je bijvoorbeeld de kanalen
+opnieuw doen maar de rollen houden — dan hoef je niemand opnieuw een rol te geven — dan zet
+je dat ene deel uit:
+
+```bash
+npm run reset -- --guild 123456789 --bevestig "Testserver" --behoud-rollen
+```
+
+| Vlag | Wat er blijft staan |
+| --- | --- |
+| `--behoud-rollen` | alle rollen |
+| `--behoud-kanalen` | alle kanalen en categorieen |
+| `--behoud-automod` | de AutoMod-regels |
+
+In de Action staan het als drie vinkjes: **Ook de rollen verwijderen**, **Ook de kanalen
+verwijderen**, **Ook de AutoMod-regels verwijderen**. Ze staan alle drie aan; haal er een
+weg en dat deel blijft staan. Zet je ze alle drie uit, dan stopt hij met een melding in
+plaats van een run die niets doet. Wat er deze keer weg gaat en wat blijft, staat boven aan
+het log.
 
 | Gaat weg | Blijft staan |
 | --- | --- |

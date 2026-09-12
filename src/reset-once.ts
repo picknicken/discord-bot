@@ -2,7 +2,7 @@ import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { config } from './config.js';
 import { backupGuild } from './backup.js';
 import { missingPermissions } from './botPermissions.js';
-import { applyReset, countReset, describeReset, planReset } from './reset.js';
+import { ALLES, applyReset, countReset, describeReset, describeScope, planReset, type ResetScope } from './reset.js';
 import { snapshotGuildFresh } from './snapshot.js';
 import { logger } from './util/logger.js';
 import { login } from './util/start.js';
@@ -17,16 +17,20 @@ interface Options {
   guildId: string;
   confirm: string | null;
   backup: boolean;
+  scope: ResetScope;
 }
 
 function parseArguments(argv: string[]): Options | null {
-  const options: Options = { guildId: '', confirm: null, backup: true };
+  const options: Options = { guildId: '', confirm: null, backup: true, scope: { ...ALLES } };
 
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index];
     if (argument === '--guild') options.guildId = argv[++index] ?? '';
     else if (argument === '--bevestig' || argument === '--confirm') options.confirm = argv[++index] ?? '';
     else if (argument === '--geen-backup') options.backup = false;
+    else if (argument === '--behoud-rollen') options.scope.roles = false;
+    else if (argument === '--behoud-kanalen') options.scope.channels = false;
+    else if (argument === '--behoud-automod') options.scope.automod = false;
   }
 
   return options.guildId ? options : null;
@@ -40,11 +44,14 @@ if (!options) {
       '',
       '  Gebruik: npm run reset -- --guild <server-id> [--bevestig "<servernaam>"]',
       '',
-      '    --guild        id van de server',
-      '    --bevestig     de servernaam, exact overgetypt; zonder dit blijft het een preview',
-      '    --geen-backup  sla de momentopname vooraf over (niet aangeraden)',
+      '    --guild            id van de server',
+      '    --bevestig         de servernaam, exact overgetypt; zonder dit blijft het een preview',
+      '    --geen-backup      sla de momentopname vooraf over (niet aangeraden)',
+      '    --behoud-rollen    laat de rollen staan',
+      '    --behoud-kanalen   laat de kanalen staan',
+      '    --behoud-automod   laat de automod-regels staan',
       '',
-      '  Dit verwijdert alle kanalen, alle rollen die de bot mag beheren en de',
+      '  Standaard verdwijnen alle kanalen, alle rollen die de bot mag beheren en de',
       '  AutoMod-regels. Leden, berichten in bewaarde kanalen en emoji\'s blijven.',
       '',
     ].join('\n'),
@@ -65,9 +72,10 @@ client.once(Events.ClientReady, async (ready) => {
 
     const me = await guild.members.fetchMe();
     const snapshot = await snapshotGuildFresh(guild);
-    const plan = planReset(snapshot, me.roles.highest.position);
+    const plan = planReset(snapshot, me.roles.highest.position, options.scope);
 
     logger.info(`Server: ${guild.name} (${guild.id})`);
+    logger.info(describeScope(options.scope));
     logger.info(
       `Weg: ${plan.channels.length} kanalen, ${plan.roles.length} rollen, ${plan.automod.length} automod-regels.`,
     );
