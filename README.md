@@ -86,24 +86,40 @@ Discord waar niet omheen te komen is:
    `ManageGuild`. En zonder community-modus bestaan forum-, aankondigings- en
    stagekanalen niet.
 
-Zonder die rechten lukt een deel van het werk wel en een deel niet: een half ingerichte
-server met rollen die ontbreken. Daarom kijkt de bot vooraf of hij alles mag wat de
-template vraagt, en stopt hij vóór de eerste wijziging als dat niet zo is:
+### Zonder Administrator: hij doet wat hij kan
+
+Heeft de bot geen Administrator, dan **stopt hij niet en mislukt er niets**. Het plan wordt
+vóór de eerste wijziging bijgesteld naar wat deze bot op deze server echt mag, en daarna
+staat er precies wat er is bijgesteld:
 
 ```
-De bot mist 9 rechten voor deze template:
-  - community-modus aanzetten: Administrator
-  - rol @Clan Owner: Administrator
-  - rol @Officier: KickMembers, ManageMessages, MentionEveryone, ...
+Bijgesteld naar wat deze bot kan:
+  rol @Clan Owner: Administrator niet gezet (de bot heeft dat zelf niet).
+  rol @Officier: KickMembers, ManageMessages niet gezet (de bot heeft dat zelf niet).
+  community-modus overgeslagen: dat aanzetten vraagt Administrator.
+  4 forum-, aankondigings- of stagekanalen overgeslagen: die bestaan alleen op een
+  community-server.
+  Geef de bot Administrator en draai dit opnieuw, dan worden deze dingen alsnog gezet.
 ```
 
-Wil je het toch zonder Administrator, dan kan dat met de beperkte link uit
-`npm run invite`. Die is genoeg voor templates zonder community-modus en zonder rollen met
-bijzondere rechten: `ManageChannels`, `ManageRoles`, `ManageGuild` plus `ViewChannel`,
-`SendMessages`, `EmbedLinks`, `AttachFiles`, `ReadMessageHistory`. Loopt een run daarop
-vast, dan zegt hij precies welk recht waar ontbreekt. Met `--toch-doorgaan` (vinkje *Doorgaan
-ook als de bot rechten mist* in de Action) forceer je het alsnog; reken dan op fouten
-onderweg.
+Je krijgt dus een server die klopt op alles wat kon, met een lijstje van wat niet kon. Geef
+je de bot daarna Administrator en draai je het opnieuw, dan worden die rollen bijgewerkt en
+de ontbrekende kanalen gemaakt — je hoeft niets opnieuw te doen.
+
+Wat er nooit gebeurt: een recht stilletjes weghalen. Heeft een bestaande rol een permissie
+die de bot zelf niet heeft, dan blijft die staan zoals hij stond.
+
+Dit geldt voor elke template, ook eentje die jij morgen maakt: een test loopt alle templates
+in de map langs, met vier verschillende bot-rechten, en eist dat het bijgestelde plan nooit
+iets vraagt wat de bot niet mag. De controle (`npm run dashboard` → Controle) zegt er
+bovendien bij of een template Administrator vraagt.
+
+Wil je liever dat hij stopt in plaats van bijstelt: `--stop-bij-tekort`, of het vinkje
+*Stoppen zodra de bot iets niet mag* in de Action.
+
+De beperkte invite-link uit `npm run invite` is genoeg voor templates zonder community-modus
+en zonder rollen met bijzondere rechten: `ManageChannels`, `ManageRoles`, `ManageGuild` plus
+`ViewChannel`, `SendMessages`, `EmbedLinks`, `AttachFiles`, `ReadMessageHistory`.
 
 ## Naam van de bot
 

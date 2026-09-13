@@ -37,8 +37,8 @@ on:
         required: false
         default: alles
         type: string
-      toch_doorgaan:
-        description: 'Doorgaan ook als de bot rechten mist (levert een half ingerichte server op)'
+      stop_bij_tekort:
+        description: 'Stoppen zodra de bot iets niet mag (standaard doet hij wat wel kan en zegt hij de rest)'
         required: false
         default: false
         type: boolean
@@ -102,7 +102,7 @@ jobs:
           TEMPLATE: ${{ inputs.template }}
           MODE: ${{ inputs.mode }}
           PRUNE: ${{ inputs.prune }}
-          FORCE: ${{ inputs.toch_doorgaan }}
+          STOP_BIJ_TEKORT: ${{ inputs.stop_bij_tekort }}
           ONDERDELEN: ${{ inputs.onderdelen }}
         run: |
           args=(--guild "$GUILD_ID" --template "$TEMPLATE" --alleen "${ONDERDELEN:-alles}")
@@ -112,9 +112,8 @@ jobs:
               args+=(--prune)
               echo "::warning::prune staat aan — kanalen buiten de template worden verwijderd."
             fi
-            if [ "$FORCE" = "true" ]; then
-              args+=(--toch-doorgaan)
-              echo "::warning::de rechtencontrole staat uit — wat de bot niet mag, mislukt onderweg."
+            if [ "$STOP_BIJ_TEKORT" = "true" ]; then
+              args+=(--stop-bij-tekort)
             fi
           fi
           node dist/apply-once.js "${args[@]}"

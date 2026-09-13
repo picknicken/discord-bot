@@ -9,6 +9,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import { applyPlan } from '../src/applier.js';
 import { planSetup } from '../src/planner.js';
+import { maakHaalbaar } from '../src/haalbaar.js';
 import { parseTemplate } from '../src/types.js';
 import type { GuildSnapshot } from '../src/snapshot.js';
 
@@ -18,8 +19,15 @@ import type { GuildSnapshot } from '../src/snapshot.js';
  * mislukte runs: twee opdrachten waar er één hoorde, en verwijzingen die elkaar
  * meesleurden.
  */
-function nepServer(opties: { features?: string[]; faalOp?: (payload: Record<string, unknown>) => string | null } = {}) {
+function nepServer(
+  opties: {
+    features?: string[];
+    faalOp?: (payload: Record<string, unknown>) => string | null;
+    rechten?: PermissionsBitField;
+  } = {},
+) {
   const edits: Record<string, unknown>[] = [];
+  const rollen: { name: string; permissions: bigint }[] = [];
   const kanalen = new Collection<string, { id: string; name: string; type: ChannelType }>();
   let teller = 0;
 
@@ -29,7 +37,10 @@ function nepServer(opties: { features?: string[]; faalOp?: (payload: Record<stri
     features: opties.features ?? [],
     roles: {
       cache: new Collection(),
-      create: async ({ name }: { name: string }) => ({ id: `r${++teller}`, name }),
+      create: async ({ name, permissions }: { name: string; permissions?: bigint }) => {
+        rollen.push({ name, permissions: permissions ?? 0n });
+        return { id: `r${++teller}`, name };
+      },
       fetch: async () => undefined,
       setPositions: async () => undefined,
     },
@@ -47,7 +58,7 @@ function nepServer(opties: { features?: string[]; faalOp?: (payload: Record<stri
       fetchMe: async () => ({
         id: 'bot',
         roles: { botRole: { id: 'botrol' }, highest: { position: 10 } },
-        permissions: new PermissionsBitField([PermissionFlagsBits.Administrator]),
+        permissions: opties.rechten ?? new PermissionsBitField([PermissionFlagsBits.Administrator]),
       }),
     },
     autoModerationRules: { create: async () => undefined, delete: async () => undefined },
@@ -60,7 +71,7 @@ function nepServer(opties: { features?: string[]; faalOp?: (payload: Record<stri
     },
   };
 
-  return { guild: guild as unknown as Guild, edits, kanalen };
+  return { guild: guild as unknown as Guild, edits, kanalen, rollen };
 }
 
 const leeg: GuildSnapshot = {
@@ -90,6 +101,15 @@ const rollen = async (opties?: Parameters<typeof nepServer>[0]) => {
   const plan = planSetup(leeg, template, { prune: false, update: true });
   const result = await applyPlan(nep.guild, template, plan);
   return { ...nep, result };
+};
+
+/** Zoals het echt gaat: eerst bijstellen naar wat de bot mag, dan uitvoeren. */
+const draaiMetRechten = async (rechten: PermissionsBitField, features: string[] = []) => {
+  const nep = nepServer({ rechten, features });
+  const plan = planSetup(leeg, template, { prune: false, update: true });
+  const haalbaar = maakHaalbaar(plan, rechten, { alCommunity: features.includes('COMMUNITY') });
+  const result = await applyPlan(nep.guild, template, haalbaar.plan);
+  return { ...nep, result, aanpassingen: haalbaar.aanpassingen };
 };
 
 describe('wat er naar Discord gaat', () => {
@@ -148,5 +168,67 @@ describe('wat er naar Discord gaat', () => {
     const instellingen = edits.find((edit) => edit.verificationLevel !== undefined && !Array.isArray(edit.features));
     expect(instellingen?.verificationLevel).toBe(GuildVerificationLevel.Medium);
     expect(instellingen?.explicitContentFilter).toBe(2);
+  });
+});
+
+
+describe('een bot zonder Administrator', () => {
+  const beperkt = new PermissionsBitField([
+    PermissionFlagsBits.ManageChannels,
+    PermissionFlagsBits.ManageRoles,
+    PermissionFlagsBits.ManageGuild,
+    PermissionFlagsBits.KickMembers,
+  ]);
+
+  it('draait de template zonder ook maar één mislukte actie', async () => {
+    const { result } = await draaiMetRechten(beperkt);
+    expect(result.failed, result.errors.join(' | ')).toBe(0);
+    expect(result.applied).toBeGreaterThan(0);
+  });
+
+  it('maakt de rollen aan, maar zonder de rechten die hij niet mag uitdelen', async () => {
+    const { rollen: gemaakt } = await draaiMetRechten(beperkt);
+    const mod = gemaakt.find((rol) => rol.name === 'Mod');
+
+    expect(mod).toBeDefined();
+    expect(mod!.permissions & PermissionFlagsBits.KickMembers).toBe(PermissionFlagsBits.KickMembers);
+    expect(mod!.permissions & PermissionFlagsBits.Administrator).toBe(0n);
+  });
+
+  it('probeert community-modus niet eens aan te zetten', async () => {
+    const { edits } = await draaiMetRechten(beperkt);
+    expect(edits.some((edit) => Array.isArray(edit.features))).toBe(false);
+  });
+
+  it('slaat de kanalen over die community nodig hebben, en zegt dat', async () => {
+    const { kanalen, aanpassingen } = await draaiMetRechten(beperkt);
+    const namen = [...kanalen.values()].map((kanaal) => kanaal.name);
+
+    expect(namen).toContain('welkom');
+    expect(namen).not.toContain('nieuws');
+    expect(aanpassingen.join(' ')).toContain('community-modus overgeslagen');
+  });
+
+  it('maakt ze wel op een server die al community is', async () => {
+    const { kanalen, result } = await draaiMetRechten(beperkt, ['COMMUNITY']);
+    expect([...kanalen.values()].map((kanaal) => kanaal.name)).toContain('nieuws');
+    expect(result.failed, result.errors.join(' | ')).toBe(0);
+  });
+
+  it('zegt per rol en per kanaal wat er niet gezet is', async () => {
+    const { aanpassingen } = await draaiMetRechten(new PermissionsBitField([PermissionFlagsBits.ManageChannels]));
+    expect(aanpassingen.join(' | ')).toContain('rol @Mod: KickMembers niet gezet');
+  });
+
+  it('knipt het er ook af als het plan niet bijgesteld is', async () => {
+    // De vangnetlaag: zelfs met een plan dat wel om Administrator vraagt, gaat
+    // er geen recht naar Discord dat de bot niet heeft.
+    const nep = nepServer({ rechten: new PermissionsBitField([PermissionFlagsBits.ManageRoles]) });
+    const plan = planSetup(leeg, template, { prune: false, update: true });
+    const result = await applyPlan(nep.guild, template, plan);
+
+    const mod = nep.rollen.find((rol) => rol.name === 'Mod');
+    expect(mod!.permissions & PermissionFlagsBits.KickMembers).toBe(0n);
+    expect(result.errors.join(' | ')).toContain('Rol @Mod aangemaakt zonder KickMembers');
   });
 });

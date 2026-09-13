@@ -3,6 +3,7 @@ import { config } from './config.js';
 import { applyPlan } from './applier.js';
 import { buildInviteUrl, missingPermissions } from './botPermissions.js';
 import { explainShortfalls, planShortfalls } from './preflight.js';
+import { maakHaalbaar } from './haalbaar.js';
 import {
   beschrijfOnderdelen,
   filterPlan,
@@ -28,8 +29,8 @@ interface Options {
   template: string;
   apply: boolean;
   prune: boolean;
-  /** Toch uitvoeren terwijl de bot rechten mist. Levert een halve server op. */
-  force: boolean;
+  /** Stoppen zodra de bot iets niet mag, in plaats van doen wat wel kan. */
+  stopBijTekort: boolean;
   /** Welke delen van de template meedoen. */
   onderdelen: Onderdeel[];
 }
@@ -40,7 +41,7 @@ function parseArguments(argv: string[]): Options | null {
     template: '',
     apply: false,
     prune: false,
-    force: false,
+    stopBijTekort: false,
     onderdelen: [...ONDERDELEN],
   };
   let onderdelenInvoer: string | undefined;
@@ -51,7 +52,7 @@ function parseArguments(argv: string[]): Options | null {
     else if (argument === '--template') options.template = argv[++index] ?? '';
     else if (argument === '--apply') options.apply = true;
     else if (argument === '--prune') options.prune = true;
-    else if (argument === '--toch-doorgaan') options.force = true;
+    else if (argument === '--stop-bij-tekort') options.stopBijTekort = true;
     else if (argument === '--onderdelen' || argument === '--alleen') onderdelenInvoer = argv[++index] ?? '';
   }
 
@@ -77,7 +78,7 @@ if (!options) {
       '    --template  bestandsnaam zonder .json uit de templates-map',
       '    --apply     voer het plan echt uit; zonder dit laat hij alleen zien wat hij zou doen',
       '    --prune     verwijder kanalen die niet in de template staan (alleen samen met --apply)',
-      '    --toch-doorgaan  uitvoeren ook als de bot rechten mist (levert een halve server op)',
+      '    --stop-bij-tekort  stop zodra de bot iets niet mag; standaard doet hij wat wel kan',
       '    --alleen    welke delen meedoen, met komma\'s; standaard alles',
       '',
       '  Onderdelen:',
@@ -128,11 +129,24 @@ client.once(Events.ClientReady, async (ready) => {
     for (const warning of plan.warnings) logger.warn(warning);
 
     // De rechtencontrole hoort bij het plan, niet bij het uitvoeren: juist in de
-    // preview wil je weten dat het niet gaat lukken.
+    // preview wil je weten wat er niet gaat lukken.
     const me = await guild.members.fetchMe();
     const tekort = planShortfalls(plan, me.permissions);
-    for (const line of explainShortfalls(tekort, config.clientId ? buildInviteUrl(config.clientId) : null)) {
-      logger.warn(line);
+
+    // Standaard doet hij wat wel kan, en zegt hij wat er is bijgesteld. Stoppen
+    // bij het eerste dat niet mag levert een lege server op, en dat helpt niemand.
+    const haalbaar = maakHaalbaar(plan, me.permissions, { alCommunity: guild.features.includes('COMMUNITY') });
+
+    if (tekort.length > 0) {
+      for (const line of explainShortfalls(tekort, config.clientId ? buildInviteUrl(config.clientId) : null)) {
+        logger.warn(line);
+      }
+    }
+
+    if (haalbaar.aanpassingen.length > 0 && !options.stopBijTekort) {
+      logger.warn('');
+      logger.warn('Bijgesteld naar wat deze bot kan:');
+      for (const regel of haalbaar.aanpassingen) logger.warn(`  ${regel}`);
     }
 
     if (!options.apply) {
@@ -148,22 +162,29 @@ client.once(Events.ClientReady, async (ready) => {
       return;
     }
 
-    if (tekort.length > 0 && !options.force) {
+    if (tekort.length > 0 && options.stopBijTekort) {
       logger.error('');
-      logger.error('Gestopt voordat er iets gewijzigd is.');
-      logger.error('Wil je het toch proberen, met een half ingerichte server als uitkomst: --toch-doorgaan');
+      logger.error('Gestopt voordat er iets gewijzigd is (--stop-bij-tekort).');
       process.exitCode = 1;
       return;
     }
 
-    if (plan.actions.length === 0) {
+    const uitvoeren = haalbaar.plan;
+    if (uitvoeren.actions.length === 0) {
       logger.info('Niets te doen — de server komt al overeen met de template.');
       return;
     }
 
-    const result = await applyPlan(guild, template, plan);
+    const result = await applyPlan(guild, template, uitvoeren);
     logger.info(`Klaar: ${result.applied} acties gelukt, ${result.failed} mislukt.`);
     for (const error of result.errors) logger.warn(error);
+
+    if (haalbaar.aanpassingen.length > 0) {
+      logger.warn('');
+      logger.warn('Niet alles kon zoals de template het vraagt:');
+      for (const regel of haalbaar.aanpassingen) logger.warn(`  ${regel}`);
+    }
+
     if (result.failed > 0) process.exitCode = 1;
   } catch (error) {
     logger.error(error instanceof Error ? error.message : String(error));

@@ -13,6 +13,7 @@ import { listTemplateIds, loadTemplate } from '../templates.js';
 import { auditSummary, countBySeverity, lintTemplate } from '../lint.js';
 import { PERMISSION_CATALOGUE } from '../permissionCatalogue.js';
 import { filterPlan, leesOnderdelen, ONDERDELEN, UITLEG } from '../onderdelen.js';
+import { maakHaalbaar } from '../haalbaar.js';
 import { buildInviteUrl, INVITE_PERMISSIONS } from '../botPermissions.js';
 import { explainShortfalls, planShortfalls } from '../preflight.js';
 import {
@@ -312,17 +313,20 @@ async function handle(
         const plan = filterPlan(planSetup(await snapshotGuildFresh(guild), template, options), onderdelen);
         const me = await guild.members.fetchMe();
         const tekort = planShortfalls(plan, me.permissions);
+        const haalbaar = maakHaalbaar(plan, me.permissions, {
+          alCommunity: guild.features.includes('COMMUNITY'),
+        });
 
         plans.push({
           guildId,
           guildName: guild.name,
-          summary: summarizePlan(plan),
-          actions: describeActions(plan, 1000),
-          // De rechten die de bot mist horen bij het plan: dat wil je zien
-          // voordat je op uitrollen drukt, niet pas in de foutenlijst erna.
-          warnings: [...plan.warnings, ...explainShortfalls(tekort, null)],
+          summary: summarizePlan(haalbaar.plan),
+          actions: describeActions(haalbaar.plan, 1000),
+          // Wat er is bijgesteld hoort bij het plan: dat wil je zien voordat je
+          // op uitrollen drukt, niet pas in de foutenlijst erna.
+          warnings: [...haalbaar.plan.warnings, ...haalbaar.aanpassingen],
           shortfalls: tekort,
-          count: plan.actions.length,
+          count: haalbaar.plan.actions.length,
         });
       }
       if (plans.length === 0) return send(response, 404, { error: 'Geen van de servers is gevonden.' });
@@ -368,19 +372,11 @@ async function handle(
 
       const plan = filterPlan(planSetup(await snapshotGuildFresh(guild), template, options), onderdelen);
 
-      const tekort = planShortfalls(plan, me.permissions);
-      if (tekort.length > 0) {
-        results.push({
-          guildId,
-          guildName: guild.name,
-          applied: 0,
-          failed: 0,
-          errors: explainShortfalls(tekort, buildInviteUrl(config.clientId)),
-        });
-        continue;
-      }
+      const haalbaar = maakHaalbaar(plan, me.permissions, {
+        alCommunity: guild.features.includes('COMMUNITY'),
+      });
 
-      if (plan.actions.length === 0) {
+      if (haalbaar.plan.actions.length === 0) {
         results.push({ guildId, guildName: guild.name, applied: 0, failed: 0, errors: [], note: 'niets te doen' });
         continue;
       }
@@ -391,9 +387,17 @@ async function handle(
         backupFile = await backupGuild(guild, config.backupsDir, body.templateId).catch(() => null);
       }
 
-      logger.info(`Dashboard past "${body.templateId}" toe op "${guild.name}" (${plan.actions.length} acties)`);
-      const result = await applyPlan(guild, template, plan);
-      results.push({ guildId, guildName: guild.name, backup: backupFile, ...result });
+      logger.info(
+        `Dashboard past "${body.templateId}" toe op "${guild.name}" (${haalbaar.plan.actions.length} acties)`,
+      );
+      const result = await applyPlan(guild, template, haalbaar.plan);
+      results.push({
+        guildId,
+        guildName: guild.name,
+        backup: backupFile,
+        ...result,
+        errors: [...result.errors, ...haalbaar.aanpassingen],
+      });
     }
 
     return send(response, 200, {

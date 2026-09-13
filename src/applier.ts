@@ -17,7 +17,8 @@ import {
   type OverwriteResolvable,
 } from 'discord.js';
 import { logger } from './util/logger.js';
-import { toBitfield } from './permissions.js';
+import { toBitfield, toNames } from './permissions.js';
+import { grantableBits, veiligeBits } from './haalbaar.js';
 import { actionLabel, type Plan } from './planner.js';
 import type { AutomodSpec, ChannelSpec, Overwrite, ServerTemplate } from './types.js';
 
@@ -25,6 +26,17 @@ import type { AutomodSpec, ChannelSpec, Overwrite, ServerTemplate } from './type
  * Verstopt deze set overwrites het kanaal voor @everyone? Zo ja, dan verliest de
  * bot zelf ook de toegang — die hoort immers ook bij @everyone.
  */
+/** De rechten die er nu op een kanaal staan, per rol-id. */
+function huidigeOverwrites(channel: {
+  permissionOverwrites: { cache: Map<string, { allow: { bitfield: bigint }; deny: { bitfield: bigint } }> };
+}): Map<string, { allow: bigint; deny: bigint }> {
+  const huidig = new Map<string, { allow: bigint; deny: bigint }>();
+  for (const [id, overwrite] of channel.permissionOverwrites.cache) {
+    huidig.set(id, { allow: overwrite.allow.bitfield, deny: overwrite.deny.bitfield });
+  }
+  return huidig;
+}
+
 export function hidesFromEveryone(overwrites: readonly Overwrite[]): boolean {
   return overwrites.some((overwrite) => overwrite.role === '@everyone' && overwrite.deny.includes('ViewChannel'));
 }
@@ -98,6 +110,11 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
   const me = await guild.members.fetchMe();
   const botAccessId = me.roles.botRole?.id ?? me.id;
 
+  // Wat deze bot mag uitdelen. Discord weigert elke opdracht waarin een recht
+  // staat dat de bot zelf niet heeft, dus knippen we dat eraf in plaats van de
+  // hele opdracht te laten mislukken. Wat we niet mogen aanraken laten we staan.
+  const magBits = grantableBits(me.permissions);
+
   /** Namen -> echte kanaal-ids, bijgewerkt zodra er iets wordt aangemaakt. */
   const categoryIds = new Map<string, string>();
   const channelIds = new Map<string, string>();
@@ -106,7 +123,10 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
     else if (!channel.isThread()) channelIds.set(normalize(channel.name), channel.id);
   }
 
-  const buildOverwrites = (overwrites: Overwrite[]): OverwriteResolvable[] => {
+  const buildOverwrites = (
+    overwrites: Overwrite[],
+    bestaand?: ReadonlyMap<string, { allow: bigint; deny: bigint }>,
+  ): OverwriteResolvable[] => {
     const resolved: OverwriteResolvable[] = [];
     for (const overwrite of overwrites) {
       const id = roleIds.get(overwrite.role);
@@ -114,7 +134,19 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
         result.errors.push(`Overwrite overgeslagen: rol "${overwrite.role}" bestaat (nog) niet.`);
         continue;
       }
-      resolved.push({ id, allow: toBitfield(overwrite.allow), deny: toBitfield(overwrite.deny) });
+
+      const huidig = bestaand?.get(id) ?? { allow: 0n, deny: 0n };
+      const allow = veiligeBits(toBitfield(overwrite.allow), huidig.allow, magBits);
+      const deny = veiligeBits(toBitfield(overwrite.deny), huidig.deny, magBits);
+
+      const weg = toNames((toBitfield(overwrite.allow) | toBitfield(overwrite.deny)) & ~magBits);
+      if (weg.length > 0) {
+        result.errors.push(
+          `Rechten overgeslagen voor "${overwrite.role}": ${weg.join(', ')} — de bot heeft dat zelf niet.`,
+        );
+      }
+
+      resolved.push({ id, allow, deny });
     }
 
     // Verstopt de template dit kanaal voor @everyone, dan raakt de bot het zelf
@@ -227,12 +259,20 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
     try {
       switch (action.kind) {
         case 'create-role': {
+          const gewenst = toBitfield(action.role.permissions);
+          const weg = toNames(gewenst & ~magBits);
+          if (weg.length > 0) {
+            result.errors.push(
+              `Rol @${action.role.name} aangemaakt zonder ${weg.join(', ')} — de bot heeft dat zelf niet.`,
+            );
+          }
+
           const created = await guild.roles.create({
             name: action.role.name,
             ...roleColor(action.role.color),
             hoist: action.role.hoist,
             mentionable: action.role.mentionable,
-            permissions: toBitfield(action.role.permissions),
+            permissions: gewenst & magBits,
             reason,
           });
           roleIds.set(action.role.key, created.id);
@@ -242,11 +282,23 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
         case 'update-role': {
           const role = await guild.roles.fetch(action.roleId);
           if (!role) throw new Error('rol niet gevonden');
+
+          // Wat de bot niet mag uitdelen, laat hij staan zoals het stond: anders
+          // haalt een bot zonder Administrator die permissie weg bij een rol die
+          // hem al had.
+          const gewenst = toBitfield(action.role.permissions);
+          const weg = toNames((gewenst ^ role.permissions.bitfield) & ~magBits);
+          if (weg.length > 0) {
+            result.errors.push(
+              `Rol @${action.role.name}: ${weg.join(', ')} ongemoeid gelaten — de bot heeft dat zelf niet.`,
+            );
+          }
+
           await role.edit({
             ...roleColor(action.role.color),
             hoist: action.role.hoist,
             mentionable: action.role.mentionable,
-            permissions: toBitfield(action.role.permissions),
+            permissions: veiligeBits(gewenst, role.permissions.bitfield, magBits),
             reason,
           });
           roleIds.set(action.role.key, role.id);
@@ -267,7 +319,10 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
         case 'update-category': {
           const category = (await guild.channels.fetch(action.channelId)) as CategoryChannel | null;
           if (!category) throw new Error('categorie niet gevonden');
-          await category.permissionOverwrites.set(buildOverwrites(action.category.overwrites), reason);
+          await category.permissionOverwrites.set(
+            buildOverwrites(action.category.overwrites, huidigeOverwrites(category)),
+            reason,
+          );
           break;
         }
 
@@ -295,7 +350,7 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
                   rateLimitPerUser: action.channel.slowmodeSeconds,
                 }
               : {}),
-            permissionOverwrites: buildOverwrites(action.channel.overwrites),
+            permissionOverwrites: buildOverwrites(action.channel.overwrites, huidigeOverwrites(channel)),
             reason,
           });
           channelIds.set(normalize(action.channel.name), channel.id);
@@ -379,7 +434,9 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
         }
 
         case 'guild-settings': {
-          const meldingen = await applyGuildSettings(guild, template, channelIds, reason);
+          const meldingen = await applyGuildSettings(guild, template, channelIds, reason, {
+            magCommunity: me.permissions.has(PermissionFlagsBits.Administrator),
+          });
           result.errors.push(...meldingen);
           break;
         }
@@ -571,6 +628,13 @@ async function enableCommunity(
     throw new Error('community-modus vereist een bestaand regels- en updateskanaal');
   }
 
+  // Staat community al aan, dan hoeven de kenmerken niet mee: die aanpassen
+  // vraagt Administrator, en alleen de kanalen zetten niet.
+  if (guild.features.includes('COMMUNITY')) {
+    await guild.edit({ rulesChannel, publicUpdatesChannel: updatesChannel, reason });
+    return;
+  }
+
   const level = VERIFICATION_LEVELS[settings.verificationLevel ?? 'low'];
   await guild.edit({ ...communityEdit(guild.features, level, rulesChannel, updatesChannel), reason });
 }
@@ -580,6 +644,7 @@ async function applyGuildSettings(
   template: ServerTemplate,
   channelIds: Map<string, string>,
   reason: string,
+  opties: { magCommunity: boolean },
 ): Promise<string[]> {
   const meldingen: string[] = [];
   const settings = template.guild;
@@ -658,8 +723,13 @@ async function applyGuildSettings(
   const updatesChannel = channelId(settings.updatesChannel);
 
   // Meestal staat community al aan door de eerdere stap; dit vangt het geval waarin
-  // de kanalen er toen nog niet waren.
+  // de kanalen er toen nog niet waren. Zonder Administrator weigert Discord het
+  // toch, dus dan proberen we het niet eens.
   if (settings.community && rulesChannel && updatesChannel && !guild.features.includes('COMMUNITY')) {
+    if (!opties.magCommunity) {
+      meldingen.push('community-modus niet aangezet: dat vraagt Administrator, en die heeft de bot niet.');
+      return meldingen;
+    }
     await enableCommunity(guild, template, channelIds, reason);
     return meldingen;
   }

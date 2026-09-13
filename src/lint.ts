@@ -352,6 +352,23 @@ export function lintTemplate(template: ServerTemplate): Finding[] {
     }
   }
 
+  // Wat deze template van de bot vraagt. Niet fout, wel goed om te weten: zonder
+  // Administrator slaat de bot deze onderdelen over in plaats van te stoppen.
+  const vraagtAdmin: string[] = [];
+  if (template.guild.community) vraagtAdmin.push('community-modus');
+  for (const role of template.roles) {
+    if (role.permissions.includes('Administrator')) vraagtAdmin.push(`rol @${role.name}`);
+  }
+
+  if (vraagtAdmin.length > 0) {
+    add(
+      'info',
+      'template',
+      `${vraagtAdmin.join(' en ')} ${vraagtAdmin.length === 1 ? 'vraagt' : 'vragen'} een bot met Administrator. ` +
+        'Zonder dat richt hij de rest gewoon in en meldt hij wat er is overgeslagen.',
+    );
+  }
+
   if (template.guild.banner) {
     add('info', 'guild', 'een banner werkt pas vanaf boostniveau 2; zonder boosts negeert Discord dit.');
   }
