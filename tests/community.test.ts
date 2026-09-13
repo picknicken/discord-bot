@@ -192,7 +192,7 @@ describe('rolvolgorde', () => {
   it('slaat het over als de bot helemaal onderaan staat', () => {
     const { positions, warning } = rolePositions(['a'], 1);
     expect(positions).toEqual([]);
-    expect(warning).toMatch(/te laag/);
+    expect(warning).toMatch(/Sleep de rol van de bot/);
   });
 
   it('komt nooit op de plek van @everyone', () => {

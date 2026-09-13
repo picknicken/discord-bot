@@ -578,6 +578,30 @@ het log.
 | AutoMod-regels | rollen die even hoog of hoger staan dan de bot |
 | | leden, emoji's, de servernaam |
 
+### Rolvolgorde en de rolhierarchie
+
+Een bot mag geen rol verplaatsen die even hoog of hoger staat dan zijn eigen rol. Dat geldt
+ook met Administrator: die permissie zegt niets over de volgorde.
+
+Discord bewaart per rol een **ruw nummer**, en meerdere rollen mogen hetzelfde nummer hebben
+— nieuwe rollen komen er allemaal op 1 in. discord.js rekent daar een nette volgorde van
+(`position`), maar de API praat in die ruwe nummers (`rawPosition`). Wie de nette volgorde
+terugstuurt mikt dus naast: op een verse server, waar vier nieuwe rollen én de bot allemaal
+op ruw nummer 1 staan, belandde rol nummer vier zo boven de bot — en dat weigert Discord met
+een kale `Missing Permissions`.
+
+De bot rekent daarom overal met het ruwe nummer, en zet nooit iets op of boven zijn eigen
+plek. Is er onder hem geen ruimte, dan probeert hij het niet en zegt hij wat je moet doen:
+
+```
+rolvolgorde: Directie, Manager staan even hoog als of hoger dan de rol van de bot en zijn
+daarom overgeslagen. Sleep de rol van de bot in Serverinstellingen -> Rollen boven deze
+rollen en draai dit opnieuw.
+```
+
+De run mislukt daar niet meer op: de rest van de server staat er gewoon, en dit staat als
+losse melding in de samenvatting boven aan de Action.
+
 ### Als een Action blijft hangen
 
 Het komt voor dat GitHub een run in **Queued** laat staan zonder hem te starten, en dat

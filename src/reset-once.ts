@@ -6,6 +6,7 @@ import { ALLES, applyReset, countReset, describeReset, describeScope, planReset,
 import { snapshotGuildFresh } from './snapshot.js';
 import { logger } from './util/logger.js';
 import { login } from './util/start.js';
+import { schrijfSamenvatting } from './util/samenvatting.js';
 
 /**
  * Een server leeghalen vanaf de commandoregel. Standaard laat hij alleen zien wat
@@ -127,6 +128,12 @@ client.once(Events.ClientReady, async (ready) => {
 
     const result = await applyReset(guild, plan, `Leeghalen door ${ready.user.tag}`);
     logger.info(`Klaar: ${result.deleted} verwijderd, ${result.failed} mislukt.`);
+
+    await schrijfSamenvatting({
+      kop: `${guild.name} leeggehaald`,
+      regels: [`${result.deleted} verwijderd, ${result.failed} mislukt`, describeScope(options.scope)],
+      letop: [...result.errors, ...(result.hint ? [result.hint] : [])],
+    });
     for (const error of result.errors) logger.warn(error);
     if (result.hint) {
       logger.error('');

@@ -4,6 +4,7 @@ import { applyPlan } from './applier.js';
 import { buildInviteUrl, missingPermissions } from './botPermissions.js';
 import { explainShortfalls, planShortfalls } from './preflight.js';
 import { maakHaalbaar } from './haalbaar.js';
+import { schrijfSamenvatting } from './util/samenvatting.js';
 import {
   beschrijfOnderdelen,
   filterPlan,
@@ -184,6 +185,15 @@ client.once(Events.ClientReady, async (ready) => {
       logger.warn('Niet alles kon zoals de template het vraagt:');
       for (const regel of haalbaar.aanpassingen) logger.warn(`  ${regel}`);
     }
+
+    await schrijfSamenvatting({
+      kop: `${template.name} op ${guild.name}`,
+      regels: [
+        `${result.applied} acties gelukt, ${result.failed} mislukt`,
+        beschrijfOnderdelen(options.onderdelen),
+      ],
+      letop: [...result.errors, ...haalbaar.aanpassingen],
+    });
 
     if (result.failed > 0) process.exitCode = 1;
   } catch (error) {

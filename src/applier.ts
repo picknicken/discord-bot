@@ -502,14 +502,18 @@ async function orderChannels(
  */
 export function rolePositions(
   ids: readonly string[],
-  botTop: number,
+  botRaw: number,
 ): { positions: { role: string; position: number }[]; warning: string | null } {
-  const ruimte = botTop - 1;
+  // Plek 0 is @everyone, en de bot zelf blijft op zijn eigen plek staan. Wat
+  // daartussen zit is de ruimte die hij mag uitdelen.
+  const ruimte = botRaw - 1;
 
   if (ruimte < 1) {
     return {
       positions: [],
-      warning: `rolvolgorde overgeslagen: de rol van de bot staat te laag (${botTop}). Sleep hem in Discord boven de rollen van de template.`,
+      warning:
+        `rolvolgorde niet gezet: de rol van de bot staat op plek ${botRaw}, en daaronder is geen ruimte. ` +
+        'Sleep de rol van de bot in Serverinstellingen -> Rollen boven de rollen van de template en draai dit opnieuw.',
     };
   }
 
@@ -520,14 +524,24 @@ export function rolePositions(
     positions,
     warning:
       passen.length < ids.length
-        ? `rolvolgorde deels gezet: er passen ${passen.length} van ${ids.length} rollen onder de rol van de bot (plek ${botTop}).`
+        ? `rolvolgorde deels gezet: er passen ${passen.length} van ${ids.length} rollen onder de rol van de bot ` +
+          `(die staat op plek ${botRaw}). Sleep zijn rol hoger voor de rest.`
         : null,
   };
 }
 
 /**
  * Rollen krijgen de volgorde van de template, direct onder de rol van de bot.
- * Hoger dan zichzelf mag een bot niet komen, dus dat wordt gemeld in plaats van geprobeerd.
+ *
+ * Let op het verschil tussen twee soorten "plek". Discord bewaart per rol een
+ * ruw nummer, en dat mag bij meerdere rollen hetzelfde zijn - nieuwe rollen
+ * komen er allemaal op 1 in. discord.js rekent daar een nette volgorde van
+ * (`position`), maar de API praat in die ruwe nummers (`rawPosition`). Wie de
+ * nette volgorde terugstuurt, mikt dus naast: op een server waar vier verse
+ * rollen allemaal op ruw 1 staan, werd rol nummer vier zo boven de bot gezet -
+ * en dat weigert Discord met een kale "Missing Permissions".
+ *
+ * Hier wordt daarom overal met het ruwe nummer gerekend.
  */
 async function orderRoles(
   guild: Guild,
@@ -536,29 +550,46 @@ async function orderRoles(
   me: GuildMember,
   reason: string,
 ): Promise<string | null> {
-  // Verse plekken ophalen. Elke nieuwe rol schuift de rest omhoog, dus wat er
-  // in het geheugen staat klopt na het aanmaken niet meer - en op een verkeerde
-  // plek mikken levert een kale "Missing Permissions" op.
+  // Verse nummers ophalen: na het aanmaken klopt wat er in het geheugen staat niet meer.
   await guild.roles.fetch(undefined, { cache: true, force: true });
 
-  const botTop = me.roles.highest.position;
+  const botRaw = me.roles.highest.rawPosition;
+  const teHoog: string[] = [];
 
   const ids = template.roles
     .map((role) => roleIds.get(role.key))
     .filter((id): id is string => Boolean(id) && id !== guild.id)
     .filter((id) => {
       const role = guild.roles.cache.get(id);
-      // Rollen die door een bot of boost beheerd worden mag niemand verslepen,
-      // en boven de bot uit mag het ook niet.
-      return !role || (!role.managed && role.position < botTop);
+      if (!role) return false;
+
+      // Rollen die door een bot of integratie beheerd worden mag niemand
+      // verslepen, en boven de bot uit mag het ook niet.
+      if (role.managed) return false;
+      if (role.rawPosition >= botRaw) {
+        teHoog.push(role.name);
+        return false;
+      }
+      return true;
     });
 
-  if (ids.length === 0) return null;
+  const meldingen: string[] = [];
+  if (teHoog.length > 0) {
+    meldingen.push(
+      `rolvolgorde: ${teHoog.join(', ')} ${teHoog.length === 1 ? 'staat' : 'staan'} even hoog als of hoger dan ` +
+        'de rol van de bot en is daarom overgeslagen. Sleep de rol van de bot in Serverinstellingen -> Rollen ' +
+        'boven deze rollen en draai dit opnieuw.',
+    );
+  }
 
-  const { positions, warning } = rolePositions(ids, botTop);
-  if (positions.length > 0) await guild.roles.setPositions(positions);
+  if (ids.length > 0) {
+    const { positions, warning } = rolePositions(ids, botRaw);
+    if (positions.length > 0) await guild.roles.setPositions(positions);
+    if (warning) meldingen.push(warning);
+  }
+
   void reason;
-  return warning;
+  return meldingen.length > 0 ? meldingen.join(' ') : null;
 }
 
 /**

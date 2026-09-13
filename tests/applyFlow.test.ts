@@ -24,10 +24,14 @@ function nepServer(
     features?: string[];
     faalOp?: (payload: Record<string, unknown>) => string | null;
     rechten?: PermissionsBitField;
+    /** Het ruwe nummer van de hoogste rol van de bot. */
+    botPlek?: number;
   } = {},
 ) {
   const edits: Record<string, unknown>[] = [];
   const rollen: { name: string; permissions: bigint }[] = [];
+  const verplaatsingen: { role: string; position: number }[] = [];
+  const rolCache = new Collection<string, { id: string; name: string; managed: boolean; rawPosition: number }>();
   const kanalen = new Collection<string, { id: string; name: string; type: ChannelType }>();
   let teller = 0;
 
@@ -36,13 +40,19 @@ function nepServer(
     name: 'Nepserver',
     features: opties.features ?? [],
     roles: {
-      cache: new Collection(),
+      cache: rolCache,
       create: async ({ name, permissions }: { name: string; permissions?: bigint }) => {
         rollen.push({ name, permissions: permissions ?? 0n });
-        return { id: `r${++teller}`, name };
+        const rol = { id: `r${++teller}`, name, managed: false, rawPosition: 1 };
+        // Discord geeft elke nieuwe rol ruw nummer 1 terug; ze staan dus allemaal
+        // op dezelfde plek tot iemand ze sorteert.
+        rolCache.set(rol.id, rol);
+        return rol;
       },
-      fetch: async () => undefined,
-      setPositions: async () => undefined,
+      fetch: async () => rolCache,
+      setPositions: async (posities: { role: string; position: number }[]) => {
+        verplaatsingen.push(...posities);
+      },
     },
     channels: {
       cache: kanalen,
@@ -57,7 +67,7 @@ function nepServer(
     members: {
       fetchMe: async () => ({
         id: 'bot',
-        roles: { botRole: { id: 'botrol' }, highest: { position: 10 } },
+        roles: { botRole: { id: 'botrol' }, highest: { position: 10, rawPosition: opties.botPlek ?? 10 } },
         permissions: opties.rechten ?? new PermissionsBitField([PermissionFlagsBits.Administrator]),
       }),
     },
@@ -71,7 +81,7 @@ function nepServer(
     },
   };
 
-  return { guild: guild as unknown as Guild, edits, kanalen, rollen };
+  return { guild: guild as unknown as Guild, edits, kanalen, rollen, verplaatsingen };
 }
 
 const leeg: GuildSnapshot = {
@@ -87,7 +97,10 @@ const template = parseTemplate({
     rulesChannel: 'regels',
     updatesChannel: 'updates',
   },
-  roles: [{ key: 'mod', name: 'Mod', permissions: ['KickMembers'] }],
+  roles: [
+    { key: 'mod', name: 'Mod', permissions: ['KickMembers'] },
+    { key: 'lid', name: 'Lid' },
+  ],
   categories: [
     {
       name: 'Info',
@@ -230,5 +243,40 @@ describe('een bot zonder Administrator', () => {
     const mod = nep.rollen.find((rol) => rol.name === 'Mod');
     expect(mod!.permissions & PermissionFlagsBits.KickMembers).toBe(0n);
     expect(result.errors.join(' | ')).toContain('Rol @Mod aangemaakt zonder KickMembers');
+  });
+});
+
+
+describe('rolvolgorde en de rolhierarchie', () => {
+  const draai = async (botPlek: number) => {
+    const nep = nepServer({ botPlek });
+    const plan = planSetup(leeg, template, { prune: false, update: true });
+    const result = await applyPlan(nep.guild, template, plan);
+    return { ...nep, result };
+  };
+
+  it('zet de rollen onder de plek van de bot, nooit erop of erboven', async () => {
+    const { verplaatsingen, result } = await draai(5);
+
+    expect(verplaatsingen.length).toBeGreaterThan(0);
+    expect(verplaatsingen.every((zet) => zet.position < 5)).toBe(true);
+    expect(verplaatsingen.every((zet) => zet.position >= 1)).toBe(true);
+    expect(result.failed, result.errors.join(' | ')).toBe(0);
+  });
+
+  it('probeert het niet eens als de bot onderaan staat', async () => {
+    // Dit was de echte fout: vier verse rollen staan allemaal op ruw nummer 1,
+    // net als de bot. Er is dan geen plek onder hem, en de oude code stuurde
+    // toch een volgorde - waarop Discord met Missing Permissions antwoordde.
+    const { verplaatsingen, result } = await draai(1);
+
+    expect(verplaatsingen).toHaveLength(0);
+    expect(result.failed).toBe(0);
+    expect(result.errors.join(' ')).toContain('Sleep de rol van de bot');
+  });
+
+  it('zegt welke rollen te hoog staan', async () => {
+    const { result } = await draai(1);
+    expect(result.errors.join(' ')).toContain('Mod');
   });
 });
