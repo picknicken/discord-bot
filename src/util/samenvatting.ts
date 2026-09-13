@@ -33,3 +33,18 @@ export async function schrijfSamenvatting(samenvatting: Samenvatting): Promise<v
   // klappen: het werk is dan al gedaan.
   await appendFile(doel, maakSamenvatting(samenvatting), 'utf8').catch(() => undefined);
 }
+
+/**
+ * Een melding die GitHub boven aan de run laat zien, in de gekleurde balk.
+ *
+ * Het log is op een telefoon niet te doen: honderd regels, en de ene die ertoe
+ * doet staat ergens in het midden. Wat hier langskomt staat bovenaan, nog voor
+ * je het log opent. Buiten Actions doet dit niets - daar staat het al in het log.
+ */
+export function annoteer(soort: 'notice' | 'warning' | 'error', tekst: string): void {
+  if (process.env.GITHUB_ACTIONS !== 'true') return;
+
+  // Regeleindes en dubbele punten breken het formaat van GitHub, dus die gaan eruit.
+  const schoon = tekst.replace(/\s+/g, ' ').replace(/::/g, ':').trim();
+  if (schoon !== '') console.log(`::${soort}::${schoon}`);
+}

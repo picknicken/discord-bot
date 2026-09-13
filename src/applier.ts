@@ -556,6 +556,12 @@ async function orderRoles(
   const botRaw = me.roles.highest.rawPosition;
   const teHoog: string[] = [];
 
+  // Zonder een bruikbaar nummer gaat er niets naar Discord: liever geen volgorde
+  // dan een gok waarvan Discord er een "Missing Permissions" van maakt.
+  if (!Number.isFinite(botRaw)) {
+    return 'rolvolgorde overgeslagen: de plek van de rol van de bot is niet op te halen.';
+  }
+
   const ids = template.roles
     .map((role) => roleIds.get(role.key))
     .filter((id): id is string => Boolean(id) && id !== guild.id)

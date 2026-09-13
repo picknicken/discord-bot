@@ -31,7 +31,9 @@ if (!existsSync(config.templatesDir)) {
 
 const role = (id: string, name: string, position: number, color = 0x99aab5, managed = false) => ({
   id, name, color, hoist: false, mentionable: false,
-  permissions: new PermissionsBitField(0n), position, managed,
+  // position is de nette volgorde, rawPosition het nummer dat Discord bewaart.
+  // Allebei nodig: de code vergelijkt met het eerste en stuurt het tweede terug.
+  permissions: new PermissionsBitField(0n), position, rawPosition: position, managed,
 });
 
 const channel = (id: string, name: string, type: ChannelType, parentId: string | null, position = 0) => ({
@@ -84,7 +86,7 @@ function demoGuild(id: string, name: string, members: number, complete: boolean)
     members: {
       fetchMe: async () => ({
         permissions: new PermissionsBitField(rights),
-        roles: { highest: { position: 9 } },
+        roles: { highest: { position: 9, rawPosition: 9 } },
       }),
     },
   };

@@ -48,12 +48,23 @@ export interface ResetResult {
 }
 
 const UNKNOWN_CHANNEL = 10003;
+const UNKNOWN_AUTOMOD = 10066;
 const MISSING_ACCESS = 50001;
 const MISSING_PERMISSIONS = 50013;
+/** Het regels- en updateskanaal van een community-server. */
+const COMMUNITY_CHANNEL = 50074;
 
 function codeOf(error: unknown): number | null {
   const code = (error as { code?: unknown })?.code;
   return typeof code === 'number' ? code : null;
+}
+
+/** De HTTP-status, als die er is. Een 404 betekent: het was er al niet meer. */
+function statusOf(error: unknown): number | null {
+  const status = (error as { status?: unknown })?.status;
+  if (typeof status === 'number') return status;
+  const message = error instanceof Error ? error.message : String(error);
+  return /^404\b/.test(message) ? 404 : null;
 }
 
 /** Discord's foutteksten zijn kort; dit zegt wat het in de praktijk betekent. */
@@ -65,6 +76,12 @@ export function explainDeleteFailure(error: unknown): string {
       return `${message} — de bot kan dit kanaal niet zien, dus hij kan het ook niet verwijderen.`;
     case MISSING_PERMISSIONS:
       return `${message} — de bot mist het recht hiervoor. Staat zijn rol hoog genoeg?`;
+    case COMMUNITY_CHANNEL:
+      return (
+        `${message} — dit is het regels- of updateskanaal van een community-server. ` +
+        'Discord laat dat niet verwijderen zolang community-modus aanstaat. Zet die uit in ' +
+        'Serverinstellingen -> Inschakelen community, of geef de bot Administrator zodat hij het zelf kan.'
+      );
     default:
       return message;
   }
@@ -180,6 +197,30 @@ export function countReset(plan: ResetPlan): number {
   return plan.channels.length + plan.roles.length + plan.automod.length;
 }
 
+/**
+ * Het regels- en updateskanaal van een community-server laat Discord niet
+ * verwijderen zolang die modus aanstaat. Leeghalen betekent leeg, dus zetten we
+ * community-modus eerst uit - dat vraagt Administrator. Lukt dat niet, dan
+ * blijven die twee kanalen staan en zegt hij waarom.
+ */
+async function zetCommunityUit(guild: Guild, reason: string): Promise<string | null> {
+  if (!guild.features.includes('COMMUNITY')) return null;
+
+  try {
+    await guild.edit({
+      features: guild.features.filter((feature) => feature !== 'COMMUNITY'),
+      reason,
+    });
+    return 'community-modus uitgezet; anders blijven het regels- en updateskanaal staan.';
+  } catch (error) {
+    const uitleg = error instanceof Error ? error.message : String(error);
+    return (
+      `community-modus kon niet uit (${uitleg}). Het regels- en updateskanaal blijven daardoor staan. ` +
+      'Zet community-modus uit in Serverinstellingen -> Inschakelen community, of geef de bot Administrator.'
+    );
+  }
+}
+
 export async function applyReset(guild: Guild, plan: ResetPlan, reason: string): Promise<ResetResult> {
   const result: ResetResult = { deleted: 0, failed: 0, errors: [], hint: null };
   let geenToegang = false;
@@ -190,7 +231,7 @@ export async function applyReset(guild: Guild, plan: ResetPlan, reason: string):
       result.deleted += 1;
     } catch (error) {
       // Al weg is ook goed; daar hoeft niemand iets mee.
-      if (codeOf(error) === UNKNOWN_CHANNEL) {
+      if (codeOf(error) === UNKNOWN_CHANNEL || codeOf(error) === UNKNOWN_AUTOMOD || statusOf(error) === 404) {
         result.deleted += 1;
         return;
       }
@@ -202,6 +243,14 @@ export async function applyReset(guild: Guild, plan: ResetPlan, reason: string):
       logger.warn(`Verwijderen mislukt (${what}): ${uitleg}`);
     }
   };
+
+  if (plan.channels.length > 0) {
+    const melding = await zetCommunityUit(guild, reason);
+    if (melding) {
+      result.errors.push(melding);
+      logger.info(melding);
+    }
+  }
 
   for (const channel of plan.channels) {
     await remove(`kanaal ${channel.name}`, async () => {

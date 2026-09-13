@@ -591,7 +591,23 @@ op ruw nummer 1 staan, belandde rol nummer vier zo boven de bot — en dat weige
 een kale `Missing Permissions`.
 
 De bot rekent daarom overal met het ruwe nummer, en zet nooit iets op of boven zijn eigen
-plek. Is er onder hem geen ruimte, dan probeert hij het niet en zegt hij wat je moet doen:
+plek. Alle plekken waar een nummer gebruikt wordt, nagelopen:
+
+| Waar | Welk nummer | Waarom goed |
+| --- | --- | --- |
+| `orderRoles` (rolvolgorde zetten) | **ruw** | dit gaat naar de API; hier zat de fout |
+| `orderChannels` (kanaalvolgorde) | ruw (index per categorie) | kanalen kennen geen hierarchie; alleen ManageChannels nodig |
+| `rolesAboveBot` (waarschuwing) | net, aan beide kanten | alleen vergelijken, gaat nergens heen |
+| `planReset` (wat mag weg) | net, aan beide kanten | alleen vergelijken |
+| `rolesOutOfOrder` / `channelsOutOfOrder` | net | vergelijken; de nette volgorde kent geen gelijkspel en is hier juist beter |
+| `snapshot` | allebei, apart benoemd | `position` om te vergelijken, `rawPosition` om terug te sturen |
+| `exporter` | net | alleen sorteren |
+
+De momentopname bewaart voortaan allebei de nummers onder hun eigen naam, met uitleg erbij.
+Wie er later iets mee doet, ziet meteen welk nummer waarvoor is — dat was de val waar ik zelf
+in trapte.
+
+Is er onder de bot geen ruimte, dan probeert hij het niet en zegt hij wat je moet doen:
 
 ```
 rolvolgorde: Directie, Manager staan even hoog als of hoger dan de rol van de bot en zijn
@@ -600,7 +616,29 @@ rollen en draai dit opnieuw.
 ```
 
 De run mislukt daar niet meer op: de rest van de server staat er gewoon, en dit staat als
-losse melding in de samenvatting boven aan de Action.
+losse melding boven aan de Action.
+
+### Waar je de meldingen ziet
+
+Op een telefoon is het log niet te doen. Daarom staat alles wat aandacht vraagt op twee
+plekken die je ziet zonder te scrollen:
+
+- **De gekleurde balk boven aan de run.** Elke melding komt daar als annotatie te staan —
+  geel als er iets is overgeslagen, rood als er echt iets mislukte.
+- **De samenvatting onder de run.** Een kopje met wat er gelukt is, en daaronder *Let op*
+  met de regels die ertoe doen.
+
+In het log staat hetzelfde, met tijdstempels.
+
+### Een community-server leeghalen
+
+Het regels- en updateskanaal van een community-server laat Discord niet verwijderen zolang
+die modus aanstaat (`Cannot delete a channel required for community servers`). Leeghalen
+betekent leeg, dus zet de bot community-modus eerst uit — dat vraagt Administrator. Lukt dat
+niet, dan blijven die twee kanalen staan en zegt hij precies waarom en wat je eraan doet.
+
+Een AutoMod-regel die al weg is (404) telt als opgeruimd, niet als fout. Discord maakt bij
+het aanzetten van community-modus zelf regels aan die soms al verdwenen zijn.
 
 ### Als een Action blijft hangen
 

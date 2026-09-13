@@ -4,7 +4,7 @@ import { applyPlan } from './applier.js';
 import { buildInviteUrl, missingPermissions } from './botPermissions.js';
 import { explainShortfalls, planShortfalls } from './preflight.js';
 import { maakHaalbaar } from './haalbaar.js';
-import { schrijfSamenvatting } from './util/samenvatting.js';
+import { annoteer, schrijfSamenvatting } from './util/samenvatting.js';
 import {
   beschrijfOnderdelen,
   filterPlan,
@@ -152,6 +152,19 @@ client.once(Events.ClientReady, async (ready) => {
 
     if (!options.apply) {
       logger.info('Preview — er is niets gewijzigd. Voeg --apply toe om dit uit te voeren.');
+
+      await schrijfSamenvatting({
+        kop: `Preview: ${template.name} op ${guild.name}`,
+        regels: [
+          `${haalbaar.plan.actions.length} acties zouden uitgevoerd worden`,
+          beschrijfOnderdelen(options.onderdelen),
+          'Er is niets gewijzigd.',
+        ],
+        letop: haalbaar.aanpassingen,
+      });
+
+      annoteer('notice', `Preview: ${haalbaar.plan.actions.length} acties, er is niets gewijzigd.`);
+      for (const regel of haalbaar.aanpassingen) annoteer('warning', regel);
       return;
     }
 
@@ -186,14 +199,20 @@ client.once(Events.ClientReady, async (ready) => {
       for (const regel of haalbaar.aanpassingen) logger.warn(`  ${regel}`);
     }
 
+    const letop = [...result.errors, ...haalbaar.aanpassingen];
+
     await schrijfSamenvatting({
       kop: `${template.name} op ${guild.name}`,
       regels: [
         `${result.applied} acties gelukt, ${result.failed} mislukt`,
         beschrijfOnderdelen(options.onderdelen),
       ],
-      letop: [...result.errors, ...haalbaar.aanpassingen],
+      letop,
     });
+
+    // Boven aan de run, in de gekleurde balk: daar kijk je als eerste.
+    annoteer('notice', `${template.name} op ${guild.name}: ${result.applied} gelukt, ${result.failed} mislukt.`);
+    for (const regel of letop) annoteer(result.failed > 0 ? 'error' : 'warning', regel);
 
     if (result.failed > 0) process.exitCode = 1;
   } catch (error) {

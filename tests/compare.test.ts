@@ -4,7 +4,7 @@ import type { GuildSnapshot, SnapshotChannel, SnapshotRole } from '../src/snapsh
 import { parseTemplate } from '../src/types.js';
 
 const role = (id: string, name: string, extra: Partial<SnapshotRole> = {}): SnapshotRole => ({
-  id, name, color: 0, hoist: false, mentionable: false, permissions: 0n, position: 1,
+  id, name, color: 0, hoist: false, mentionable: false, permissions: 0n, position: 1, rawPosition: 1,
   managed: false, isEveryone: false, ...extra,
 });
 

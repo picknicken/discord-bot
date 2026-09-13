@@ -3,7 +3,7 @@ import { countReset, describeReset, describeScope, explainDeleteFailure, planRes
 import type { GuildSnapshot, SnapshotRole } from '../src/snapshot.js';
 
 const role = (id: string, name: string, position: number, extra: Partial<SnapshotRole> = {}): SnapshotRole => ({
-  id, name, color: 0, hoist: false, mentionable: false, permissions: 0n, position,
+  id, name, color: 0, hoist: false, mentionable: false, permissions: 0n, position, rawPosition: position,
   managed: false, isEveryone: false, ...extra,
 });
 

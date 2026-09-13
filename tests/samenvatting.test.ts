@@ -52,3 +52,50 @@ describe('wegschrijven', () => {
     await expect(schrijfSamenvatting({ kop: 'Klaar', regels: [] })).resolves.toBeUndefined();
   });
 });
+
+describe('meldingen boven aan de run', () => {
+  const opgevangen: string[] = [];
+  const echteLog = console.log;
+
+  beforeEach(() => {
+    opgevangen.length = 0;
+    console.log = (regel: string) => opgevangen.push(regel);
+  });
+
+  afterEach(() => {
+    console.log = echteLog;
+    delete process.env.GITHUB_ACTIONS;
+  });
+
+  it('schrijft een melding in het formaat van GitHub', async () => {
+    process.env.GITHUB_ACTIONS = 'true';
+    const { annoteer } = await import('../src/util/samenvatting.js');
+
+    annoteer('warning', 'rolvolgorde niet gezet');
+    expect(opgevangen).toEqual(['::warning::rolvolgorde niet gezet']);
+  });
+
+  it('maakt er één regel van, zonder tekens die het formaat breken', async () => {
+    process.env.GITHUB_ACTIONS = 'true';
+    const { annoteer } = await import('../src/util/samenvatting.js');
+
+    annoteer('error', 'eerste regel\ntweede regel met ::iets::');
+    expect(opgevangen[0]).toBe('::error::eerste regel tweede regel met :iets:');
+  });
+
+  it('zwijgt buiten GitHub Actions', async () => {
+    delete process.env.GITHUB_ACTIONS;
+    const { annoteer } = await import('../src/util/samenvatting.js');
+
+    annoteer('notice', 'iets');
+    expect(opgevangen).toEqual([]);
+  });
+
+  it('zwijgt bij een lege tekst', async () => {
+    process.env.GITHUB_ACTIONS = 'true';
+    const { annoteer } = await import('../src/util/samenvatting.js');
+
+    annoteer('notice', '   ');
+    expect(opgevangen).toEqual([]);
+  });
+});

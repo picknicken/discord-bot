@@ -23,7 +23,17 @@ export interface SnapshotRole {
   hoist: boolean;
   mentionable: boolean;
   permissions: bigint;
+  /**
+   * De nette volgorde zoals discord.js hem uitrekent: een strikte rangschikking
+   * waarin geen twee rollen gelijk staan. Goed om mee te vergelijken - niet om
+   * naar Discord terug te sturen.
+   */
   position: number;
+  /**
+   * Het nummer zoals Discord het zelf bewaart. Twee rollen mogen hier hetzelfde
+   * nummer hebben. Dit is wat de API verwacht als je een volgorde zet.
+   */
+  rawPosition: number;
   managed: boolean;
   isEveryone: boolean;
 }
@@ -31,6 +41,7 @@ export interface SnapshotRole {
 export interface SnapshotCategory {
   id: string;
   name: string;
+  /** Het nummer zoals Discord het bewaart. */
   position: number;
 }
 
@@ -67,6 +78,7 @@ export function snapshotGuild(guild: Guild): GuildSnapshot {
     mentionable: role.mentionable,
     permissions: role.permissions.bitfield,
     position: role.position,
+    rawPosition: role.rawPosition,
     managed: role.managed,
     isEveryone: role.id === guild.id,
   }));
