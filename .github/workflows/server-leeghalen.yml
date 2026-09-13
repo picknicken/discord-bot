@@ -38,8 +38,29 @@ jobs:
     name: leeghalen
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
 
     steps:
+      # Een opdracht kan uren in de wachtrij blijven staan - GitHub krijgt hem
+      # soms niet opgestart en cancelen lukt dan ook niet. Gaat hij daarna
+      # alsnog lopen, dan haalt hij een server leeg waar je niet meer op zit te
+      # wachten. Dus: te oud is niet meer geldig.
+      - name: Weiger een opdracht die is blijven hangen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAX_MINUTEN: '30'
+        run: |
+          aangevraagd=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .created_at)
+          wachttijd=$(( ($(date -u +%s) - $(date -u -d "$aangevraagd" +%s)) / 60 ))
+
+          echo "Aangevraagd op $aangevraagd; dat is $wachttijd minuten geleden."
+          if [ "$wachttijd" -gt "$MAX_MINUTEN" ]; then
+            echo "::error::Deze opdracht staat al $wachttijd minuten in de wachtrij (maximum $MAX_MINUTEN). Er is niets verwijderd. Start hem opnieuw als je dit nog wilt."
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4

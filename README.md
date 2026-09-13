@@ -543,6 +543,28 @@ het log.
 | AutoMod-regels | rollen die even hoog of hoger staan dan de bot |
 | | leden, emoji's, de servernaam |
 
+### Als een Action blijft hangen
+
+Het komt voor dat GitHub een run in **Queued** laat staan zonder hem te starten, en dat
+annuleren dan ook niet lukt ("Something went wrong while executing your query"). Zo'n run
+heeft nog geen job gedraaid, dus er is niets gebeurd op je server.
+
+Twee dingen om te weten:
+
+- **Blijf niet op "Re-run" drukken.** Elke poging zet de run opnieuw in dat halve
+  wachtstand-hoekje; daarna weigert ook de API te annuleren (`409 Cannot cancel a workflow
+  re-run that has not yet queued`). Een nieuwe run starten kan gewoon — een vastgelopen run
+  blokkeert niets.
+- **Een oude opdracht gaat niet alsnog af.** Beide workflows kijken als eerste stap hoe lang
+  de opdracht al in de wachtrij staat. Langer dan 30 minuten en hij stopt met een melding,
+  vóór de checkout. Voor het leeghalen geldt dat altijd, voor het inrichten bij *apply* (een
+  preview verandert toch niets).
+
+Hangt er nog een run van vóór die controle, dan draait die de oude versie van de workflow,
+zonder die eerste stap. Wil je zeker weten dat hij niets doet: **hernoem je testserver even**
+in Discord. Het leeghalen eist dat de bevestiging exact de servernaam is, dus dan stopt hij
+op de bevestiging en verwijdert hij niets. Daarna hernoem je hem terug.
+
 Vooraf gaat er een momentopname naar `backups/` (de GitHub Action hangt hem aan de run als
 download). Die brengt de structuur terug, geen berichten: een verwijderd kanaal komt terug
 als leeg kanaal. Doe dit dus op een testserver, niet op een server met mensen erin.
