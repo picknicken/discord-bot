@@ -2,9 +2,14 @@
 # die dingen weggooit, en die hoort niet naast "inrichten" te staan waar je hem
 # per ongeluk aantikt.
 #
+# Deze heette eerst "Server leeghalen", in server-leeghalen.yml. Die versie had
+# een run die bij GitHub bleef hangen: niet te starten, niet te annuleren, en hij
+# blokkeerde de knop om een nieuwe te starten. Een workflow hoort bij zijn
+# bestandsnaam, dus een nieuwe bestandsnaam geeft een schone lijst.
+#
 # Er gaat altijd eerst een momentopname van de structuur naar de artifacts van
 # deze run; die kun je downloaden en later weer toepassen.
-name: Server leeghalen
+name: Leeghalen
 
 on:
   workflow_dispatch:

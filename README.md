@@ -513,7 +513,7 @@ npm run reset -- --guild 123456789 --bevestig "Testserver" # echt leeghalen
 ```
 
 De bevestiging moet exact de naam van die server zijn, anders gebeurt er niets. Vanaf je
-telefoon kan het ook: **Actions → Server leeghalen**, met dezelfde bevestiging. Dat is een
+telefoon kan het ook: **Actions → Leeghalen**, met dezelfde bevestiging. Dat is een
 aparte workflow, zodat je hem niet per ongeluk aantikt naast "inrichten".
 
 **Zelf kiezen wat er weg mag.** Standaard gaat alles weg. Wil je bijvoorbeeld de kanalen
@@ -564,6 +564,11 @@ Hangt er nog een run van vóór die controle, dan draait die de oude versie van 
 zonder die eerste stap. Wil je zeker weten dat hij niets doet: **hernoem je testserver even**
 in Discord. Het leeghalen eist dat de bevestiging exact de servernaam is, dus dan stopt hij
 op de bevestiging en verwijdert hij niets. Daarna hernoem je hem terug.
+
+Blokkeert zo'n run de knop om een nieuwe te starten, dan is de uitweg een **andere
+bestandsnaam**: een workflow hoort bij zijn bestand, dus `leeghalen.yml` is voor GitHub een
+nieuwe workflow met een lege lijst en een knop die het wel doet. Daarom heet deze niet meer
+`server-leeghalen.yml`. De oude run blijft in de geschiedenis staan tot GitHub hem opruimt.
 
 Vooraf gaat er een momentopname naar `backups/` (de GitHub Action hangt hem aan de run als
 download). Die brengt de structuur terug, geen berichten: een verwijderd kanaal komt terug
