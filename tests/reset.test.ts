@@ -141,3 +141,47 @@ describe('uitleg over de keuze', () => {
     expect(describeScope({ channels: false, roles: false, automod: false })).toMatch(/niets/);
   });
 });
+
+describe('rollen uitsluiten van verwijdering', () => {
+  const metUitzondering = (...namen: string[]) =>
+    planReset(snapshot, 5, { channels: true, roles: true, automod: true, behoudRollen: namen });
+
+  it('laat een rol met die naam staan', () => {
+    const keuze = metUitzondering('Moderator');
+    expect(keuze.roles.map((rol) => rol.name)).toEqual(['Lid']);
+  });
+
+  it('trekt zich niets aan van hoofdletters of spaties', () => {
+    expect(metUitzondering('  moderator ').roles.map((rol) => rol.name)).toEqual(['Lid']);
+  });
+
+  it('kan er meerdere aan', () => {
+    expect(metUitzondering('Lid', 'Moderator').roles).toEqual([]);
+  });
+
+  it('zegt in het plan waarom die rol blijft', () => {
+    expect(describeReset(metUitzondering('Moderator')).join('\n')).toContain(
+      'rol "Moderator" staat op de lijst met rollen die moeten blijven',
+    );
+  });
+
+  it('waarschuwt bij een naam die niet bestaat, zodat een typfout opvalt', () => {
+    expect(describeReset(metUitzondering('Moderatr')).join('\n')).toContain(
+      'er is geen rol die "Moderatr" heet',
+    );
+  });
+
+  it('raakt de kanalen niet', () => {
+    expect(metUitzondering('Moderator').channels.length).toBeGreaterThan(0);
+  });
+
+  it('noemt de uitzonderingen in de uitleg', () => {
+    expect(
+      describeScope({ channels: true, roles: true, automod: true, behoudRollen: ['Admin'] }),
+    ).toContain('Deze rollen blijven hoe dan ook: @Admin');
+  });
+
+  it('verandert niets zonder uitzonderingen', () => {
+    expect(metUitzondering().roles.map((rol) => rol.name)).toEqual(['Lid', 'Moderator']);
+  });
+});

@@ -293,6 +293,11 @@ function renderGuilds() {
         guild.rolesAbove > 0
           ? '<span class="badge warn">' + guild.rolesAbove + ' rol' + (guild.rolesAbove === 1 ? '' : 'len') + ' boven de bot</span>'
           : '',
+        // Zonder Administrator lukt community-modus niet en blijven bijzondere
+        // rolrechten leeg; hij rolt de rest wel gewoon uit.
+        guild.admin === false
+          ? '<span class="badge warn">' + icon('alert', 'sm') + 'geen Administrator</span>'
+          : '',
       ].join(' ');
 
       const on = checked.size ? checked.has(guild.id) : index === 0;
@@ -301,6 +306,14 @@ function renderGuilds() {
         (on ? ' checked' : '') + '><span class="grow"><strong>' + escape(guild.name) + '</strong>' +
         '<div class="meta">' + guild.memberCount + ' leden · ' + guild.channelCount + ' kanalen · ' +
         guild.roleCount + ' rollen</div><div class="meta" style="margin-top:4px">' + badges + '</div>' +
+        (guild.admin === false
+          ? '<div class="meta" style="margin-top:4px">Community-modus en rollen met bijzondere rechten ' +
+            'worden overgeslagen. ' +
+            (guild.inviteUrl
+              ? '<a href="' + escape(guild.inviteUrl) + '" target="_blank" rel="noopener">Opnieuw toevoegen met Administrator</a>'
+              : 'Geef de bot Administrator in Serverinstellingen → Rollen.') +
+            '</div>'
+          : '') +
         (guild.missing.length ? '<div class="meta" style="color:var(--bad)">' + escape(guild.missing.join(', ')) + '</div>' : '') +
         '</span></label>'
       );

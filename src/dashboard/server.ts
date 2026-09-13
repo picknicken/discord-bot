@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Client, Guild } from 'discord.js';
+import { PermissionFlagsBits, type Client, type Guild } from 'discord.js';
 import { config } from '../config.js';
 import { missingPermissions, rolesAboveBot } from '../botPermissions.js';
 import { applyPlan } from '../applier.js';
@@ -456,6 +456,11 @@ async function describeVersions(id: string) {
   return beschreven;
 }
 
+/** De rechten waar de invite-link om vraagt. */
+function permissionsBit(): string {
+  return INVITE_PERMISSIONS.bitfield.toString();
+}
+
 async function describeGuild(guild: Guild) {
   const me = await guild.members.fetchMe();
   return {
@@ -467,6 +472,10 @@ async function describeGuild(guild: Guild) {
     roleCount: guild.roles.cache.size - 1,
     missing: missingPermissions(me),
     rolesAbove: rolesAboveBot(guild, me),
+    // Zonder Administrator lukt community-modus niet en blijven bijzondere
+    // rolrechten leeg. Dat hoor je te zien voordat je uitrolt.
+    admin: me.permissions.has(PermissionFlagsBits.Administrator),
+    inviteUrl: config.clientId ? buildGuildInviteUrl(config.clientId, permissionsBit(), guild.id) : null,
   };
 }
 

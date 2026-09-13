@@ -32,6 +32,11 @@ on:
         required: false
         default: true
         type: boolean
+      rollen_behouden:
+        description: 'Rollen die hoe dan ook blijven staan, gescheiden door komma. Bijv: Admin, Moderator'
+        required: false
+        default: ''
+        type: string
       automod_verwijderen:
         description: 'Ook de AutoMod-regels verwijderen'
         required: false
@@ -95,8 +100,10 @@ jobs:
           ROLLEN: ${{ inputs.rollen_verwijderen }}
           KANALEN: ${{ inputs.kanalen_verwijderen }}
           AUTOMOD: ${{ inputs.automod_verwijderen }}
+          BEHOUD_ROLLEN: ${{ inputs.rollen_behouden }}
         run: |
           args=(--guild "$GUILD_ID" --bevestig "$BEVESTIG")
+          [ -z "$BEHOUD_ROLLEN" ] || args+=(--behoud-rol "$BEHOUD_ROLLEN")
           [ "$ROLLEN" = "true" ]  || args+=(--behoud-rollen)
           [ "$KANALEN" = "true" ] || args+=(--behoud-kanalen)
           [ "$AUTOMOD" = "true" ] || args+=(--behoud-automod)

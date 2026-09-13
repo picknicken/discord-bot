@@ -23,9 +23,13 @@ export interface ResetScope {
   channels: boolean;
   roles: boolean;
   automod: boolean;
+  /** Rollen die hoe dan ook blijven staan, op naam. Hoofdletters maken niet uit. */
+  behoudRollen?: readonly string[];
 }
 
-export const ALLES: ResetScope = { channels: true, roles: true, automod: true };
+export const ALLES: ResetScope = { channels: true, roles: true, automod: true, behoudRollen: [] };
+
+const normaliseer = (naam: string) => naam.trim().toLowerCase();
 
 export interface ResetPlan {
   channels: ResetTarget[];
@@ -86,8 +90,16 @@ export function describeScope(scope: ResetScope): string {
     scope.automod ? null : 'automod-regels',
   ].filter((deel): deel is string => deel !== null);
 
-  if (weg.length === 0) return 'Niets aangevinkt — er gaat niets weg.';
-  return `Weg: ${weg.join(', ')}.` + (blijft.length > 0 ? ` Blijft staan: ${blijft.join(', ')}.` : '');
+  const uitzonderingen = scope.behoudRollen ?? [];
+  const extra =
+    uitzonderingen.length > 0
+      ? ` Deze rollen blijven hoe dan ook: ${uitzonderingen.map((naam) => `@${naam}`).join(', ')}.`
+      : '';
+
+  if (weg.length === 0) return 'Niets aangevinkt — er gaat niets weg.' + extra;
+  return (
+    `Weg: ${weg.join(', ')}.` + (blijft.length > 0 ? ` Blijft staan: ${blijft.join(', ')}.` : '') + extra
+  );
 }
 
 export function planReset(
@@ -103,9 +115,17 @@ export function planReset(
       skipped.push('rollen blijven staan; die keuze is zo gemaakt');
     }
   } else {
+    const uitzonderingen = new Set((scope.behoudRollen ?? []).map(normaliseer));
+    const gebruikt = new Set<string>();
+
     for (const role of snapshot.roles) {
       if (role.isEveryone) continue;
 
+      if (uitzonderingen.has(normaliseer(role.name))) {
+        gebruikt.add(normaliseer(role.name));
+        skipped.push(`rol "${role.name}" staat op de lijst met rollen die moeten blijven`);
+        continue;
+      }
       if (role.managed) {
         skipped.push(`rol "${role.name}" hoort bij een bot of integratie`);
         continue;
@@ -115,6 +135,14 @@ export function planReset(
         continue;
       }
       roles.push({ id: role.id, name: role.name });
+    }
+
+    // Een typfout in een uitzondering mag niet stilletjes een rol weggooien die
+    // je juist wilde houden. Dus zeggen we het als een naam nergens op slaat.
+    for (const naam of scope.behoudRollen ?? []) {
+      if (!gebruikt.has(normaliseer(naam))) {
+        skipped.push(`let op: er is geen rol die "${naam}" heet — die uitzondering doet niets`);
+      }
     }
   }
 

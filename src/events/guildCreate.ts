@@ -22,11 +22,62 @@ export async function handleGuildCreate(guild: Guild): Promise<void> {
 
   logger.info(
     `Toegevoegd aan "${guild.name}" (${guild.id})` +
-      (missing.length > 0 ? ` — mist rechten: ${missing.join(', ')}` : ' — alle rechten aanwezig'),
+      (missing.length > 0
+        ? ` — mist rechten: ${missing.join(', ')}`
+        : me.permissions.has(PermissionFlagsBits.Administrator)
+          ? ' — alle rechten aanwezig'
+          : ' — geen Administrator; community-modus en bijzondere rolrechten worden overgeslagen'),
   );
 
-  const embed = missing.length > 0 ? incompleteEmbed(missing, inviteUrl) : readyEmbed(guild, me);
+  const embed =
+    missing.length > 0
+      ? incompleteEmbed(missing, inviteUrl)
+      : me.permissions.has(PermissionFlagsBits.Administrator)
+        ? readyEmbed(guild, me)
+        : zonderAdminEmbed(guild, me, inviteUrl);
+
   await announce(guild, me, embed);
+}
+
+/**
+ * Hij kan aan de slag, maar zonder Administrator blijft een deel liggen. Dat
+ * hoort hij meteen te zeggen, niet pas als iemand een template uitrolt: een
+ * bot kan geen recht uitdelen dat hij zelf niet heeft, en community-modus
+ * aanzetten kan met niets minder.
+ */
+function zonderAdminEmbed(guild: Guild, me: GuildMember, inviteUrl: string): EmbedBuilder {
+  const embed = new EmbedBuilder()
+    .setTitle('Bijna klaar — ik mis Administrator')
+    .setColor(0xfee75c)
+    .setDescription(
+      [
+        'Kanalen en categorieen kan ik aanmaken. Twee dingen lukken zonder **Administrator** niet:',
+        '',
+        '• **Community-modus aanzetten.** Discord staat dat alleen toe met Administrator. ' +
+          'Zonder community-modus bestaan forum-, aankondigings- en stagekanalen niet.',
+        '• **Rollen met rechten die ik zelf niet heb.** Een rol met Kicken of Administrator ' +
+          'erin maak ik dan aan zonder die rechten.',
+        '',
+        'Ik stop daar niet voor: ik richt de rest gewoon in en zeg daarna precies wat er is ' +
+        'overgeslagen. Maar compleet wordt het pas hiermee:',
+        `[voeg me opnieuw toe, met Administrator](${inviteUrl})`,
+        '',
+        'Ik hoef daarvoor niet weg. Het kan ook met de hand: Serverinstellingen → Rollen → ' +
+          `${me.roles.botRole?.name ?? me.user.username} → Administrator aan.`,
+      ].join('\n'),
+    );
+
+  const blocked = rolesAboveBot(guild, me);
+  if (blocked > 0) {
+    embed.addFields({
+      name: 'Let op: rolvolgorde',
+      value:
+        `Er ${blocked === 1 ? 'staat 1 rol' : `staan ${blocked} rollen`} boven mijn eigen rol. ` +
+        'Die kan ik niet beheren, ook niet met Administrator.',
+    });
+  }
+
+  return embed;
 }
 
 function readyEmbed(guild: Guild, me: GuildMember): EmbedBuilder {

@@ -48,8 +48,8 @@ const demoSnapshot: GuildSnapshot = {
 };
 
 const demoGuilds = [
-  { id: '1', name: 'Mijn Testserver', iconUrl: null, memberCount: 428, channelCount: 7, roleCount: 2, missing: [] as string[], rolesAbove: 0 },
-  { id: '2', name: 'Clan Server', iconUrl: null, memberCount: 76, channelCount: 3, roleCount: 1, missing: ['ManageRoles'], rolesAbove: 2 },
+  { id: '1', name: 'Mijn Testserver', iconUrl: null, memberCount: 428, channelCount: 7, roleCount: 2, missing: [] as string[], rolesAbove: 0, admin: true, inviteUrl: null as string | null },
+  { id: '2', name: 'Clan Server', iconUrl: null, memberCount: 76, channelCount: 3, roleCount: 1, missing: [] as string[], rolesAbove: 2, admin: false, inviteUrl: 'https://discord.com/oauth2/authorize?permissions=8' },
 ];
 
 async function main() {

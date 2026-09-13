@@ -117,6 +117,12 @@ bovendien bij of een template Administrator vraagt.
 Wil je liever dat hij stopt in plaats van bijstelt: `--stop-bij-tekort`, of het vinkje
 *Stoppen zodra de bot iets niet mag* in de Action.
 
+**Hij vraagt er zelf om.** De invite-link vraagt Administrator, en `npm run invite` toont hem;
+de Action **Bot instellen** zet daarnaast de *default install settings* van de applicatie, zodat
+elke Add App-knop er voortaan vanzelf om vraagt. Komt de bot toch zonder Administrator binnen,
+dan zegt hij dat meteen in een bericht op de server — met wat er dan blijft liggen en een link
+om het in een klik te regelen. In het dashboard staat het als een badge bij de server.
+
 De beperkte invite-link uit `npm run invite` is genoeg voor templates zonder community-modus
 en zonder rollen met bijzondere rechten: `ManageChannels`, `ManageRoles`, `ManageGuild` plus
 `ViewChannel`, `SendMessages`, `EmbedLinks`, `AttachFiles`, `ReadMessageHistory`.
@@ -543,8 +549,21 @@ npm run reset -- --guild 123456789 --bevestig "Testserver" --behoud-rollen
 | Vlag | Wat er blijft staan |
 | --- | --- |
 | `--behoud-rollen` | alle rollen |
+| `--behoud-rol "Admin"` | die ene rol; mag vaker, of als `"Admin,Moderator"` |
 | `--behoud-kanalen` | alle kanalen en categorieen |
 | `--behoud-automod` | de AutoMod-regels |
+
+Een losse rol uitsluiten is handig als je alles opnieuw wilt doen maar je beheerdersrol wilt
+houden — die hangt aan je leden, en opnieuw uitdelen is handwerk:
+
+```bash
+npm run reset -- --guild 123456789 --bevestig "Testserver" --behoud-rol "Admin,Moderator"
+```
+
+In de Action is dat het veld **rollen_behouden**, komma's ertussen. Namen worden vergeleken
+zonder te letten op hoofdletters of spaties. Slaat een naam nergens op, dan zegt hij dat
+("er is geen rol die \"Moderatr\" heet") in plaats van stil een rol weg te gooien die je
+wilde houden.
 
 In de Action staan het als drie vinkjes: **Ook de rollen verwijderen**, **Ook de kanalen
 verwijderen**, **Ook de AutoMod-regels verwijderen**. Ze staan alle drie aan; haal er een

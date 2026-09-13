@@ -1,0 +1,55 @@
+# De applicatie-instellingen van de bot bijwerken, vanaf je telefoon.
+#
+# Dit zet de "default install settings": de rechten waar elke Add App-knop
+# voortaan zelf om vraagt (Administrator), plus de gebruikersnaam en de avatar.
+# Er verandert niets aan een server; dit gaat alleen over de bot zelf.
+name: Bot instellen
+
+on:
+  workflow_dispatch:
+
+jobs:
+  instellen:
+    name: instellen
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Controleer of de secrets ingesteld zijn
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+        run: |
+          if [ -z "$DISCORD_TOKEN" ] || [ -z "$DISCORD_CLIENT_ID" ]; then
+            echo "::error::Zet DISCORD_TOKEN en DISCORD_CLIENT_ID onder Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Instellingen bijwerken
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+        run: node dist/configure-install.js
+
+      - name: Uitnodigingslink tonen
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+        run: |
+          {
+            echo "## Uitnodigen met Administrator"
+            echo ""
+            echo '```'
+            node dist/invite.js
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

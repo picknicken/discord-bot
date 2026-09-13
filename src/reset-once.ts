@@ -21,7 +21,13 @@ interface Options {
 }
 
 function parseArguments(argv: string[]): Options | null {
-  const options: Options = { guildId: '', confirm: null, backup: true, scope: { ...ALLES } };
+  const options: Options = {
+    guildId: '',
+    confirm: null,
+    backup: true,
+    scope: { ...ALLES, behoudRollen: [] },
+  };
+  const behoudRollen: string[] = [];
 
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index];
@@ -31,8 +37,15 @@ function parseArguments(argv: string[]): Options | null {
     else if (argument === '--behoud-rollen') options.scope.roles = false;
     else if (argument === '--behoud-kanalen') options.scope.channels = false;
     else if (argument === '--behoud-automod') options.scope.automod = false;
+    else if (argument === '--behoud-rol') {
+      // Mag meerdere keren, en een komma-lijstje mag ook: --behoud-rol "Admin,Mod"
+      for (const naam of (argv[++index] ?? '').split(',')) {
+        if (naam.trim() !== '') behoudRollen.push(naam.trim());
+      }
+    }
   }
 
+  options.scope.behoudRollen = behoudRollen;
   return options.guildId ? options : null;
 }
 
@@ -47,7 +60,8 @@ if (!options) {
       '    --guild            id van de server',
       '    --bevestig         de servernaam, exact overgetypt; zonder dit blijft het een preview',
       '    --geen-backup      sla de momentopname vooraf over (niet aangeraden)',
-      '    --behoud-rollen    laat de rollen staan',
+      '    --behoud-rollen    laat alle rollen staan',
+      '    --behoud-rol NAAM  laat deze ene rol staan; mag vaker, of als "A,B"',
       '    --behoud-kanalen   laat de kanalen staan',
       '    --behoud-automod   laat de automod-regels staan',
       '',
