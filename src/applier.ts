@@ -573,7 +573,7 @@ async function orderRoles(
       // verslepen, en boven de bot uit mag het ook niet.
       if (role.managed) return false;
       if (role.rawPosition >= botRaw) {
-        teHoog.push(role.name);
+        teHoog.push(`${role.name} (plek ${role.rawPosition})`);
         return false;
       }
       return true;
@@ -582,9 +582,10 @@ async function orderRoles(
   const meldingen: string[] = [];
   if (teHoog.length > 0) {
     meldingen.push(
-      `rolvolgorde: ${teHoog.join(', ')} ${teHoog.length === 1 ? 'staat' : 'staan'} even hoog als of hoger dan ` +
-        `de rol van de bot en ${teHoog.length === 1 ? 'is' : 'zijn'} daarom overgeslagen. Sleep de rol van de ` +
-        'bot in Serverinstellingen -> Rollen boven deze rollen en draai dit opnieuw.',
+      `rolvolgorde overgeslagen: de rol van de bot staat op plek ${botRaw}, en ${teHoog.join(', ')} ` +
+        `${teHoog.length === 1 ? 'staat' : 'staan'} daar even hoog of hoger. Gelijk telt bij Discord niet als ` +
+        'hoger, ook al lijkt de bot in de rollenlijst bovenaan te staan. Sleep zijn rol in Serverinstellingen ' +
+        '-> Rollen een plek omhoog (of de andere rollen omlaag) en draai dit opnieuw.',
     );
   }
 

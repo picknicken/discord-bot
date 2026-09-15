@@ -272,7 +272,7 @@ describe('rolvolgorde en de rolhierarchie', () => {
 
     expect(verplaatsingen).toHaveLength(0);
     expect(result.failed).toBe(0);
-    expect(result.errors.join(' ')).toContain('Sleep de rol van de bot');
+    expect(result.errors.join(' ')).toContain('Sleep zijn rol in Serverinstellingen');
   });
 
   it('zegt welke rollen te hoog staan, in lopend Nederlands', async () => {
@@ -281,6 +281,9 @@ describe('rolvolgorde en de rolhierarchie', () => {
 
     expect(melding).toContain('Mod');
     // Twee rollen: dan is het "staan ... en zijn", niet "staan ... en is".
-    expect(melding).toContain('staan even hoog als of hoger dan de rol van de bot en zijn daarom overgeslagen');
+    expect(melding).toContain('de rol van de bot staat op plek 1');
+    // Het nummer erbij, want in de rollenlijst lijkt de bot vaak bovenaan te staan.
+    expect(melding).toContain('(plek 1)');
+    expect(melding).toContain('Gelijk telt bij Discord niet als hoger');
   });
 });
