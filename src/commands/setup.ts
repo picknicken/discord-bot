@@ -19,6 +19,7 @@ import { maakHaalbaar } from '../haalbaar.js';
 import { backupGuild } from '../backup.js';
 import { logSetup } from '../setupLog.js';
 import { leesWaarden } from '../variabelen.js';
+import { serverToegestaan } from '../toegestaan.js';
 import { logger } from '../util/logger.js';
 
 export const data = new SlashCommandBuilder()
@@ -89,7 +90,32 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  switch (interaction.options.getSubcommand()) {
+  const subcommand = interaction.options.getSubcommand();
+
+  // list toont alleen de templates en raakt de server niet aan; de rest wel.
+  if (subcommand !== 'list') {
+    // setDefaultMemberPermissions hierboven is maar een standaard: een
+    // serverbeheerder kan die onder Instellingen -> Integraties opzij zetten en
+    // het commando alsnog aan iedereen geven. Deze controle kan hij niet
+    // wegklikken.
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+      await interaction.reply({
+        content: 'Alleen beheerders van deze server kunnen hem inrichten. Je mist het recht "Server beheren".',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    if (!serverToegestaan(interaction.guildId, config.toegestaneServers)) {
+      await interaction.reply({
+        content: 'Deze server staat niet in de lijst met servers waar deze bot iets mag. Er is niets veranderd.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+  }
+
+  switch (subcommand) {
     case 'list':
       return handleList(interaction);
     case 'preview':

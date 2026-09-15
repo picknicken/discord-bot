@@ -325,7 +325,12 @@ in de gekleurde balk boven aan de run. Er is dan niets veranderd.
 
 Leeg laten mag: dan is er geen beperking. Dat is de stand voor wie de bot alleen zelf gebruikt.
 Het dashboard houdt zich aan dezelfde lijst, dus een server die er niet op staat verdwijnt ook
-daar uit beeld.
+daar uit beeld, en `/setup` weigert hem in Discord zelf.
+
+En in Discord: `/setup` staat standaard alleen open voor wie **Server beheren** heeft, maar dat
+is een standaard die een serverbeheerder onder **Instellingen → Integraties** opzij kan zetten.
+Daarom controleert het commando het recht zelf nog een keer, waar niemand het kan wegklikken.
+Alleen `/setup list` mag iedereen — dat toont de templates en raakt de server niet aan.
 
 Gevraagde scopes zijn `identify` en `guilds` — geen e-mail, geen toegang tot berichten.
 
