@@ -99,3 +99,25 @@ describe('meldingen boven aan de run', () => {
     expect(opgevangen).toEqual([]);
   });
 });
+
+describe('melding in de server', () => {
+  it('maakt geen bericht als er niets te melden is', async () => {
+    const { letopEmbed } = await import('../src/util/melden.js');
+    expect(letopEmbed('Gaming clan', [])).toBeNull();
+  });
+
+  it('zet elke regel onder elkaar', async () => {
+    const { letopEmbed } = await import('../src/util/melden.js');
+    const embed = letopEmbed('Gaming clan', ['rolvolgorde overgeslagen', 'community-modus overgeslagen']);
+
+    expect(embed?.data.title).toContain('Gaming clan');
+    expect(embed?.data.description).toBe('• rolvolgorde overgeslagen\n• community-modus overgeslagen');
+  });
+
+  it('kapt een heel lange lijst af in plaats van Discord te laten weigeren', async () => {
+    const { letopEmbed } = await import('../src/util/melden.js');
+    const embed = letopEmbed('X', new Array(400).fill('een regel die best lang is'));
+
+    expect((embed?.data.description ?? '').length).toBeLessThanOrEqual(3801);
+  });
+});

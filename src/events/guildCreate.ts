@@ -1,13 +1,7 @@
-import {
-  ChannelType,
-  EmbedBuilder,
-  PermissionFlagsBits,
-  type Guild,
-  type GuildMember,
-  type TextChannel,
-} from 'discord.js';
+import { EmbedBuilder, PermissionFlagsBits, type Guild, type GuildMember } from 'discord.js';
 import { config } from '../config.js';
 import { buildInviteUrl, missingPermissions, rolesAboveBot } from '../botPermissions.js';
+import { meldInServer } from '../util/melden.js';
 import { logger } from '../util/logger.js';
 
 /**
@@ -36,7 +30,7 @@ export async function handleGuildCreate(guild: Guild): Promise<void> {
         ? readyEmbed(guild, me)
         : zonderAdminEmbed(guild, me, inviteUrl);
 
-  await announce(guild, me, embed);
+  await meldInServer(guild, me, embed);
 }
 
 /**
@@ -124,39 +118,4 @@ function incompleteEmbed(missing: string[], inviteUrl: string): EmbedBuilder {
         'Ik hoef daarvoor niet weg — opnieuw autoriseren werkt mijn bestaande rol bij.',
       ].join('\n'),
     );
-}
-
-/** Bericht naar het systeemkanaal, anders het eerste kanaal waar ik mag praten, anders een DM naar de eigenaar. */
-async function announce(guild: Guild, me: GuildMember, embed: EmbedBuilder): Promise<void> {
-  const target = findWritableChannel(guild, me);
-
-  if (target) {
-    try {
-      await target.send({ embeds: [embed] });
-      return;
-    } catch (error) {
-      logger.warn(`Kon niet posten in #${target.name} van "${guild.name}"`, error);
-    }
-  }
-
-  try {
-    const owner = await guild.fetchOwner();
-    await owner.send({ embeds: [embed] });
-  } catch {
-    logger.warn(`Geen kanaal en geen DM mogelijk in "${guild.name}" — bericht overgeslagen.`);
-  }
-}
-
-function findWritableChannel(guild: Guild, me: GuildMember): TextChannel | null {
-  const canWrite = (channel: TextChannel) =>
-    channel.permissionsFor(me).has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages]);
-
-  if (guild.systemChannel && canWrite(guild.systemChannel)) return guild.systemChannel;
-
-  const fallback = guild.channels.cache
-    .filter((channel): channel is TextChannel => channel.type === ChannelType.GuildText)
-    .sort((a, b) => a.rawPosition - b.rawPosition)
-    .find((channel) => canWrite(channel));
-
-  return fallback ?? null;
 }

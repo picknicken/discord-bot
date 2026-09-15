@@ -8,6 +8,7 @@ import { maakHaalbaar } from './haalbaar.js';
 import { annoteer, schrijfSamenvatting } from './util/samenvatting.js';
 import { beschrijfVariabelen, leesWaarden } from './variabelen.js';
 import { logSetup, wieDraait } from './setupLog.js';
+import { letopEmbed, meldInServer } from './util/melden.js';
 import {
   beschrijfOnderdelen,
   filterPlan,
@@ -41,6 +42,8 @@ interface Options {
   variabelen: Record<string, string>;
   /** Vooraf een momentopname wegschrijven. Standaard aan. */
   backup: boolean;
+  /** Na afloop in de server zelf melden wat er is blijven liggen. Standaard aan. */
+  melden: boolean;
 }
 
 function parseArguments(argv: string[]): Options | null {
@@ -53,6 +56,7 @@ function parseArguments(argv: string[]): Options | null {
     onderdelen: [...ONDERDELEN],
     variabelen: {},
     backup: true,
+    melden: true,
   };
   let onderdelenInvoer: string | undefined;
   const variabeleInvoer: string[] = [];
@@ -67,6 +71,7 @@ function parseArguments(argv: string[]): Options | null {
     else if (argument === '--onderdelen' || argument === '--alleen') onderdelenInvoer = argv[++index] ?? '';
     else if (argument === '--var' || argument === '--variabele') variabeleInvoer.push(argv[++index] ?? '');
     else if (argument === '--geen-backup') options.backup = false;
+    else if (argument === '--niet-melden') options.melden = false;
   }
 
   const gekozen = leesOnderdelen(onderdelenInvoer);
@@ -96,6 +101,7 @@ if (!options) {
       '    --alleen    welke delen meedoen, met komma\'s; standaard alles',
       '    --var       vul een variabele in: --var naam=waarde; mag vaker',
       '    --geen-backup  sla de momentopname vooraf over (niet aangeraden)',
+      '    --niet-melden  post achteraf geen bericht in de server zelf',
       '',
       '  Onderdelen:',
       ...ONDERDELEN.map((onderdeel) => `    ${onderdeel.padEnd(13)} ${UITLEG[onderdeel]}`),
@@ -273,6 +279,11 @@ client.once(Events.ClientReady, async (ready) => {
       backup: backupFile,
       notes: letop,
     });
+
+    // En in de server zelf, want daar gaat het over. Een melding die je alleen
+    // in een GitHub-log kunt vinden leest niemand.
+    const bericht = letopEmbed(template.name, letop);
+    if (bericht && options.melden) await meldInServer(guild, me, bericht);
 
     if (result.failed > 0) process.exitCode = 1;
   } catch (error) {

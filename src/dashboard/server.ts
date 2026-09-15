@@ -15,6 +15,7 @@ import { PERMISSION_CATALOGUE } from '../permissionCatalogue.js';
 import { filterPlan, leesOnderdelen, ONDERDELEN, UITLEG } from '../onderdelen.js';
 import { maakHaalbaar } from '../haalbaar.js';
 import { logSetup, readSetups } from '../setupLog.js';
+import { letopEmbed, meldInServer } from '../util/melden.js';
 import { buildInviteUrl, INVITE_PERMISSIONS } from '../botPermissions.js';
 import { explainShortfalls, planShortfalls } from '../preflight.js';
 import {
@@ -426,6 +427,9 @@ async function handle(
         backup: backupFile,
         notes: meldingen,
       });
+
+      const bericht = letopEmbed(template.name, meldingen);
+      if (bericht) await meldInServer(guild, me, bericht);
 
       results.push({
         guildId,
