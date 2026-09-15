@@ -44,6 +44,7 @@ export async function loadTemplateMet(
   dir: string,
   id: string,
   variabelen: Record<string, string> = {},
+  opties: { losjes?: boolean } = {},
 ): Promise<GeladenTemplate> {
   if (!/^[\w-]+$/.test(id)) {
     throw new Error(`Ongeldige template-naam: "${id}"`);
@@ -53,7 +54,9 @@ export async function loadTemplateMet(
   const raw = await readFile(file, 'utf8');
   const ingevuld = vulVariabelenIn(raw, variabelen);
 
-  if (ingevuld.ontbrekend.length > 0) {
+  // Losjes is voor een lijstje op het scherm: dan blijft {{clan}} gewoon staan.
+  // Bij het uitrollen mag dat niet - daar moet je weten wat je invult.
+  if (ingevuld.ontbrekend.length > 0 && !opties.losjes) {
     throw new Error(uitlegOntbrekend(ingevuld.ontbrekend, aangegevenVariabelen(raw)).join('\n'));
   }
 

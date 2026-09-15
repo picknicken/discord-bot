@@ -1,6 +1,7 @@
 import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { config } from './config.js';
 import { applyPlan } from './applier.js';
+import { backupGuild } from './backup.js';
 import { buildInviteUrl, missingPermissions } from './botPermissions.js';
 import { explainShortfalls, planShortfalls } from './preflight.js';
 import { maakHaalbaar } from './haalbaar.js';
@@ -38,6 +39,8 @@ interface Options {
   onderdelen: Onderdeel[];
   /** Waarden voor de {{variabelen}} in de template. */
   variabelen: Record<string, string>;
+  /** Vooraf een momentopname wegschrijven. Standaard aan. */
+  backup: boolean;
 }
 
 function parseArguments(argv: string[]): Options | null {
@@ -49,6 +52,7 @@ function parseArguments(argv: string[]): Options | null {
     stopBijTekort: false,
     onderdelen: [...ONDERDELEN],
     variabelen: {},
+    backup: true,
   };
   let onderdelenInvoer: string | undefined;
   const variabeleInvoer: string[] = [];
@@ -62,6 +66,7 @@ function parseArguments(argv: string[]): Options | null {
     else if (argument === '--stop-bij-tekort') options.stopBijTekort = true;
     else if (argument === '--onderdelen' || argument === '--alleen') onderdelenInvoer = argv[++index] ?? '';
     else if (argument === '--var' || argument === '--variabele') variabeleInvoer.push(argv[++index] ?? '');
+    else if (argument === '--geen-backup') options.backup = false;
   }
 
   const gekozen = leesOnderdelen(onderdelenInvoer);
@@ -90,6 +95,7 @@ if (!options) {
       '    --stop-bij-tekort  stop zodra de bot iets niet mag; standaard doet hij wat wel kan',
       '    --alleen    welke delen meedoen, met komma\'s; standaard alles',
       '    --var       vul een variabele in: --var naam=waarde; mag vaker',
+      '    --geen-backup  sla de momentopname vooraf over (niet aangeraden)',
       '',
       '  Onderdelen:',
       ...ONDERDELEN.map((onderdeel) => `    ${onderdeel.padEnd(13)} ${UITLEG[onderdeel]}`),
@@ -218,6 +224,17 @@ client.once(Events.ClientReady, async (ready) => {
       return;
     }
 
+    // Altijd eerst een momentopname. Het dashboard deed dat al; hier ontbrak hij,
+    // terwijl juist deze kant vanaf een telefoon gestart wordt.
+    let backupFile: string | null = null;
+    if (options.backup) {
+      backupFile = await backupGuild(guild, config.backupsDir, options.template).catch((error: unknown) => {
+        logger.warn(`Momentopname niet gelukt: ${error instanceof Error ? error.message : String(error)}`);
+        return null;
+      });
+      if (backupFile) logger.info(`Momentopname bewaard: ${backupFile}`);
+    }
+
     const result = await applyPlan(guild, template, uitvoeren);
     logger.info(`Klaar: ${result.applied} acties gelukt, ${result.failed} mislukt.`);
     for (const error of result.errors) logger.warn(error);
@@ -253,7 +270,7 @@ client.once(Events.ClientReady, async (ready) => {
       onderdelen: options.onderdelen,
       applied: result.applied,
       failed: result.failed,
-      backup: null,
+      backup: backupFile,
       notes: letop,
     });
 

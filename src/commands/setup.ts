@@ -14,7 +14,11 @@ import { applyPlan } from '../applier.js';
 import { exportGuild } from '../exporter.js';
 import { describeActions, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
-import { listTemplateIds, loadAllTemplates, loadTemplate } from '../templates.js';
+import { listTemplateIds, loadAllTemplates, loadTemplateMet } from '../templates.js';
+import { maakHaalbaar } from '../haalbaar.js';
+import { backupGuild } from '../backup.js';
+import { logSetup } from '../setupLog.js';
+import { leesWaarden } from '../variabelen.js';
 import { logger } from '../util/logger.js';
 
 export const data = new SlashCommandBuilder()
@@ -32,6 +36,9 @@ export const data = new SlashCommandBuilder()
       )
       .addBooleanOption((option) =>
         option.setName('prune').setDescription('Kanalen verwijderen die niet in de template staan'),
+      )
+      .addStringOption((option) =>
+        option.setName('variabelen').setDescription('Waarden invullen, bijv: clan=Bloody Mayhem'),
       ),
   )
   .addSubcommand((sub) =>
@@ -52,6 +59,9 @@ export const data = new SlashCommandBuilder()
       )
       .addBooleanOption((option) =>
         option.setName('update').setDescription('Bestaande rollen/kanalen bijwerken (standaard: aan)'),
+      )
+      .addStringOption((option) =>
+        option.setName('variabelen').setDescription('Waarden invullen, bijv: clan=Bloody Mayhem'),
       ),
   )
   .addSubcommand((sub) =>
@@ -117,16 +127,37 @@ async function handleList(interaction: ChatInputCommandInteraction): Promise<voi
   await interaction.editReply({ embeds: [embed] });
 }
 
+/**
+ * Hetzelfde plan als op de commandoregel en in het dashboard: eerst bijstellen
+ * naar wat deze bot op deze server mag, dan pas iets doen. Dat liep hier langs
+ * elkaar heen, waardoor via Discord nog de oude fouten terugkwamen.
+ */
+async function maakPlan(interaction: ChatInputCommandInteraction, guild: Guild, id: string) {
+  const geladen = await loadTemplateMet(
+    config.templatesDir,
+    id,
+    leesWaarden([interaction.options.getString('variabelen') ?? '']),
+  );
+
+  const plan = planSetup(await snapshotGuildFresh(guild), geladen.template, {
+    prune: interaction.options.getBoolean('prune') ?? false,
+    update: interaction.options.getBoolean('update') ?? true,
+  });
+
+  const me = await guild.members.fetchMe();
+  const haalbaar = maakHaalbaar(plan, me.permissions, {
+    alCommunity: guild.features.includes('COMMUNITY'),
+  });
+
+  return { ...geladen, plan: haalbaar.plan, aanpassingen: haalbaar.aanpassingen };
+}
+
 async function handlePreview(interaction: ChatInputCommandInteraction, guild: Guild): Promise<void> {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const id = interaction.options.getString('template', true);
 
   try {
-    const template = await loadTemplate(config.templatesDir, id);
-    const plan = planSetup(await snapshotGuildFresh(guild), template, {
-      prune: interaction.options.getBoolean('prune') ?? false,
-      update: true,
-    });
+    const { template, plan, aanpassingen, onbekend } = await maakPlan(interaction, guild, id);
 
     const embed = new EmbedBuilder()
       .setTitle(`Preview: ${template.name}`)
@@ -135,7 +166,13 @@ async function handlePreview(interaction: ChatInputCommandInteraction, guild: Gu
       .addFields({ name: 'Acties', value: codeBlock(describeActions(plan)) });
 
     if (plan.warnings.length > 0) {
-      embed.addFields({ name: 'Waarschuwingen', value: plan.warnings.join('\n') });
+      embed.addFields({ name: 'Waarschuwingen', value: kort(plan.warnings) });
+    }
+    if (aanpassingen.length > 0) {
+      embed.addFields({ name: 'Bijgesteld naar wat ik kan', value: kort(aanpassingen) });
+    }
+    if (onbekend.length > 0) {
+      embed.addFields({ name: 'Onbekende variabelen', value: kort(onbekend) });
     }
 
     await interaction.editReply({
@@ -145,6 +182,12 @@ async function handlePreview(interaction: ChatInputCommandInteraction, guild: Gu
   } catch (error) {
     await interaction.editReply(errorText(error));
   }
+}
+
+/** Een lijstje dat binnen een embedveld past (Discord staat 1024 tekens toe). */
+function kort(regels: readonly string[]): string {
+  const tekst = regels.join('\n');
+  return tekst.length <= 1000 ? tekst : `${tekst.slice(0, 1000)}…`;
 }
 
 async function handleApply(interaction: ChatInputCommandInteraction, guild: Guild): Promise<void> {
@@ -171,11 +214,7 @@ async function handleApply(interaction: ChatInputCommandInteraction, guild: Guil
   const id = interaction.options.getString('template', true);
 
   try {
-    const template = await loadTemplate(config.templatesDir, id);
-    const plan = planSetup(await snapshotGuildFresh(guild), template, {
-      prune: interaction.options.getBoolean('prune') ?? false,
-      update: interaction.options.getBoolean('update') ?? true,
-    });
+    const { template, plan, aanpassingen } = await maakPlan(interaction, guild, id);
 
     if (plan.actions.length === 0) {
       await interaction.editReply('Niets te doen — de server komt al overeen met de template.');
@@ -185,15 +224,35 @@ async function handleApply(interaction: ChatInputCommandInteraction, guild: Guil
     await interaction.editReply(`Bezig met ${plan.actions.length} acties… (${summarizePlan(plan)})`);
     logger.info(`Template "${id}" toepassen op ${guild.name} (${guild.id}) door ${interaction.user.tag}`);
 
+    // Eerst een momentopname, net als het dashboard en de commandoregel.
+    const backupFile = await backupGuild(guild, config.backupsDir, id).catch(() => null);
     const result = await applyPlan(guild, template, plan);
+    const letop = [...result.errors, ...aanpassingen];
+
+    await logSetup(config.historyDir, {
+      at: new Date().toISOString(),
+      guildId: guild.id,
+      guildName: guild.name,
+      template: id,
+      door: interaction.user.tag,
+      mode: 'apply',
+      onderdelen: [],
+      applied: result.applied,
+      failed: result.failed,
+      backup: backupFile,
+      notes: letop,
+    });
 
     const embed = new EmbedBuilder()
       .setTitle(result.failed === 0 ? 'Setup afgerond' : 'Setup afgerond met fouten')
       .setColor(result.failed === 0 ? 0x57f287 : 0xed4245)
-      .setDescription(`${result.applied} acties gelukt, ${result.failed} mislukt.`);
+      .setDescription(
+        `${result.applied} acties gelukt, ${result.failed} mislukt.` +
+          (backupFile ? '\nEr is vooraf een momentopname bewaard.' : ''),
+      );
 
-    if (result.errors.length > 0) {
-      embed.addFields({ name: 'Fouten', value: codeBlock(result.errors.slice(0, 10)) });
+    if (letop.length > 0) {
+      embed.addFields({ name: 'Let op', value: kort(letop.slice(0, 10)) });
     }
 
     await interaction.editReply({ content: '', embeds: [embed] });

@@ -207,6 +207,7 @@ async function refresh() {
 
   renderTemplates();
   renderGuilds();
+  renderVariabelen();
   renderOnderdelen();
   renderBackups();
   renderSetups();
@@ -346,6 +347,44 @@ function renderBackups() {
   }
 }
 
+/**
+ * Invulvelden voor de {{variabelen}} van de gekozen template. Zonder deze
+ * velden is een template met variabelen alleen vanaf de commandoregel te
+ * gebruiken, en dat is precies het tegenovergestelde van de bedoeling.
+ */
+function renderVariabelen() {
+  const blok = $('variabelenBlok');
+  if (!blok) return;
+
+  const template = state.templates.find((kandidaat) => kandidaat.id === state.selected);
+  const variabelen = template && template.variables ? Object.entries(template.variables) : [];
+
+  blok.hidden = variabelen.length === 0;
+  if (variabelen.length === 0) return;
+
+  const eerder = gekozenVariabelen();
+  $('variabelenVelden').innerHTML = variabelen
+    .map(([naam, spec]) => {
+      const waarde = eerder[naam] ?? spec.standaard ?? '';
+      return (
+        '<label class="field"><span>' + escape(naam) + '</span>' +
+        '<input type="text" class="variabele" data-naam="' + escape(naam) + '" value="' + escape(waarde) + '"' +
+        ' placeholder="' + escape(spec.standaard || '') + '">' +
+        (spec.beschrijving ? '<small class="muted">' + escape(spec.beschrijving) + '</small>' : '') +
+        '</label>'
+      );
+    })
+    .join('');
+}
+
+function gekozenVariabelen() {
+  const waarden = {};
+  for (const veld of document.querySelectorAll('.variabele')) {
+    if (veld.value.trim() !== '') waarden[veld.dataset.naam] = veld.value;
+  }
+  return waarden;
+}
+
 /** Het logboek: wie heeft wat waar uitgerold, en ging het goed. */
 function renderSetups() {
   const lijst = $('setupList');
@@ -383,6 +422,7 @@ function renderSetups() {
 
 async function select(id) {
   state.selected = id;
+  setTimeout(renderVariabelen, 0);
   const data = await api('/templates/' + id);
   state.original = data.json;
   $('editor').value = data.json;
@@ -791,6 +831,7 @@ const planBody = () => ({
   prune: $('prune').checked,
   update: $('update').checked,
   onderdelen: gekozenOnderdelen(),
+  variabelen: gekozenVariabelen(),
 });
 
 async function preview() {

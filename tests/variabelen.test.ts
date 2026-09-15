@@ -126,3 +126,30 @@ describe('een template met variabelen laden', () => {
     expect(geladen.gebruikt).toEqual({ clan: 'X', kleur: '#5865F2' });
   });
 });
+
+describe('losjes laden, voor een lijstje op het scherm', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), 'templates-losjes-'));
+    await writeFile(path.join(dir, 'clan.json'), sjabloon, 'utf8');
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('laadt zonder waarden, met de haakjes er nog in', async () => {
+    const geladen = await loadTemplateMet(dir, 'clan', {}, { losjes: true });
+    expect(geladen.template.roles[0]?.name).toBe('{{clan}} Staff');
+  });
+
+  it('houdt de opgegeven variabelen zichtbaar voor het scherm', async () => {
+    const geladen = await loadTemplateMet(dir, 'clan', {}, { losjes: true });
+    expect(Object.keys(geladen.template.variables)).toEqual(['clan', 'kleur']);
+  });
+
+  it('blijft streng als het menens wordt', async () => {
+    await expect(loadTemplateMet(dir, 'clan', {}, { losjes: false })).rejects.toThrow(/clan/);
+  });
+});

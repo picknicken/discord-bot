@@ -96,6 +96,7 @@ async function main() {
         id,
         name: template.name,
         description: template.description,
+        variables: template.variables,
         roles: template.roles.length,
         categories: template.categories.length,
         channels:

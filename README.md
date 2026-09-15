@@ -609,6 +609,23 @@ Geef je een naam op die de template niet kent, dan zegt hij dat, met een suggest
 De meegeleverde `gaming`-template doet dit met `clan`. Zonder waarde heet de rol `Clan Owner`,
 net als eerst; met `--var clan="Bloody Mayhem"` wordt het `Bloody Mayhem Owner`.
 
+### Dezelfde weg, welke deur je ook neemt
+
+Een template kan op drie manieren naar binnen: het dashboard, de commandoregel (en daarmee de
+GitHub Action) en `/setup apply` in Discord. Alle drie lopen ze nu door dezelfde stappen:
+
+1. template laden en de variabelen invullen;
+2. plan berekenen;
+3. bijstellen naar wat deze bot op deze server mag;
+4. momentopname wegschrijven;
+5. uitvoeren;
+6. in het logboek zetten, met wat er is overgeslagen.
+
+Dat klinkt vanzelfsprekend, maar was het niet: de slash-commando's sloegen stap 3, 4 en 6 over
+en kwamen daardoor nog met de oude fouten terug, en de commandoregel maakte geen momentopname
+terwijl het dashboard dat wel deed. In de Action wordt die momentopname als artifact bewaard,
+want de schijf van een runner is na afloop weg.
+
 ### Bedoelde je ...?
 
 Een naam die net niet klopt kost anders een half uur zoeken. De controle zegt er daarom bij

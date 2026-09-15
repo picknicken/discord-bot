@@ -9,7 +9,7 @@ import { applyPlan } from '../applier.js';
 import { exportGuild } from '../exporter.js';
 import { describeActions, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
-import { listTemplateIds, loadTemplate } from '../templates.js';
+import { listTemplateIds, loadTemplateMet } from '../templates.js';
 import { auditSummary, countBySeverity, lintTemplate } from '../lint.js';
 import { PERMISSION_CATALOGUE } from '../permissionCatalogue.js';
 import { filterPlan, leesOnderdelen, ONDERDELEN, UITLEG } from '../onderdelen.js';
@@ -146,7 +146,10 @@ async function handle(
       }
 
       const source: ServerTemplate = body.from
-        ? { ...(await loadTemplate(config.templatesDir, body.from)), name: newId }
+        ? {
+            ...(await loadTemplateMet(config.templatesDir, body.from, {}, { losjes: true })).template,
+            name: newId,
+          }
         : {
             name: newId,
             description: '',
@@ -297,6 +300,7 @@ async function handle(
       update?: boolean;
       backup?: boolean;
       onderdelen?: string[];
+      variabelen?: Record<string, string>;
     }>(request);
 
     const guildIds = body.guildIds?.length ? body.guildIds : body.guildId ? [body.guildId] : [];
@@ -304,7 +308,16 @@ async function handle(
       return send(response, 400, { error: 'Kies een template en minstens een server.' });
     }
 
-    const template = await loadTemplate(config.templatesDir, body.templateId);
+    let geladen;
+    try {
+      geladen = await loadTemplateMet(config.templatesDir, body.templateId, body.variabelen ?? {});
+    } catch (error) {
+      // Een ontbrekende waarde is geen serverfout maar iets wat de gebruiker
+      // moet invullen; met een 400 laat het dashboard de melding netjes zien.
+      return send(response, 400, { error: message(error) });
+    }
+
+    const template = geladen.template;
     const options = { prune: body.prune ?? false, update: body.update ?? true };
 
     const onderdelen = leesOnderdelen(body.onderdelen?.join(','));
@@ -508,11 +521,12 @@ async function describeTemplates() {
 
   for (const id of ids) {
     try {
-      const template = await loadTemplate(config.templatesDir, id);
+      const { template } = await loadTemplateMet(config.templatesDir, id, {}, { losjes: true });
       described.push({
         id,
         name: template.name,
         description: template.description,
+        variables: template.variables,
         roles: template.roles.length,
         categories: template.categories.length,
         channels:
