@@ -543,9 +543,17 @@ Railway gooit de schijf leeg bij elke nieuwe deploy. Zonder volume betekent dat:
 die je in het dashboard aanpast, elke back-up en de hele uitrolgeschiedenis zijn weg zodra je
 iets pusht. Dat merk je pas als je het nodig hebt.
 
-Toevoegen: je service → tabblad **Variables** heb je al gehad → klik op de service → **Settings**
-→ **Volumes** → **Add Volume**, mountpad `/data`. Railway herstart de service en zet zelf
-`RAILWAY_VOLUME_MOUNT_PATH=/data` in de omgeving.
+Toevoegen gaat níet via Settings — daar staat het niet. Het zit op het projectoverzicht (de
+"canvas" met de blokjes):
+
+- **Op een telefoon:** tik op het **⋯**-menu rechtsboven op het blokje van je service →
+  **Attach Volume**.
+- **Op een computer:** rechtermuisknop op het blokje van de service → **Attach Volume**. Of
+  ⌘K / Ctrl+K en typ "volume".
+
+Als mountpad vul je `/data` in. Kies niet `/app`: daar staat de code zelf. Railway herstart de
+service daarna en zet zelf `RAILWAY_VOLUME_MOUNT_PATH=/data` in de omgeving — die hoef je niet
+zelf aan te maken.
 
 Meer hoef je niet te doen: staat die variabele er, dan verhuizen templates, back-ups en
 geschiedenis vanzelf mee naar `/data/templates`, `/data/backups` en `/data/history`. De
