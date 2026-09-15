@@ -505,6 +505,39 @@ Let op: zodra het dashboard van localhost af gaat, is inloggen verplicht — zie
 [Inloggen met Discord](#inloggen-met-discord). En de map `templates/` moet blijven bestaan
 tussen herstarts, anders ben je je templates kwijt bij elke deploy.
 
+### Live zetten op Railway
+
+`railway.json` staat in de repo, dus Railway bouwt met `npm run build` en start met
+`npm run start:dashboard` — één proces met de bot én het dashboard erin, dus `/setup` werkt
+ook gewoon. De poort komt uit `PORT`, die Railway zelf invult; daar hoef je niets voor te doen.
+
+Onder **Variables** zet je dit (Raw editor → plakken):
+
+```env
+DISCORD_TOKEN=de-token-uit-het-developer-portal
+DISCORD_CLIENT_ID=het-application-id
+DISCORD_CLIENT_SECRET=de-client-secret
+DASHBOARD_HOST=0.0.0.0
+DASHBOARD_URL=https://jouw-project.up.railway.app
+GUILD_IDS=
+DASHBOARD_OWNERS=
+TEMPLATES_DIR=./templates
+BACKUPS_DIR=./backups
+HISTORY_DIR=./history
+```
+
+- `DASHBOARD_HOST=0.0.0.0` is nodig, anders praat het dashboard alleen tegen zichzelf en
+  krijgt de bezoeker niets. Daarom is `DISCORD_CLIENT_SECRET` hier ook verplicht: buiten je
+  eigen computer weigert het dashboard te starten zonder inloggen.
+- `DASHBOARD_URL` is het adres dat Railway je geeft (Settings → Networking → Generate Domain).
+  Zet exact dat adres + `/auth/callback` in het Developer Portal onder **OAuth2 → Redirects**.
+  Dat is de meestgemaakte fout: wijkt er één letter af, dan weigert Discord de inlog.
+- `GUILD_IDS` leeg = geen beperking. Vul je er server-ids in (met komma's ertussen), dan mag
+  de bot alleen daar iets.
+- Railway gooit de schijf leeg bij elke deploy. Je templates staan in de repo en overleven dat,
+  maar `backups/` en `history/` niet. Wil je die bewaren: voeg een Volume toe op `/data` en zet
+  `BACKUPS_DIR=/data/backups` en `HISTORY_DIR=/data/history`.
+
 ### Zonder computer: via GitHub Actions
 
 Geen machine bij de hand? `.github/workflows/server-inrichten.yml` draait de bot op een

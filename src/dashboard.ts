@@ -1,5 +1,6 @@
 import { Client, Events, GatewayIntentBits, Team, type ClientApplication } from 'discord.js';
 import { config } from './config.js';
+import { koppelBot } from './bot.js';
 import { authEnabled, createDashboard } from './dashboard/server.js';
 import { logger } from './util/logger.js';
 import { login } from './util/start.js';
@@ -12,6 +13,9 @@ const LOCAL_HOSTS = ['127.0.0.1', 'localhost', '::1'];
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
+// Dezelfde bot, dus /setup werkt ook als je alleen dit proces draait.
+koppelBot(client);
+
 client.once(Events.ClientReady, async (ready) => {
   const local = LOCAL_HOSTS.includes(config.dashboardHost);
 
@@ -20,7 +24,8 @@ client.once(Events.ClientReady, async (ready) => {
   if (!local && !authEnabled()) {
     logger.error(
       `DASHBOARD_HOST staat op ${config.dashboardHost}, maar inloggen is uit. ` +
-        'Zet DISCORD_CLIENT_SECRET in .env, of zet de host terug op 127.0.0.1.',
+        'Zet DISCORD_CLIENT_SECRET erbij (en DASHBOARD_URL op het adres waarop je het ' +
+        'dashboard opent), of zet de host terug op 127.0.0.1.',
     );
     process.exit(1);
   }

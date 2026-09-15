@@ -26,8 +26,11 @@ export const config = {
   demo: process.env.DEMO === '1',
   /** Afbeelding voor de botavatar en het applicatie-icoon. */
   avatarFile: process.env.BOT_AVATAR || './assets/logo.png',
-  /** Poort van het dashboard. */
-  dashboardPort: Number(process.env.DASHBOARD_PORT ?? 4000),
+  /**
+   * Poort van het dashboard. PORT is wat hostingpartijen zoals Railway zelf
+   * invullen; die wint, want daar luistert hun router op.
+   */
+  dashboardPort: Number(process.env.PORT || process.env.DASHBOARD_PORT || 4000),
   /** Adres om op te luisteren. Alles behalve localhost vereist inloggen. */
   dashboardHost: process.env.DASHBOARD_HOST || '127.0.0.1',
   /** Client secret uit het Developer Portal; zonder dit is inloggen uitgeschakeld. */

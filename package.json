@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && npm run copy:assets",
     "start": "node dist/index.js",
+    "start:dashboard": "node dist/dashboard.js",
     "dev": "tsx watch src/index.ts",
     "deploy": "tsx src/deploy-commands.ts",
     "typecheck": "tsc -p tsconfig.test.json",
