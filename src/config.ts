@@ -15,11 +15,20 @@ function required(name: string): string {
   process.exit(1);
 }
 
+/**
+ * Een aangekoppeld volume. Railway zet dit pad zelf in de omgeving zodra je er
+ * een volume aan hangt; alles wat daarbuiten wordt weggeschreven is bij de
+ * volgende deploy weg. Dus: staat er een volume, dan is dat de standaardplek
+ * voor templates, back-ups en de geschiedenis.
+ */
+const volume = process.env.RAILWAY_VOLUME_MOUNT_PATH?.trim() || process.env.DATA_DIR?.trim() || '';
+const opVolume = (naam: string): string | null => (volume ? `${volume.replace(/\/$/, '')}/${naam}` : null);
+
 export const config = {
   token: required('DISCORD_TOKEN'),
   clientId: required('DISCORD_CLIENT_ID'),
   devGuildId: process.env.DISCORD_DEV_GUILD_ID || undefined,
-  templatesDir: process.env.TEMPLATES_DIR || './templates',
+  templatesDir: process.env.TEMPLATES_DIR || opVolume('templates') || './templates',
   /** Weergavenaam van de bot. Wordt toegepast door `npm run configure-install`. */
   botName: process.env.BOT_NAME?.trim() || 'Setup Bot',
   /** Demo-modus: geen echte bot, dus toepassen wordt geweigerd in plaats van geprobeerd. */
@@ -44,9 +53,9 @@ export const config = {
   dashboardUrl: (process.env.DASHBOARD_URL || `http://127.0.0.1:${process.env.DASHBOARD_PORT ?? 4000}`)
     .replace(/\/$/, ''),
   /** Momentopnames van servers, weggeschreven voor elk toepassen. */
-  backupsDir: process.env.BACKUPS_DIR || './backups',
+  backupsDir: process.env.BACKUPS_DIR || opVolume('backups') || './backups',
   /** Vorige versies van templates, bijgehouden door het dashboard. */
-  historyDir: process.env.HISTORY_DIR || './history',
+  historyDir: process.env.HISTORY_DIR || opVolume('history') || './history',
   /**
    * Server-ids waar deze installatie iets mag. Leeg = geen beperking.
    * Vooral voor GitHub Actions: daar is het server-id een invoerveld.

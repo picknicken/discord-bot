@@ -1,6 +1,7 @@
 import { Client, Events, GatewayIntentBits, Team, type ClientApplication } from 'discord.js';
 import { config } from './config.js';
 import { koppelBot } from './bot.js';
+import { zaaiTemplates } from './templates.js';
 import { authEnabled, createDashboard } from './dashboard/server.js';
 import { logger } from './util/logger.js';
 import { login } from './util/start.js';
@@ -10,6 +11,13 @@ import { login } from './util/start.js';
  * client, dus wat je in de browser ziet is de echte staat van je servers.
  */
 const LOCAL_HOSTS = ['127.0.0.1', 'localhost', '::1'];
+
+// Op een host met een volume begint de templatemap leeg. Dan staan de
+// meegeleverde templates er na deze regel wel in.
+const gezaaid = await zaaiTemplates(config.templatesDir);
+if (gezaaid.length > 0) {
+  logger.info(`Templates klaargezet in ${config.templatesDir}: ${gezaaid.join(', ')}`);
+}
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 

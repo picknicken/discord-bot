@@ -1,9 +1,15 @@
 import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { config } from './config.js';
 import { koppelBot } from './bot.js';
+import { zaaiTemplates } from './templates.js';
 import { buildInviteUrl } from './botPermissions.js';
 import { logger } from './util/logger.js';
 import { login } from './util/start.js';
+
+const gezaaid = await zaaiTemplates(config.templatesDir);
+if (gezaaid.length > 0) {
+  logger.info(`Templates klaargezet in ${config.templatesDir}: ${gezaaid.join(', ')}`);
+}
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 

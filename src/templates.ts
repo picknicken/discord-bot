@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseTemplate, type ServerTemplate } from './types.js';
 import { aangegevenVariabelen, uitlegOntbrekend, vulVariabelenIn } from './variabelen.js';
@@ -7,6 +7,33 @@ export interface TemplateEntry {
   /** Bestandsnaam zonder .json — dit is wat de gebruiker in het commando kiest. */
   id: string;
   template: ServerTemplate;
+}
+
+/**
+ * Zet de meegeleverde templates klaar in een lege map.
+ *
+ * Nodig zodra de templates ergens anders staan dan in de repo: op een host met
+ * een volume begint die map leeg, en dan is er niets om uit te rollen. Alleen
+ * als er nog geen enkele template staat — anders zou hij jouw aanpassingen bij
+ * elke herstart overschrijven met de originelen.
+ */
+export async function zaaiTemplates(doel: string, bron = './templates'): Promise<string[]> {
+  if (path.resolve(doel) === path.resolve(bron)) return [];
+
+  await mkdir(doel, { recursive: true });
+  if ((await listTemplateIds(doel)).length > 0) return [];
+
+  let namen: string[];
+  try {
+    namen = (await readdir(bron)).filter((naam) => naam.endsWith('.json'));
+  } catch {
+    return [];
+  }
+
+  for (const naam of namen) {
+    await copyFile(path.join(bron, naam), path.join(doel, naam));
+  }
+  return namen.map((naam) => naam.replace(/\.json$/, '')).sort();
 }
 
 export async function listTemplateIds(dir: string): Promise<string[]> {

@@ -534,9 +534,27 @@ HISTORY_DIR=./history
   Dat is de meestgemaakte fout: wijkt er één letter af, dan weigert Discord de inlog.
 - `GUILD_IDS` leeg = geen beperking. Vul je er server-ids in (met komma's ertussen), dan mag
   de bot alleen daar iets.
-- Railway gooit de schijf leeg bij elke deploy. Je templates staan in de repo en overleven dat,
-  maar `backups/` en `history/` niet. Wil je die bewaren: voeg een Volume toe op `/data` en zet
-  `BACKUPS_DIR=/data/backups` en `HISTORY_DIR=/data/history`.
+- `TEMPLATES_DIR`, `BACKUPS_DIR` en `HISTORY_DIR` mag je weglaten zodra er een volume hangt —
+  zie hieronder.
+
+#### Een volume, anders ben je alles kwijt bij elke deploy
+
+Railway gooit de schijf leeg bij elke nieuwe deploy. Zonder volume betekent dat: elke template
+die je in het dashboard aanpast, elke back-up en de hele uitrolgeschiedenis zijn weg zodra je
+iets pusht. Dat merk je pas als je het nodig hebt.
+
+Toevoegen: je service → tabblad **Variables** heb je al gehad → klik op de service → **Settings**
+→ **Volumes** → **Add Volume**, mountpad `/data`. Railway herstart de service en zet zelf
+`RAILWAY_VOLUME_MOUNT_PATH=/data` in de omgeving.
+
+Meer hoef je niet te doen: staat die variabele er, dan verhuizen templates, back-ups en
+geschiedenis vanzelf mee naar `/data/templates`, `/data/backups` en `/data/history`. De
+meegeleverde templates worden bij de eerste start naar het lege volume gekopieerd — en daarna
+nooit meer, anders zou je eigen versie elke herstart overschreven worden.
+
+Had je `TEMPLATES_DIR`, `BACKUPS_DIR` of `HISTORY_DIR` zelf ingevuld? Haal ze dan weg, anders
+winnen die van het volume. Heb je liever een ander pad: `DATA_DIR` doet hetzelfde op een host
+die geen Railway is.
 
 ### Zonder computer: via GitHub Actions
 
