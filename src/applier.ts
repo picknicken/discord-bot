@@ -583,8 +583,8 @@ async function orderRoles(
   if (teHoog.length > 0) {
     meldingen.push(
       `rolvolgorde: ${teHoog.join(', ')} ${teHoog.length === 1 ? 'staat' : 'staan'} even hoog als of hoger dan ` +
-        'de rol van de bot en is daarom overgeslagen. Sleep de rol van de bot in Serverinstellingen -> Rollen ' +
-        'boven deze rollen en draai dit opnieuw.',
+        `de rol van de bot en ${teHoog.length === 1 ? 'is' : 'zijn'} daarom overgeslagen. Sleep de rol van de ` +
+        'bot in Serverinstellingen -> Rollen boven deze rollen en draai dit opnieuw.',
     );
   }
 

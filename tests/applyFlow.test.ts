@@ -275,8 +275,12 @@ describe('rolvolgorde en de rolhierarchie', () => {
     expect(result.errors.join(' ')).toContain('Sleep de rol van de bot');
   });
 
-  it('zegt welke rollen te hoog staan', async () => {
+  it('zegt welke rollen te hoog staan, in lopend Nederlands', async () => {
     const { result } = await draai(1);
-    expect(result.errors.join(' ')).toContain('Mod');
+    const melding = result.errors.join(' ');
+
+    expect(melding).toContain('Mod');
+    // Twee rollen: dan is het "staan ... en zijn", niet "staan ... en is".
+    expect(melding).toContain('staan even hoog als of hoger dan de rol van de bot en zijn daarom overgeslagen');
   });
 });
