@@ -204,6 +204,21 @@ export async function exchangeCode(
   };
 }
 
+/**
+ * Mag deze gebruiker iets met deze server?
+ *
+ * Alleen servers waar hij zelf serverbeheerder is. Dat de bot ergens in zit
+ * zegt niets over wie er mag meekijken of ingrijpen: zonder deze controle kan
+ * iedereen die mag inloggen elke server van iedereen leeghalen.
+ *
+ * Zonder ingelogde sessie draait het dashboard op de eigen computer, met
+ * inloggen uit. Dan is er niemand om te onderscheiden en mag alles.
+ */
+export function magBeheren(session: Session | null, guildId: string): boolean {
+  if (!session) return true;
+  return session.guilds.some((guild) => guild.id === guildId && guild.canManage);
+}
+
 /** Wie mag er binnen: de opgegeven lijst, anders alleen de eigenaar van de applicatie. */
 export function isAllowed(userId: string, owners: readonly string[], applicationOwnerId: string | null): boolean {
   if (owners.length > 0) return owners.includes(userId);

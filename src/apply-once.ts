@@ -1,5 +1,6 @@
 import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { config } from './config.js';
+import { serverToegestaan, uitlegNietToegestaan } from './toegestaan.js';
 import { applyPlan } from './applier.js';
 import { backupGuild } from './backup.js';
 import { buildInviteUrl, missingPermissions } from './botPermissions.js';
@@ -111,6 +112,15 @@ if (!options) {
       '',
     ].join('\n'),
   );
+  process.exit(1);
+}
+
+// Voor het inloggen, want een server die hier niet mag hoort niet eens te worden
+// opgezocht.
+if (!serverToegestaan(options.guildId, config.toegestaneServers)) {
+  const uitleg = uitlegNietToegestaan(options.guildId, config.toegestaneServers);
+  annoteer('error', uitleg);
+  logger.error(uitleg);
   process.exit(1);
 }
 

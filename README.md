@@ -297,9 +297,35 @@ Wat het oplevert:
 - **Jouw servers.** De `guilds`-scope laat zien waar jij beheerder bent — inclusief servers
   waar de bot nog niet in zit, met een knop **Toevoegen** die die server al voorselecteert.
   Dat is de snelste manier om de bot ergens binnen te krijgen.
+- **Alleen jouw servers.** Je ziet en kunt uitsluitend de servers waar jij zelf
+  serverbeheerder bent. Dat de bot ergens in zit maakt die server nog niet van jou: staat hij
+  in tien servers en ben jij in twee daarvan beheerder, dan zie je er twee. Dat geldt voor de
+  hele lijst — servers, back-ups en de uitrolgeschiedenis — en voor elke knop: plannen,
+  toepassen, vergelijken, exporteren en terugzetten geven **403** op een server die niet van
+  jou is. Zit er in een rij servers één vreemde, dan gaat de hele opdracht niet door: stil
+  overslaan zou je laten denken dat het gelukt is.
 
 Wat het **niet** doet: de bot wordt er niet machtiger van, en de bot-token stond al
 server-side. Inloggen bepaalt alleen wie aan de knoppen mag.
+
+### Een lijst met toegestane servers
+
+Het dashboard weet wie er ingelogd is. Een GitHub Action weet dat niet: daar is het server-id
+een invoerveld, en iedereen die de knop mag indrukken kan er elk id in typen. `GUILD_IDS` is
+de rem — een lijst server-ids, komma-gescheiden:
+
+```env
+GUILD_IDS=1547978044084330588,123456789012345678
+```
+
+Voor de Actions zet je dezelfde lijst onder **Settings → Secrets and variables → Actions →
+Variables** als `GUILD_IDS` (een variabele, geen secret — het zijn geen geheimen). Staat er een
+id ingetypt dat er niet op staat, dan stopt de run vóór het inloggen, met de reden en de lijst
+in de gekleurde balk boven aan de run. Er is dan niets veranderd.
+
+Leeg laten mag: dan is er geen beperking. Dat is de stand voor wie de bot alleen zelf gebruikt.
+Het dashboard houdt zich aan dezelfde lijst, dus een server die er niet op staat verdwijnt ook
+daar uit beeld.
 
 Gevraagde scopes zijn `identify` en `guilds` — geen e-mail, geen toegang tot berichten.
 

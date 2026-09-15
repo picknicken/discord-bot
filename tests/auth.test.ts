@@ -3,6 +3,7 @@ import {
   buildAuthorizeUrl,
   buildGuildInviteUrl,
   isAllowed,
+  magBeheren,
   readSessionCookie,
   sessionCookie,
   SessionStore,
@@ -93,5 +94,38 @@ describe('links', () => {
     expect(url.searchParams.get('guild_id')).toBe('999');
     expect(url.searchParams.get('disable_guild_select')).toBe('true');
     expect(url.searchParams.get('permissions')).toBe('268553264');
+  });
+});
+
+describe('alleen je eigen servers', () => {
+  const store = new SessionStore();
+  const session = store.create(user, [
+    { id: 'eigen', name: 'Mijn server', iconUrl: null, owner: true, canManage: true },
+    { id: 'beheer', name: 'Ik ben beheerder', iconUrl: null, owner: false, canManage: true },
+    { id: 'lid', name: 'Ik ben gewoon lid', iconUrl: null, owner: false, canManage: false },
+  ]);
+
+  it('laat je bij de servers waar je beheerder bent', () => {
+    expect(magBeheren(session, 'eigen')).toBe(true);
+    expect(magBeheren(session, 'beheer')).toBe(true);
+  });
+
+  it('houdt je weg bij een server waar je geen beheerder bent', () => {
+    expect(magBeheren(session, 'lid')).toBe(false);
+  });
+
+  it('houdt je weg bij een server die je helemaal niet kent', () => {
+    expect(magBeheren(session, 'vreemd')).toBe(false);
+  });
+
+  it('laat zonder inloggen alles toe, want dan draait het op je eigen computer', () => {
+    expect(magBeheren(null, 'wat-dan-ook')).toBe(true);
+  });
+
+  it('zeeft een serverlijst tot wat jij mag beheren', () => {
+    const vanDeBot = ['eigen', 'lid', 'vreemd', 'beheer'];
+
+    expect(vanDeBot.filter((id) => magBeheren(session, id))).toEqual(['eigen', 'beheer']);
+    expect(vanDeBot.filter((id) => magBeheren(null, id))).toHaveLength(4);
   });
 });

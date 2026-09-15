@@ -18,7 +18,9 @@ import { logSetup, readSetups } from '../setupLog.js';
 import { letopEmbed, meldInServer } from '../util/melden.js';
 import { buildInviteUrl, INVITE_PERMISSIONS } from '../botPermissions.js';
 import { explainShortfalls, planShortfalls } from '../preflight.js';
+import { serverToegestaan } from '../toegestaan.js';
 import {
+  magBeheren,
   buildAuthorizeUrl,
   buildGuildInviteUrl,
   clearedCookie,
@@ -45,10 +47,12 @@ import { logger } from '../util/logger.js';
 export interface DashboardOptions {
   /** Discord-ids die sowieso binnen mogen (de eigenaar of het team van de applicatie). */
   applicationOwners?: string[];
+  /** Eigen sessieopslag. Alleen de tests gebruiken dit, om er een sessie in te leggen. */
+  sessions?: SessionStore;
 }
 
 export function createDashboard(client: Client<true>, options: DashboardOptions = {}): Server {
-  const sessions = new SessionStore();
+  const sessions = options.sessions ?? new SessionStore();
   const owners = options.applicationOwners ?? [];
 
   return createServer((request, response) => {
@@ -114,6 +118,22 @@ async function handle(
     return send(response, 401, { error: 'Niet ingelogd.', login: '/auth/login' });
   }
 
+  /**
+   * Eén poort voor alle routes die een server aanwijzen. Twee vragen achter
+   * elkaar: mag deze installatie aan die server komen (de lijst uit GUILD_IDS),
+   * en is deze gebruiker daar zelf beheerder. Geeft de reden terug, want
+   * "mag niet" zonder waarom laat je zoeken.
+   */
+  const weigering = (guildId: string): string | null => {
+    if (!serverToegestaan(guildId, config.toegestaneServers)) {
+      return 'Die server staat niet in de lijst met servers waar deze bot iets mag.';
+    }
+    if (!magBeheren(session, guildId)) return 'Je bent geen beheerder van die server.';
+    return null;
+  };
+
+  const magHier = (guildId: string): boolean => weigering(guildId) === null;
+
   // --- Status -------------------------------------------------------------
   if (method === 'GET' && resource === 'state') {
     return send(response, 200, {
@@ -121,17 +141,24 @@ async function handle(
       botId: client.user.id,
       avatarUrl: client.user.displayAvatarURL(),
       templatesDir: config.templatesDir,
-      guilds: await Promise.all(client.guilds.cache.map(describeGuild)),
+      // Alleen de servers waar deze gebruiker zelf beheerder is. Dat de bot
+      // ergens in zit maakt hem nog niet van jou.
+      guilds: await Promise.all(
+        [...client.guilds.cache.values()].filter((guild) => magHier(guild.id)).map(describeGuild),
+      ),
       templates: await describeTemplates(),
-      backups: await listBackups(config.backupsDir),
+      backups: (await listBackups(config.backupsDir)).filter((backup) => magHier(backup.guildId)),
       permissions: PERMISSION_CATALOGUE,
       onderdelen: ONDERDELEN.map((onderdeel) => ({ naam: onderdeel, uitleg: UITLEG[onderdeel] })),
-      setups: await readSetups(config.historyDir, 15),
+      setups: (await readSetups(config.historyDir, 500)).filter((run) => magHier(run.guildId)).slice(0, 15),
     });
   }
 
   if (method === 'GET' && resource === 'setups') {
-    return send(response, 200, { setups: await readSetups(config.historyDir, 25) });
+    // Eerst zeven, dan afkappen. Andersom zie je een lege lijst zodra de laatste
+    // regels toevallig van servers van iemand anders waren.
+    const eigen = (await readSetups(config.historyDir, 500)).filter((run) => magHier(run.guildId));
+    return send(response, 200, { setups: eigen.slice(0, 25) });
   }
 
   // --- Templates ----------------------------------------------------------
@@ -222,7 +249,9 @@ async function handle(
   // --- Back-ups ------------------------------------------------------------
   if (resource === 'backups') {
     if (method === 'GET' && id === undefined) {
-      return send(response, 200, { backups: await listBackups(config.backupsDir) });
+      return send(response, 200, {
+        backups: (await listBackups(config.backupsDir)).filter((backup) => magHier(backup.guildId)),
+      });
     }
 
     if (method === 'POST' && id === 'restore') {
@@ -230,7 +259,15 @@ async function handle(
       if (!body.file) return send(response, 400, { error: 'Geef een back-up op.' });
 
       const backup = await readBackup(config.backupsDir, body.file);
-      const guild = client.guilds.cache.get(body.guildId || backup.guildId);
+      const doelId = body.guildId || backup.guildId;
+
+      // Twee keer kijken: de back-up zelf is een afdruk van een server, dus die
+      // mag je niet openen van een server die niet van jou is. En je mag hem
+      // ook niet uitrollen op een server waar je niets te zeggen hebt.
+      const nee = weigering(backup.guildId) ?? weigering(doelId);
+      if (nee) return send(response, 403, { error: nee });
+
+      const guild = client.guilds.cache.get(doelId);
       if (!guild) return send(response, 404, { error: 'Server niet gevonden.' });
       if (config.demo) {
         return send(response, 200, { applied: 0, failed: 0, errors: [], note: 'demo-modus — er is niets teruggezet' });
@@ -280,6 +317,9 @@ async function handle(
   // --- Template naast de echte server ------------------------------------
   if (method === 'POST' && resource === 'compare') {
     const body = await readJson<{ json?: string; guildId?: string }>(request);
+    const nee = body.guildId ? weigering(body.guildId) : null;
+    if (nee) return send(response, 403, { error: nee });
+
     const guild = body.guildId ? client.guilds.cache.get(body.guildId) : undefined;
     if (!guild) return send(response, 404, { error: 'Kies een server om mee te vergelijken.' });
 
@@ -308,6 +348,11 @@ async function handle(
     if (!body.templateId || guildIds.length === 0) {
       return send(response, 400, { error: 'Kies een template en minstens een server.' });
     }
+
+    // Eén server die niet mag en er gebeurt niets — ook niet met de rest. Stil
+    // overslaan zou erger zijn: dan denk je dat het gelukt is.
+    const redenen = [...new Set(guildIds.map((guildId) => weigering(guildId)).filter(Boolean))];
+    if (redenen.length > 0) return send(response, 403, { error: redenen.join(' ') });
 
     let geladen;
     try {
@@ -450,6 +495,9 @@ async function handle(
 
   // --- Bestaande server exporteren ---------------------------------------
   if (method === 'GET' && resource === 'export' && id !== undefined) {
+    const nee = weigering(id);
+    if (nee) return send(response, 403, { error: nee });
+
     const guild = client.guilds.cache.get(id);
     if (!guild) return send(response, 404, { error: 'Server niet gevonden' });
     const template = exportGuild(guild);

@@ -101,6 +101,12 @@ jobs:
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+          # De lijst met servers waar deze bot iets mag, als repository-variabele
+          # (Settings -> Secrets and variables -> Actions -> Variables). Leeg
+          # laten mag: dan is er geen beperking. Staat hij gevuld, dan weigert
+          # de bot elk ander server-id dat hier wordt ingetypt, nog voor hij
+          # inlogt.
+          GUILD_IDS: ${{ vars.GUILD_IDS }}
           # Via de omgeving, niet in de commandoregel: invoer hoort nooit
           # rechtstreeks in een shell-commando terecht te komen.
           GUILD_ID: ${{ inputs.guild_id }}

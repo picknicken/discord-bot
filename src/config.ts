@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { leesToegestaneServers } from './toegestaan.js';
 
 function required(name: string): string {
   const value = process.env[name];
@@ -43,4 +44,9 @@ export const config = {
   backupsDir: process.env.BACKUPS_DIR || './backups',
   /** Vorige versies van templates, bijgehouden door het dashboard. */
   historyDir: process.env.HISTORY_DIR || './history',
+  /**
+   * Server-ids waar deze installatie iets mag. Leeg = geen beperking.
+   * Vooral voor GitHub Actions: daar is het server-id een invoerveld.
+   */
+  toegestaneServers: leesToegestaneServers(process.env.GUILD_IDS),
 };
