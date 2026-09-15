@@ -116,6 +116,11 @@ async function handle(
       // zie je nergens welk adres hij dan wel stuurde. Nu dus wel. Geheim is
       // het niet: het staat in elke inloglink.
       redirectUri: authEnabled() ? redirectUri() : null,
+      // En bij welke applicatie dat adres moet staan. Discord kijkt per
+      // applicatie; staat de redirect bij een andere app van jou, dan is de
+      // melding precies dezelfde. Dit nummer hoort gelijk te zijn aan het
+      // Application ID in het portal.
+      clientId: config.clientId,
     });
   }
 

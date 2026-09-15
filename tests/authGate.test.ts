@@ -68,6 +68,8 @@ describe('dashboard met inloggen aan', () => {
       user: null,
       // Dit adres moet in het Developer Portal staan; zonder dit zie je nergens welke.
       redirectUri: 'http://127.0.0.1:4000/auth/callback',
+      // En bij welke applicatie het moet staan.
+      clientId: '123456789',
     });
   });
 
