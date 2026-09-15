@@ -282,7 +282,15 @@ function toonOnderdeelKop() {
 function renderGuilds() {
   const list = $('guildList');
   if (state.guilds.length === 0) {
-    list.innerHTML = emptyState('server', 'De bot zit nog in geen enkele server.');
+    // Ingelogd zie je alleen servers waar je zelf beheerder bent. "De bot zit
+    // nergens in" zou dan een leugen zijn: hij zit er misschien in tien, alleen
+    // niet in een van jou.
+    list.innerHTML = emptyState(
+      'server',
+      state.session?.user
+        ? 'Geen servers waar jij beheerder bent en de bot in zit.'
+        : 'De bot zit nog in geen enkele server.',
+    );
     return;
   }
 
