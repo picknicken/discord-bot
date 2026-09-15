@@ -111,6 +111,11 @@ async function handle(
       authenticated: !authEnabled() || session !== null,
       user: session?.user ?? null,
       guilds: session ? describeOAuthGuilds(client, session) : [],
+      // Het adres dat we naar Discord sturen. Staat dit niet letterlijk zo in
+      // het Developer Portal, dan krijg je "Ongeldige OAuth2 redirect_uri" en
+      // zie je nergens welk adres hij dan wel stuurde. Nu dus wel. Geheim is
+      // het niet: het staat in elke inloglink.
+      redirectUri: authEnabled() ? redirectUri() : null,
     });
   }
 

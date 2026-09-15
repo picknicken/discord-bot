@@ -531,7 +531,9 @@ HISTORY_DIR=./history
   eigen computer weigert het dashboard te starten zonder inloggen.
 - `DASHBOARD_URL` is het adres dat Railway je geeft (Settings → Networking → Generate Domain).
   Zet exact dat adres + `/auth/callback` in het Developer Portal onder **OAuth2 → Redirects**.
-  Dat is de meestgemaakte fout: wijkt er één letter af, dan weigert Discord de inlog.
+  Dat is de meestgemaakte fout: wijkt er één letter af, dan weigert Discord de inlog met
+  *"Ongeldige OAuth2 redirect_uri"*. Welk adres hij stuurt zie je op `/api/session`, onder
+  `redirectUri` — dat is precies de tekst die in het portal moet staan.
 - `GUILD_IDS` leeg = geen beperking. Vul je er server-ids in (met komma's ertussen), dan mag
   de bot alleen daar iets.
 - `TEMPLATES_DIR`, `BACKUPS_DIR` en `HISTORY_DIR` mag je weglaten zodra er een volume hangt —

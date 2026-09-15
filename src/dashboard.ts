@@ -38,6 +38,17 @@ client.once(Events.ClientReady, async (ready) => {
     process.exit(1);
   }
 
+  // Buiten localhost draaien met een localhost-adres erin betekent: Discord
+  // stuurt je na het inloggen terug naar een computer die er niet is. Beter nu
+  // een regel in het log dan straks "Ongeldige OAuth2 redirect_uri".
+  if (!local && /127\.0\.0\.1|localhost/.test(config.dashboardUrl)) {
+    logger.warn(
+      `DASHBOARD_URL staat nog op ${config.dashboardUrl}, maar dit draait niet op je eigen computer. ` +
+        'Zet hem op het adres waarop jij het dashboard opent, en zet datzelfde adres + /auth/callback ' +
+        'in het Developer Portal onder OAuth2 -> Redirects.',
+    );
+  }
+
   const application = await ready.application.fetch();
   const owners = ownersOf(application);
 

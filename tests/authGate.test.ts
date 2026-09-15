@@ -60,9 +60,15 @@ describe('dashboard met inloggen aan', () => {
     expect(response.status).toBe(401);
   });
 
-  it('vertelt wel dat je moet inloggen', async () => {
+  it('vertelt wel dat je moet inloggen, en met welk adres', async () => {
     const data = await (await fetch(base + '/api/session')).json();
-    expect(data).toMatchObject({ authEnabled: true, authenticated: false, user: null });
+    expect(data).toMatchObject({
+      authEnabled: true,
+      authenticated: false,
+      user: null,
+      // Dit adres moet in het Developer Portal staan; zonder dit zie je nergens welke.
+      redirectUri: 'http://127.0.0.1:4000/auth/callback',
+    });
   });
 
   it('serveert de pagina zelf nog, anders zie je het inlogscherm niet', async () => {
