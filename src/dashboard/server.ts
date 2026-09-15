@@ -14,6 +14,7 @@ import { auditSummary, countBySeverity, lintTemplate } from '../lint.js';
 import { PERMISSION_CATALOGUE } from '../permissionCatalogue.js';
 import { filterPlan, leesOnderdelen, ONDERDELEN, UITLEG } from '../onderdelen.js';
 import { maakHaalbaar } from '../haalbaar.js';
+import { logSetup, readSetups } from '../setupLog.js';
 import { buildInviteUrl, INVITE_PERMISSIONS } from '../botPermissions.js';
 import { explainShortfalls, planShortfalls } from '../preflight.js';
 import {
@@ -124,7 +125,12 @@ async function handle(
       backups: await listBackups(config.backupsDir),
       permissions: PERMISSION_CATALOGUE,
       onderdelen: ONDERDELEN.map((onderdeel) => ({ naam: onderdeel, uitleg: UITLEG[onderdeel] })),
+      setups: await readSetups(config.historyDir, 15),
     });
+  }
+
+  if (method === 'GET' && resource === 'setups') {
+    return send(response, 200, { setups: await readSetups(config.historyDir, 25) });
   }
 
   // --- Templates ----------------------------------------------------------
@@ -144,6 +150,7 @@ async function handle(
         : {
             name: newId,
             description: '',
+            variables: {},
             guild: {},
             roles: [],
             categories: [],
@@ -391,12 +398,28 @@ async function handle(
         `Dashboard past "${body.templateId}" toe op "${guild.name}" (${haalbaar.plan.actions.length} acties)`,
       );
       const result = await applyPlan(guild, template, haalbaar.plan);
+      const meldingen = [...result.errors, ...haalbaar.aanpassingen];
+
+      await logSetup(config.historyDir, {
+        at: new Date().toISOString(),
+        guildId,
+        guildName: guild.name,
+        template: body.templateId,
+        door: session?.user.globalName || session?.user.username || 'dashboard',
+        mode: 'apply',
+        onderdelen,
+        applied: result.applied,
+        failed: result.failed,
+        backup: backupFile,
+        notes: meldingen,
+      });
+
       results.push({
         guildId,
         guildName: guild.name,
         backup: backupFile,
         ...result,
-        errors: [...result.errors, ...haalbaar.aanpassingen],
+        errors: meldingen,
       });
     }
 

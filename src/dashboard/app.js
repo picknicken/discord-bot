@@ -193,6 +193,7 @@ async function refresh() {
   state.templates = data.templates;
   state.guilds = data.guilds;
   state.backups = data.backups || [];
+  state.setups = data.setups || [];
   state.permissions = data.permissions || [];
   state.onderdelen = data.onderdelen || [];
 
@@ -208,6 +209,7 @@ async function refresh() {
   renderGuilds();
   renderOnderdelen();
   renderBackups();
+  renderSetups();
 }
 
 function renderTemplates() {
@@ -342,6 +344,39 @@ function renderBackups() {
   for (const button of list.querySelectorAll('[data-backup]')) {
     button.onclick = () => restoreBackup(button.dataset.backup);
   }
+}
+
+/** Het logboek: wie heeft wat waar uitgerold, en ging het goed. */
+function renderSetups() {
+  const lijst = $('setupList');
+  if (!lijst) return;
+
+  if (!state.setups || state.setups.length === 0) {
+    lijst.innerHTML = '<p class="hint">Nog niets uitgerold.</p>';
+    return;
+  }
+
+  lijst.innerHTML = state.setups
+    .map((run) => {
+      const uitkomst =
+        run.mode === 'preview'
+          ? '<span class="badge">preview</span>'
+          : run.failed > 0
+            ? '<span class="badge warn">' + run.applied + ' gelukt, ' + run.failed + ' mislukt</span>'
+            : '<span class="badge ok">' + run.applied + ' gelukt</span>';
+
+      return (
+        '<div class="backup"><span class="grow"><strong>' + escape(run.template) + '</strong> op ' +
+        escape(run.guildName) + '<div class="meta muted" style="font-size:11px">' +
+        escape(prettyStamp(run.at.replace(/[:.]/g, '-'))) + ' · door ' + escape(run.door) +
+        (run.notes && run.notes.length ? ' · ' + run.notes.length + ' opmerking' + (run.notes.length === 1 ? '' : 'en') : '') +
+        '</div></span>' + uitkomst + '</div>' +
+        (run.notes && run.notes.length
+          ? '<pre class="actions" style="margin:2px 0 10px">' + escape(run.notes.join('\n')) + '</pre>'
+          : '')
+      );
+    })
+    .join('');
 }
 
 // --- template kiezen en bewerken -------------------------------------------

@@ -107,6 +107,7 @@ export function exportGuild(guild: Guild, templateName = guild.name): ServerTemp
   return {
     name: templateName,
     description: `Geexporteerd uit "${guild.name}" op ${new Date().toISOString().slice(0, 10)}`,
+    variables: {},
     guild: {
       description: guild.description ?? undefined,
       systemChannel: channelName(guild.systemChannelId),

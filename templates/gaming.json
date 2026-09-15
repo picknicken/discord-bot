@@ -1,5 +1,11 @@
 {
   "name": "Gaming clan",
+  "variables": {
+    "clan": {
+      "beschrijving": "Naam van je clan, komt terug in de rolnamen",
+      "standaard": "Clan"
+    }
+  },
   "description": "Clan-server met ranks, teamkanalen, scrims en losse voice-rooms.",
   "guild": {
     "verificationLevel": "high",
@@ -14,7 +20,7 @@
   "roles": [
     {
       "key": "owner",
-      "name": "Clan Owner",
+      "name": "{{clan}} Owner",
       "color": "#e91e63",
       "hoist": true,
       "mentionable": true,
@@ -44,7 +50,7 @@
     },
     {
       "key": "member",
-      "name": "Clan Member",
+      "name": "{{clan}} Member",
       "color": "#3498db",
       "hoist": true,
       "mentionable": true,

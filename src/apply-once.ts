@@ -5,6 +5,8 @@ import { buildInviteUrl, missingPermissions } from './botPermissions.js';
 import { explainShortfalls, planShortfalls } from './preflight.js';
 import { maakHaalbaar } from './haalbaar.js';
 import { annoteer, schrijfSamenvatting } from './util/samenvatting.js';
+import { beschrijfVariabelen, leesWaarden } from './variabelen.js';
+import { logSetup, wieDraait } from './setupLog.js';
 import {
   beschrijfOnderdelen,
   filterPlan,
@@ -15,7 +17,7 @@ import {
 } from './onderdelen.js';
 import { describeActions, planSetup, summarizePlan } from './planner.js';
 import { snapshotGuildFresh } from './snapshot.js';
-import { loadTemplate } from './templates.js';
+import { loadTemplateMet } from './templates.js';
 import { logger } from './util/logger.js';
 import { login } from './util/start.js';
 
@@ -34,6 +36,8 @@ interface Options {
   stopBijTekort: boolean;
   /** Welke delen van de template meedoen. */
   onderdelen: Onderdeel[];
+  /** Waarden voor de {{variabelen}} in de template. */
+  variabelen: Record<string, string>;
 }
 
 function parseArguments(argv: string[]): Options | null {
@@ -44,8 +48,10 @@ function parseArguments(argv: string[]): Options | null {
     prune: false,
     stopBijTekort: false,
     onderdelen: [...ONDERDELEN],
+    variabelen: {},
   };
   let onderdelenInvoer: string | undefined;
+  const variabeleInvoer: string[] = [];
 
   for (let index = 0; index < argv.length; index++) {
     const argument = argv[index];
@@ -55,6 +61,7 @@ function parseArguments(argv: string[]): Options | null {
     else if (argument === '--prune') options.prune = true;
     else if (argument === '--stop-bij-tekort') options.stopBijTekort = true;
     else if (argument === '--onderdelen' || argument === '--alleen') onderdelenInvoer = argv[++index] ?? '';
+    else if (argument === '--var' || argument === '--variabele') variabeleInvoer.push(argv[++index] ?? '');
   }
 
   const gekozen = leesOnderdelen(onderdelenInvoer);
@@ -63,6 +70,7 @@ function parseArguments(argv: string[]): Options | null {
     return null;
   }
   options.onderdelen = gekozen;
+  options.variabelen = leesWaarden(variabeleInvoer);
 
   return options.guildId && options.template ? options : null;
 }
@@ -81,6 +89,7 @@ if (!options) {
       '    --prune     verwijder kanalen die niet in de template staan (alleen samen met --apply)',
       '    --stop-bij-tekort  stop zodra de bot iets niet mag; standaard doet hij wat wel kan',
       '    --alleen    welke delen meedoen, met komma\'s; standaard alles',
+      '    --var       vul een variabele in: --var naam=waarde; mag vaker',
       '',
       '  Onderdelen:',
       ...ONDERDELEN.map((onderdeel) => `    ${onderdeel.padEnd(13)} ${UITLEG[onderdeel]}`),
@@ -114,7 +123,12 @@ client.once(Events.ClientReady, async (ready) => {
       return;
     }
 
-    const template = await loadTemplate(config.templatesDir, options.template);
+    const geladen = await loadTemplateMet(config.templatesDir, options.template, options.variabelen);
+    const template = geladen.template;
+
+    for (const naam of geladen.onbekend) {
+      logger.warn(`Onbekende variabele: ${naam}`);
+    }
     const plan = filterPlan(
       planSetup(await snapshotGuildFresh(guild), template, {
         prune: options.prune && options.apply,
@@ -125,6 +139,7 @@ client.once(Events.ClientReady, async (ready) => {
 
     logger.info(`Server: ${guild.name} (${guild.id})`);
     logger.info(beschrijfOnderdelen(options.onderdelen));
+    if (Object.keys(geladen.gebruikt).length > 0) logger.info(beschrijfVariabelen(geladen.gebruikt));
     logger.info(`Template: ${template.name} — ${summarizePlan(plan)}`);
     for (const line of describeActions(plan, 200)) console.log(`   ${line}`);
     for (const warning of plan.warnings) logger.warn(warning);
@@ -165,6 +180,20 @@ client.once(Events.ClientReady, async (ready) => {
 
       annoteer('notice', `Preview: ${haalbaar.plan.actions.length} acties, er is niets gewijzigd.`);
       for (const regel of haalbaar.aanpassingen) annoteer('warning', regel);
+
+      await logSetup(config.historyDir, {
+        at: new Date().toISOString(),
+        guildId: guild.id,
+        guildName: guild.name,
+        template: options.template,
+        door: wieDraait(),
+        mode: 'preview',
+        onderdelen: options.onderdelen,
+        applied: 0,
+        failed: 0,
+        backup: null,
+        notes: haalbaar.aanpassingen,
+      });
       return;
     }
 
@@ -213,6 +242,20 @@ client.once(Events.ClientReady, async (ready) => {
     // Boven aan de run, in de gekleurde balk: daar kijk je als eerste.
     annoteer('notice', `${template.name} op ${guild.name}: ${result.applied} gelukt, ${result.failed} mislukt.`);
     for (const regel of letop) annoteer(result.failed > 0 ? 'error' : 'warning', regel);
+
+    await logSetup(config.historyDir, {
+      at: new Date().toISOString(),
+      guildId: guild.id,
+      guildName: guild.name,
+      template: options.template,
+      door: wieDraait(),
+      mode: 'apply',
+      onderdelen: options.onderdelen,
+      applied: result.applied,
+      failed: result.failed,
+      backup: null,
+      notes: letop,
+    });
 
     if (result.failed > 0) process.exitCode = 1;
   } catch (error) {

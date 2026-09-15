@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { unknownPermissions } from './permissions.js';
+import { PERMISSION_NAMES, unknownPermissions } from './permissions.js';
+import { bedoeldeJe } from './bedoeldeJe.js';
 
 const permissionList = z
   .array(z.string())
@@ -9,7 +10,9 @@ const permissionList = z
     if (unknown.length > 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: `Onbekende permissie(s): ${unknown.join(', ')}`,
+        message: `Onbekende permissie(s): ${unknown
+          .map((naam) => `${naam}${bedoeldeJe(naam, PERMISSION_NAMES)}`)
+          .join(', ')}`,
       });
     }
   });
@@ -151,8 +154,16 @@ export const onboardingSchema = z.object({
   prompts: z.array(onboardingPromptSchema).default([]),
 });
 
+/** Variabelen die de template zelf opgeeft, om bij het uitrollen in te vullen. */
+export const variabeleSchema = z.object({
+  beschrijving: z.string().max(200).optional(),
+  standaard: z.string().max(200).optional(),
+});
+
 export const templateSchema = z.object({
   name: z.string().min(1),
+  /** `{{naam}}` in de rest van de template wordt hiermee ingevuld. */
+  variables: z.record(z.string(), variabeleSchema).default({}),
   description: z.string().default(''),
   guild: guildSettingsSchema.default({}),
   roles: z.array(roleSchema).default([]),
@@ -198,13 +209,20 @@ function validateReferences(template: ServerTemplate): ServerTemplate {
 
   const problems: string[] = [];
 
+  const alleRollen = [...roleKeys];
+  const alleKanalen = [...channelNames];
+
   const checkRoles = (where: string, keys: readonly string[]) => {
     for (const key of keys) {
-      if (!roleKeys.has(key)) problems.push(`${where}: onbekende rol "${key}"`);
+      if (!roleKeys.has(key)) {
+        problems.push(`${where}: onbekende rol "${key}"${bedoeldeJe(key, alleRollen)}`);
+      }
     }
   };
   const checkChannel = (where: string, name: string | undefined) => {
-    if (name && !channelNames.has(name)) problems.push(`${where}: onbekend kanaal "${name}"`);
+    if (name && !channelNames.has(name)) {
+      problems.push(`${where}: onbekend kanaal "${name}"${bedoeldeJe(name, alleKanalen)}`);
+    }
   };
 
   for (const category of template.categories) {

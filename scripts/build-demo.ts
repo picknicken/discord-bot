@@ -75,6 +75,20 @@ async function main() {
       guilds: demoGuilds,
       permissions: PERMISSION_CATALOGUE,
       onderdelen: ONDERDELEN.map((onderdeel) => ({ naam: onderdeel, uitleg: UITLEG[onderdeel] })),
+      // Verzonnen logboek, zodat de demo laat zien hoe het eruitziet.
+      setups: [
+        {
+          at: '2026-09-13T15:55:06.000Z', guildId: '1', guildName: 'Mijn Testserver', template: 'bedrijf',
+          door: 'picknicken (GitHub Action)', mode: 'apply', onderdelen: ['rollen', 'kanalen'],
+          applied: 23, failed: 1, backup: null,
+          notes: ['rolvolgorde: Directie staat even hoog als de rol van de bot en is overgeslagen.'],
+        },
+        {
+          at: '2026-09-12T20:43:51.000Z', guildId: '1', guildName: 'Mijn Testserver', template: 'gaming',
+          door: 'Jij', mode: 'preview', onderdelen: ['rollen', 'categorieen', 'kanalen'],
+          applied: 0, failed: 0, backup: null, notes: [],
+        },
+      ],
       backups: [
         { file: 'demo-1.json', guildId: '1', guildName: 'Mijn Testserver', createdAt: '2026-09-10T14:02:00.000Z', roles: 2, channels: 4 },
       ],

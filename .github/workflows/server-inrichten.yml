@@ -37,6 +37,11 @@ on:
         required: false
         default: alles
         type: string
+      variabelen:
+        description: 'Waarden voor {{variabelen}} in de template, bijv: server_naam=Mijn Clan, kleur=#ff0000'
+        required: false
+        default: ''
+        type: string
       stop_bij_tekort:
         description: 'Stoppen zodra de bot iets niet mag (standaard doet hij wat wel kan en zegt hij de rest)'
         required: false
@@ -104,8 +109,10 @@ jobs:
           PRUNE: ${{ inputs.prune }}
           STOP_BIJ_TEKORT: ${{ inputs.stop_bij_tekort }}
           ONDERDELEN: ${{ inputs.onderdelen }}
+          VARIABELEN: ${{ inputs.variabelen }}
         run: |
           args=(--guild "$GUILD_ID" --template "$TEMPLATE" --alleen "${ONDERDELEN:-alles}")
+          [ -z "$VARIABELEN" ] || args+=(--var "$VARIABELEN")
           if [ "$MODE" = "apply" ]; then
             args+=(--apply)
             if [ "$PRUNE" = "true" ]; then

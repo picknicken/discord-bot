@@ -578,6 +578,60 @@ het log.
 | AutoMod-regels | rollen die even hoog of hoger staan dan de bot |
 | | leden, emoji's, de servernaam |
 
+### Variabelen in een template
+
+Dezelfde template op een andere server zetten zonder hem te kopieren: zet er een variabele in.
+
+```json
+{
+  "name": "{{clan}} server",
+  "variables": {
+    "clan": { "beschrijving": "Naam van je clan, komt terug in de rolnamen", "standaard": "Clan" }
+  },
+  "roles": [{ "key": "owner", "name": "{{clan}} Owner" }]
+}
+```
+
+Invullen gebeurt vóór de controle, op de tekst van het bestand. Alles wat daarna komt — de
+rolnamen, topics, berichten, kleuren — ziet gewoon de ingevulde waarde, en elke bestaande
+controle werkt er zonder aanpassing op. Een waarde met aanhalingstekens erin blijft geldige
+JSON.
+
+```bash
+npm run apply -- --guild 123 --template gaming --apply --var clan="Bloody Mayhem"
+```
+
+In de Action is het het veld **variabelen**: `clan=Bloody Mayhem, kleur=#ff0000`. Zonder
+waarde gebruikt hij de standaard uit de template; is er geen standaard, dan stopt hij met de
+vraag welke waarden hij nodig heeft — in plaats van een server met `{{clan}}` als rolnaam.
+Geef je een naam op die de template niet kent, dan zegt hij dat, met een suggestie.
+
+De meegeleverde `gaming`-template doet dit met `clan`. Zonder waarde heet de rol `Clan Owner`,
+net als eerst; met `--var clan="Bloody Mayhem"` wordt het `Bloody Mayhem Owner`.
+
+### Bedoelde je ...?
+
+Een naam die net niet klopt kost anders een half uur zoeken. De controle zegt er daarom bij
+wat je waarschijnlijk bedoelde — bij permissies, rollen, kanalen en variabelen:
+
+```
+- roles.0.permissions: Onbekende permissie(s): MANAGE_SERVER — bedoelde je "ManageGuild"?
+- kanaal "C/chan": onbekende rol "moderator" — bedoelde je "mod"?
+- guild.systemChannel: onbekend kanaal "welkom-hier" — bedoelde je "welkom"?
+```
+
+Hij kent ook de namen die Discord in de app anders schrijft dan in de API: *Manage Server* is
+`ManageGuild`, *Manage Emojis* is `ManageGuildExpressions`. Dat zijn geen typefouten maar
+synoniemen, en juist die kosten tijd.
+
+### Wat is er eerder uitgerold
+
+Elke uitrol komt in een logboek: welke template, op welke server, door wie, wanneer, hoeveel
+acties lukten en wat er is overgeslagen. Ook die vanaf de commandoregel of uit een GitHub
+Action — daar staat de GitHub-gebruiker bij. Het dashboard toont de laatste vijftien onder
+*Wat is er eerder uitgerold*; het bestand zelf is `history/setups.jsonl`, één regel JSON per
+uitrol, ook met de hand te lezen.
+
 ### Rolvolgorde en de rolhierarchie
 
 Een bot mag geen rol verplaatsen die even hoog of hoger staat dan zijn eigen rol. Dat geldt
