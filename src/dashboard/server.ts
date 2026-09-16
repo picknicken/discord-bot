@@ -7,7 +7,7 @@ import { config } from '../config.js';
 import { missingPermissions, rolesAboveBot } from '../botPermissions.js';
 import { applyPlan } from '../applier.js';
 import { exportGuild } from '../exporter.js';
-import { describeActions, planSetup, summarizePlan } from '../planner.js';
+import { describeActions, planRegels, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadTemplateMet } from '../templates.js';
 import { auditSummary, countBySeverity, lintTemplate } from '../lint.js';
@@ -162,6 +162,27 @@ async function handle(
       permissions: PERMISSION_CATALOGUE,
       onderdelen: ONDERDELEN.map((onderdeel) => ({ naam: onderdeel, uitleg: UITLEG[onderdeel] })),
       setups: (await readSetups(config.historyDir, 500)).filter((run) => magHier(run.guildId)).slice(0, 15),
+      // Waar deze installatie op staat. Geen geheimen: de token en het client
+      // secret komen hier niet in voor. Wel het inlogadres, want dat is precies
+      // wat je nodig hebt als Discord "ongeldige redirect_uri" zegt.
+      instellingen: {
+        botNaam: client.user.username,
+        clientId: config.clientId,
+        host: config.dashboardHost,
+        poort: config.dashboardPort,
+        dashboardUrl: config.dashboardUrl,
+        redirectUri: authEnabled() ? redirectUri() : null,
+        inloggen: authEnabled(),
+        demo: config.demo,
+        toegestaneServers: config.toegestaneServers,
+        mappen: {
+          templates: config.templatesDir,
+          backups: config.backupsDir,
+          history: config.historyDir,
+        },
+        volume: process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DATA_DIR || null,
+        inviteUrl: config.clientId ? buildInviteUrl(config.clientId) : null,
+      },
     });
   }
 
@@ -492,6 +513,7 @@ async function handle(
           guildName: guild.name,
           summary: summarizePlan(haalbaar.plan),
           actions: describeActions(haalbaar.plan, 1000),
+          regels: planRegels(haalbaar.plan),
           // Wat er is bijgesteld hoort bij het plan: dat wil je zien voordat je
           // op uitrollen drukt, niet pas in de foutenlijst erna.
           warnings: [...haalbaar.plan.warnings, ...haalbaar.aanpassingen],

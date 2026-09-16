@@ -280,6 +280,43 @@
   .rolwaarschuwing small { display: block; margin-top: 2px; opacity: .85; }
   .rolwaarschuwing .icon { margin-top: 2px; }
 
+  /* ---------- instellingen ---------- */
+  .rijen { border: 1px solid var(--border); border-radius: var(--r-2); overflow: hidden; background: var(--surface); }
+  .rijen .rij {
+    display: flex; gap: 12px; align-items: baseline; padding: 9px 12px; font-size: 12.5px;
+    border-top: 1px solid var(--border);
+  }
+  .rijen .rij:first-child { border-top: 0; }
+  .rijen .wat { width: 168px; flex: none; color: var(--muted); }
+  .rijen .waarde { flex: 1; min-width: 0; word-break: break-word; }
+  .rijen .waarde code { font-family: var(--mono); font-size: 11.5px; }
+
+  /* ---------- diff ---------- */
+  .diff {
+    margin-top: 8px; border: 1px solid var(--border); border-radius: var(--r-2);
+    overflow: hidden; background: var(--surface);
+  }
+  .diffrij {
+    display: flex; align-items: center; gap: 7px; padding: 5px 10px; font-size: 12.5px;
+    border-top: 1px solid var(--border);
+  }
+  .diffrij:first-child { border-top: 0; }
+  .diffrij .teken {
+    width: 12px; text-align: center; font-family: var(--mono); font-weight: 700; flex: none;
+  }
+  .diffrij .detail { color: var(--muted); font-size: 11.5px; max-width: 45%; }
+  .diffrij .waar { color: var(--muted); font-weight: 400; }
+  .diffrij.nieuw { background: var(--ok-bg); }
+  .diffrij.nieuw .teken, .diffrij.nieuw .icon { color: var(--ok); }
+  .diffrij.weg { background: var(--bad-bg); }
+  .diffrij.weg .teken, .diffrij.weg .icon { color: var(--bad); }
+  .diffrij.weg .truncate { text-decoration: line-through; }
+  .diffrij.anders .teken, .diffrij.anders .icon { color: var(--muted); }
+  .diffkop {
+    padding: 6px 10px; font-size: 11px; font-weight: 600; color: var(--bad);
+    background: var(--bad-bg); border-top: 1px solid var(--border);
+  }
+
   /* ---------- voorbeeld ---------- */
   /* Op een breed scherm staat het voorbeeld ernaast; daaronder eronder. */
   .voorbeeld { grid-column: 1 / -1; }
@@ -410,7 +447,6 @@
     overflow: auto; font-size: 12px; font-family: var(--mono); margin: 8px 0 0; white-space: pre-wrap;
     border: 1px solid var(--border); line-height: 1.55;
   }
-  .add { color: var(--ok); } .del { color: var(--bad); } .mod { color: var(--warn); }
   .finding { display: flex; gap: 9px; padding: 8px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
   .finding:last-child { border-bottom: 0; }
   .finding .icon { margin-top: 2px; }
@@ -672,6 +708,8 @@
   <div class="kop">Terugkijken</div>
   <button data-scherm="geschiedenis"><svg class="icon"><use href="#i-history"/></svg>Geschiedenis</button>
   <button data-scherm="backups"><svg class="icon"><use href="#i-archive"/></svg>Back-ups</button>
+  <div class="kop">Deze bot</div>
+  <button data-scherm="instellingen"><svg class="icon"><use href="#i-shield"/></svg>Instellingen</button>
   <div class="sidefoot">
     <div class="demobalk" id="demoBalk" hidden>
       <strong>Demomodus</strong><br>Nagemaakte servers. Er verandert niets in Discord.
@@ -736,6 +774,17 @@
     </div>
   </div>
   <section class="panel"><div class="pbody"><div id="backupList"></div></div></section>
+</section>
+
+<section class="view" id="view-instellingen">
+  <div class="viewkop">
+    <div class="grow">
+      <h2>Instellingen</h2>
+      <p>Waar deze bot op staat. Aanpassen doe je in <code>.env</code> of bij je hostingpartij;
+        hier zie je wat hij er nu van maakt.</p>
+    </div>
+  </div>
+  <div id="instellingenInhoud"></div>
 </section>
 
 <section class="view tweeluik" id="view-templates">

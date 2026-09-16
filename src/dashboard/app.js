@@ -79,6 +79,7 @@ async function api(path, { timeout = 30000, ...options } = {}) {
  */
 const VIEW_VAN = {
   overzicht: 'overzicht',
+  instellingen: 'instellingen',
   templates: 'templates',
   bewerken: 'templates',
   controle: 'templates',
@@ -236,6 +237,7 @@ async function refresh() {
   renderSetups();
   renderOverzicht();
   renderServerKaarten();
+  renderInstellingen(data.instellingen);
   $('telTemplates').textContent = state.templates.length || '';
   $('telServers').textContent = state.guilds.length || '';
   $('demoBalk').hidden = !state.guilds.some((guild) => guild.id.length < 5);
@@ -393,6 +395,92 @@ function renderServerKaarten() {
   for (const knop of doel.querySelectorAll('[data-leeghalen]')) {
     knop.onclick = () => leeghalen(knop.dataset.leeghalen);
   }
+}
+
+// --- instellingen -----------------------------------------------------------
+
+const rij = (wat, waarde) => '<div class="rij"><span class="wat">' + escape(wat) + '</span><span class="waarde">' + waarde + '</span></div>';
+const mono = (waarde) => '<code>' + escape(waarde) + '</code>';
+const jaNee = (waarde, ja, nee) =>
+  waarde ? '<span class="badge ok">' + escape(ja) + '</span>' : '<span class="badge">' + escape(nee) + '</span>';
+
+function renderInstellingen(instellingen) {
+  const doel = $('instellingenInhoud');
+  if (!doel || !instellingen) return;
+
+  const servers = instellingen.toegestaneServers || [];
+  const lokaal = ['127.0.0.1', 'localhost', '::1'].includes(instellingen.host);
+
+  const bot =
+    '<div class="rijen" style="margin-bottom:14px">' +
+    rij('Bot', escape(instellingen.botNaam) + ' · ' + mono(instellingen.clientId)) +
+    rij('Draait op', mono(instellingen.host + ':' + instellingen.poort) +
+      (lokaal ? ' <span class="badge">alleen deze computer</span>' : ' <span class="badge warn">van buiten bereikbaar</span>')) +
+    rij('Adres', mono(instellingen.dashboardUrl)) +
+    (instellingen.demo ? rij('Modus', '<span class="badge warn">demo — er verandert niets in Discord</span>') : '') +
+    (instellingen.inviteUrl
+      ? rij('Uitnodigen', '<a href="' + escape(instellingen.inviteUrl) + '" target="_blank" rel="noopener">Bot toevoegen aan een server</a>')
+      : '') +
+    '</div>';
+
+  // Het inlogadres staat hier omdat het de meestgemaakte fout is: één letter
+  // verschil met het portal en Discord weigert de inlog, zonder te zeggen welk
+  // adres hij dan wel kreeg.
+  const inloggen =
+    '<div class="rijen" style="margin-bottom:14px">' +
+    rij('Inloggen met Discord', jaNee(instellingen.inloggen, 'aan', 'uit')) +
+    (instellingen.redirectUri
+      ? rij(
+          'Redirect-URL',
+          mono(instellingen.redirectUri) +
+            '<br><small class="muted">Moet letterlijk zo in het Developer Portal staan, onder OAuth2 → Redirects.</small>',
+        )
+      : rij(
+          'Redirect-URL',
+          '<span class="muted">niet van toepassing zolang inloggen uitstaat</span>',
+        )) +
+    '</div>';
+
+  const grens =
+    '<div class="rijen" style="margin-bottom:14px">' +
+    rij(
+      'Toegestane servers',
+      servers.length
+        ? servers.map(mono).join(' ') +
+          '<br><small class="muted">Alleen deze servers mag de bot aanraken. Aanpassen: GUILD_IDS.</small>'
+        : '<span class="muted">geen beperking — elke server waar de bot in zit mag</span>' +
+          '<br><small class="muted">Wil je dat inperken: zet GUILD_IDS met de server-ids erin.</small>',
+    ) +
+    '</div>';
+
+  const mappen =
+    '<div class="rijen" style="margin-bottom:14px">' +
+    rij('Templates', mono(instellingen.mappen.templates)) +
+    rij('Back-ups', mono(instellingen.mappen.backups)) +
+    rij('Geschiedenis', mono(instellingen.mappen.history)) +
+    rij(
+      'Volume',
+      instellingen.volume
+        ? mono(instellingen.volume) + ' <span class="badge ok">blijft bewaard</span>'
+        : '<span class="badge warn">geen</span> <span class="muted">bij een hostingpartij is alles weg na een nieuwe deploy</span>',
+    ) +
+    '</div>';
+
+  const thema =
+    '<div class="rijen">' +
+    rij('Thema', '<button class="btn-sm" id="themaKnop">Wisselen tussen licht en donker</button>') +
+    (state.session?.user
+      ? rij(
+          'Ingelogd als',
+          escape(state.session.user.globalName || state.session.user.username) +
+            ' · <a href="/auth/logout">uitloggen</a>',
+        )
+      : '') +
+    '</div>';
+
+  doel.innerHTML = bot + inloggen + grens + mappen + thema;
+  const knop = $('themaKnop');
+  if (knop) knop.onclick = () => $('themeToggle').click();
 }
 
 // --- leeghalen --------------------------------------------------------------
@@ -1127,14 +1215,6 @@ function renderCheck(data) {
   );
 }
 
-const colorize = (lines) =>
-  lines
-    .map((line) => {
-      const cls = line.startsWith('+') ? 'add' : line.startsWith('-') ? 'del' : line.startsWith('~') ? 'mod' : '';
-      return '<span class="' + cls + '">' + escape(line) + '</span>';
-    })
-    .join('\n');
-
 // --- uitrollen -------------------------------------------------------------
 
 const planBody = () => ({
@@ -1145,6 +1225,56 @@ const planBody = () => ({
   onderdelen: gekozenOnderdelen(),
   variabelen: gekozenVariabelen(),
 });
+
+/**
+ * Het plan als diff. Een blok tekst laat je zoeken naar wat er nu eigenlijk
+ * verdwijnt; een lijst met tekens ervoor laat het zien. Verwijderregels staan
+ * apart, want dat is het enige dat je niet terugkrijgt.
+ */
+const SOORT_ICOON = {
+  rol: 'shield',
+  categorie: 'folder',
+  kanaal: 'hash',
+  emoji: 'zap',
+  automod: 'alert',
+  volgorde: 'up',
+  onboarding: 'info',
+  instellingen: 'server',
+};
+
+function diffRegel(regel) {
+  const naam =
+    regel.soort === 'kanaal'
+      ? '#' + regel.naam + (regel.onder ? '<span class="waar"> in ' + escape(regel.onder) + '</span>' : '')
+      : escape(regel.naam);
+
+  const icoon = regel.soort === 'kanaal' ? CHANNEL_ICONS[regel.type] || 'hash' : SOORT_ICOON[regel.soort] || 'info';
+
+  return (
+    '<div class="diffrij ' + (regel.teken === '+' ? 'nieuw' : regel.teken === '-' ? 'weg' : 'anders') + '">' +
+    '<span class="teken">' + regel.teken + '</span>' +
+    icon(icoon, 'sm') +
+    '<span class="grow truncate">' + (regel.soort === 'kanaal' ? naam : escape(regel.naam)) + '</span>' +
+    (regel.detail ? '<span class="detail truncate">' + escape(regel.detail) + '</span>' : '') +
+    (regel.prune ? '<span class="badge bad">verdwijnt</span>' : '') +
+    '</div>'
+  );
+}
+
+function diffLijst(regels) {
+  const weg = regels.filter((regel) => regel.teken === '-');
+  const rest = regels.filter((regel) => regel.teken !== '-');
+
+  return (
+    '<div class="diff">' +
+    rest.map(diffRegel).join('') +
+    (weg.length
+      ? '<div class="diffkop">' + weg.length + ' worden verwijderd — dit kun je niet terugdraaien</div>' +
+        weg.map(diffRegel).join('')
+      : '') +
+    '</div>'
+  );
+}
 
 async function preview() {
   if (!state.selected) return toast('Kies eerst een template.', 'bad');
@@ -1160,7 +1290,7 @@ async function preview() {
         '<span class="badge">' + plan.count + ' acties</span></div>' +
         '<div class="note ok" style="margin-top:6px">' + escape(plan.summary) + '</div>' +
         (plan.warnings.length ? '<div class="note warn" style="margin-top:6px">' + escape(plan.warnings.join('\n')) + '</div>' : '') +
-        (plan.actions.length ? '<pre class="actions">' + colorize(plan.actions) + '</pre>' : '') + '</div>')
+        (plan.regels && plan.regels.length ? diffLijst(plan.regels) : '') + '</div>')
       .join('');
   } catch (error) {
     $('planResult').innerHTML = '<div class="note bad" style="margin-top:12px">' + escape(error.message) + '</div>';

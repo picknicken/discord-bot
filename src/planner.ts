@@ -355,6 +355,93 @@ export function actionLabel(action: PlanAction): string {
   }
 }
 
+/**
+ * Hetzelfde plan, maar uit elkaar gehaald in plaats van in een zin geplakt.
+ *
+ * De tekstregels hieronder zijn prima voor een log, maar een scherm wil weten
+ * wát er verandert: een plusje bij een nieuw kanaal, een streepje bij iets dat
+ * verdwijnt, en het onderscheid tussen "dit maak ik aan" en "dit gooi ik weg,
+ * en alleen omdat jij prune hebt aangevinkt". Die laatste hoor je apart te zien.
+ */
+export interface ActieRegel {
+  teken: '+' | '~' | '-';
+  soort: 'rol' | 'categorie' | 'kanaal' | 'emoji' | 'automod' | 'volgorde' | 'onboarding' | 'instellingen';
+  naam: string;
+  /** Kanaaltype, voor het juiste icoontje. */
+  type?: ChannelSpec['type'];
+  /** In welke categorie het kanaal komt. */
+  onder?: string | null;
+  /** Wat er precies verandert, bij een bijwerking. */
+  detail?: string;
+  /** Deze regel gebeurt alleen omdat "verwijderen wat niet in de template staat" aanstaat. */
+  prune?: boolean;
+}
+
+export function planRegels(plan: Plan): ActieRegel[] {
+  return plan.actions.map((action): ActieRegel => {
+    switch (action.kind) {
+      case 'create-role':
+        return { teken: '+', soort: 'rol', naam: `@${action.role.name}` };
+      case 'update-role':
+        return { teken: '~', soort: 'rol', naam: `@${action.role.name}`, detail: action.changes.join(', ') };
+      case 'create-category':
+        return { teken: '+', soort: 'categorie', naam: action.category.name };
+      case 'update-category':
+        return {
+          teken: '~',
+          soort: 'categorie',
+          naam: action.category.name,
+          detail: action.changes.join(', '),
+        };
+      case 'create-channel':
+        return {
+          teken: '+',
+          soort: 'kanaal',
+          naam: action.channel.name,
+          type: action.channel.type,
+          onder: action.categoryName,
+        };
+      case 'update-channel':
+        return {
+          teken: '~',
+          soort: 'kanaal',
+          naam: action.channel.name,
+          type: action.channel.type,
+          onder: action.categoryName,
+          detail: action.changes.join(', '),
+        };
+      case 'delete-channel':
+        return {
+          teken: '-',
+          soort: action.isCategory ? 'categorie' : 'kanaal',
+          naam: action.name,
+          prune: true,
+        };
+      case 'create-emoji':
+        return { teken: '+', soort: 'emoji', naam: `:${action.emoji.name}:` };
+      case 'create-automod':
+        return { teken: '+', soort: 'automod', naam: action.rule.name, detail: action.rule.trigger };
+      case 'update-automod':
+        return { teken: '~', soort: 'automod', naam: action.rule.name };
+      case 'order-channels':
+        return { teken: '~', soort: 'volgorde', naam: `${action.count} kanalen en categorieen` };
+      case 'order-roles':
+        return { teken: '~', soort: 'volgorde', naam: `${action.count} rollen` };
+      case 'onboarding':
+        return { teken: '~', soort: 'onboarding', naam: `${action.prompts} vragen` };
+      case 'guild-community':
+        return {
+          teken: '~',
+          soort: 'instellingen',
+          naam: 'community-modus aanzetten',
+          detail: 'nodig voor forum- en announcementkanalen',
+        };
+      case 'guild-settings':
+        return { teken: '~', soort: 'instellingen', naam: 'serverinstellingen', detail: action.changes.join(', ') };
+    }
+  });
+}
+
 export function describeActions(plan: Plan, limit = 25): string[] {
   const lines = plan.actions.map((action) => {
     switch (action.kind) {

@@ -213,6 +213,38 @@ Het rekent mee terwijl je typt, en gebruikt dezelfde simulatie als het controles
 tweede keer nagebouwd in de browser, want dan lopen die twee vroeg of laat uit elkaar. Op een
 breed scherm staat het ernaast, daaronder eronder.
 
+### Uitrollen — eerst de diff
+
+Voor je op **Toepassen** drukt, laat **Preview** zien wat er precies gaat gebeuren, als een diff
+in plaats van een lap tekst:
+
+```
++ 🛡 @Moderator
++ 📁 👋 Welkom
++ # 👋│welkom        in 👋 Welkom
+~ # 💬│algemeen      topic, slowmode
+~ ⇅ 20 kanalen en categorieen
+
+3 worden verwijderd — dit kun je niet terugdraaien
+- # oude-memes                              verdwijnt
+```
+
+Groen is nieuw, grijs is bijwerken met erachter wát er verandert, en rood staat onderaan in een
+eigen blok: dat is het enige dat je niet terugkrijgt, en het gebeurt alleen als je *"kanalen
+verwijderen die niet in de template staan"* hebt aangevinkt.
+
+### Instellingen — waar deze bot op staat
+
+Het laatste scherm in de zijbalk toont wat deze installatie ervan gemaakt heeft: op welk adres
+hij luistert, of inloggen aanstaat, welke servers hij mag aanraken (`GUILD_IDS`), en in welke
+mappen hij schrijft — met een waarschuwing als er geen volume hangt, want dan is dat na een
+nieuwe deploy weg.
+
+Daar staat ook de **redirect-URL** die hij naar Discord stuurt. Precies die tekst moet in het
+Developer Portal staan; klopt hij niet, dan weigert Discord de inlog zonder te zeggen welk adres
+hij dan wél kreeg. De token en het client secret staan er niet bij en komen ook nergens in de
+pagina terecht.
+
 ### Server — wat er nu echt staat
 
 Legt de template naast een aangevinkte server en kleurt elk onderdeel:
