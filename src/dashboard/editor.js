@@ -400,11 +400,16 @@ function tree() {
     '<ul>' + categories + '</ul>' +
     (loose ? '<div class="treehead"><h4>Zonder categorie</h4></div><ul>' + loose + '</ul>' : '');
 
+  const serverKnop =
+    '<ul><li class="node' + (selection.type === 'server' ? ' on' : '') + '" data-pick="server" data-index="0">' +
+    icon('server', 'sm') + '<span class="grow truncate">Serverinstellingen</span></li></ul>';
+
   return (
     focusBalk() +
     '<input type="search" id="treeZoek" class="zoek" placeholder="Zoek rol, kanaal of recht…" ' +
     'value="' + esc(zoekterm) + '" autocomplete="off">' +
     (leeg ? '<p class="hint">Niets gevonden voor \u201c' + esc(zoekterm) + '\u201d.</p>' : '') +
+    (zoekterm ? '' : serverKnop) +
     (focus === 'kanalen' ? '' : rollenBlok) +
     (focus === 'rollen' ? '' : kanalenBlok)
   );
@@ -451,6 +456,7 @@ function props() {
 
   const terug = '<button class="terug" data-terug>' + icon('up', 'sm') + 'Terug naar de lijst</button>';
 
+  if (selection.type === 'server') return terug + serverProps(ctx.template);
   if (selection.type === 'role') return terug + roleProps(ctx.template.roles[selection.index]);
   if (selection.type === 'category') return terug + categoryProps(ctx.template.categories[selection.index]);
   return terug + channelProps(currentChannel());
@@ -516,6 +522,108 @@ function roleProps(role) {
     '</div>' +
     '<h4>Rechten</h4>' +
     groups
+  );
+}
+
+/**
+ * De instellingen van de server zelf: verificatie, meldingen, welk kanaal welke
+ * rol speelt. Die stonden alleen in de JSON, terwijl het het eerste is wat je
+ * invult als je een server opzet.
+ */
+const KEUZES = {
+  verificationLevel: [
+    ['', 'niet instellen'],
+    ['none', 'geen — iedereen mag meteen praten'],
+    ['low', 'laag — geverifieerd e-mailadres'],
+    ['medium', 'midden — account ouder dan 5 minuten'],
+    ['high', 'hoog — minstens 10 minuten lid'],
+    ['very_high', 'zeer hoog — geverifieerd telefoonnummer'],
+  ],
+  explicitContentFilter: [
+    ['', 'niet instellen'],
+    ['disabled', 'uit'],
+    ['members_without_roles', 'alleen bij leden zonder rol'],
+    ['all_members', 'bij iedereen'],
+  ],
+  defaultMessageNotifications: [
+    ['', 'niet instellen'],
+    ['all_messages', 'alle berichten'],
+    ['only_mentions', 'alleen vermeldingen'],
+  ],
+  afkTimeoutSeconds: [
+    ['', 'niet instellen'],
+    ['60', '1 minuut'],
+    ['300', '5 minuten'],
+    ['900', '15 minuten'],
+    ['1800', '30 minuten'],
+    ['3600', '1 uur'],
+  ],
+};
+
+function keuzeveld(naam, waarde) {
+  return (
+    '<select data-guild="' + naam + '">' +
+    KEUZES[naam]
+      .map(
+        ([optie, label]) =>
+          '<option value="' + optie + '"' + (String(waarde ?? '') === optie ? ' selected' : '') + '>' +
+          esc(label) + '</option>',
+      )
+      .join('') +
+    '</select>'
+  );
+}
+
+/** Alle kanaalnamen uit de template, want die velden wijzen naar een kanaal. */
+function kanaalKeuze(naam, waarde) {
+  const namen = [
+    ...ctx.template.uncategorizedChannels.map((kanaal) => kanaal.name),
+    ...ctx.template.categories.flatMap((categorie) => categorie.channels.map((kanaal) => kanaal.name)),
+  ];
+
+  return (
+    '<select data-guild="' + naam + '"><option value="">niet instellen</option>' +
+    namen
+      .map(
+        (kanaalnaam) =>
+          '<option value="' + esc(kanaalnaam) + '"' + (waarde === kanaalnaam ? ' selected' : '') + '>' +
+          esc(kanaalnaam) + '</option>',
+      )
+      .join('') +
+    // Staat er een naam in die niet (meer) bestaat, dan hoor je dat te zien in
+    // plaats van dat hij stilletjes op "niet instellen" springt.
+    (waarde && !namen.includes(waarde)
+      ? '<option value="' + esc(waarde) + '" selected>' + esc(waarde) + ' — bestaat niet in deze template</option>'
+      : '') +
+    '</select>'
+  );
+}
+
+function serverProps(template) {
+  const guild = template.guild || {};
+
+  return (
+    '<h3>Serverinstellingen</h3>' +
+    '<p class="hint">Dit geldt voor de server als geheel. Leeg laten betekent: laat staan wat er staat.</p>' +
+    field('Naam van de template', text('templateName', template.name)) +
+    field('Omschrijving', text('templateDescription', template.description || ''), 'Alleen voor jezelf, in de lijst') +
+    '<h4>Veiligheid</h4>' +
+    field('Verificatieniveau', keuzeveld('verificationLevel', guild.verificationLevel)) +
+    field('Scannen op aanstootgevende media', keuzeveld('explicitContentFilter', guild.explicitContentFilter)) +
+    field('Meldingen standaard', keuzeveld('defaultMessageNotifications', guild.defaultMessageNotifications)) +
+    '<h4>Kanalen met een rol</h4>' +
+    field('Systeemkanaal', kanaalKeuze('systemChannel', guild.systemChannel), 'Waar Discord zelf welkomstberichten plaatst') +
+    field('AFK-kanaal', kanaalKeuze('afkChannel', guild.afkChannel), 'Een spraakkanaal') +
+    field('AFK na', keuzeveld('afkTimeoutSeconds', guild.afkTimeoutSeconds)) +
+    field('Regelskanaal', kanaalKeuze('rulesChannel', guild.rulesChannel), 'Verplicht voor een community-server') +
+    field('Updateskanaal', kanaalKeuze('updatesChannel', guild.updatesChannel), 'Waar Discord zijn mededelingen voor beheerders plaatst') +
+    '<h4>Community</h4>' +
+    '<div class="row">' +
+    '<label class="check"><input type="checkbox" data-guild="community"' + (guild.community ? ' checked' : '') +
+    '><span>Community-modus aanzetten</span></label></div>' +
+    '<p class="hint">Nodig voor forum-, announcement- en stagekanalen en voor onboarding. Vereist een ' +
+    'regels- en updateskanaal, en de bot moet Administrator zijn.</p>' +
+    field('Serveromschrijving', text('description', guild.description || ''), 'Staat in de serverontdekking')
   );
 }
 
@@ -862,6 +970,28 @@ function bind(container) {
     cycleOverwrite(overwrites, roleKey, permission);
     changed();
   });
+
+  for (const veld of container.querySelectorAll('[data-guild]')) {
+    veld.onchange = () => {
+      const naam = veld.dataset.guild;
+
+      // De naam en omschrijving van de template zelf staan niet onder guild.
+      if (naam === 'templateName') ctx.template.name = veld.value;
+      else if (naam === 'templateDescription') ctx.template.description = veld.value;
+      else if (veld.type === 'checkbox') {
+        if (veld.checked) ctx.template.guild.community = true;
+        else delete ctx.template.guild.community;
+      } else if (veld.value === '') {
+        // Leeg is "niet instellen", en dat is iets anders dan een lege waarde
+        // naar Discord sturen. Dus het veld verdwijnt uit de template.
+        delete ctx.template.guild[naam];
+      } else {
+        ctx.template.guild[naam] = naam === 'afkTimeoutSeconds' ? Number(veld.value) : veld.value;
+      }
+
+      changed();
+    };
+  }
 
   for (const input of container.querySelectorAll('[data-edit]')) {
     input.onchange = () => {

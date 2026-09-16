@@ -183,8 +183,19 @@ die GitHub Pages rechtstreeks kan serveren (Settings → Pages → main /docs).
 De werkplek: links je templates, in het midden de gekozen template, rechts de servers waar
 je hem op loslaat. Bedoeld om een server **helemaal in te richten voordat je uitrolt**.
 
+### Discord-donker
+
+Het dashboard staat standaard donker, in de kleuren van Discord zelf: blurple voor knoppen,
+`#313338` voor het midden, `#2b2d31` voor de panelen. Je bouwt hier een Discord-server en ziet
+hem daarna in Discord terug — dan hoort dit scherm daar niet los van te staan. Licht blijft
+bestaan: één klik op de knop rechtsboven, en die keuze onthoudt hij.
+
 ### Structuur — klikken in plaats van JSON
 
+- **Serverinstellingen** (bovenaan de lijst): verificatieniveau, het scannen op aanstootgevende
+  media, standaardmeldingen, welk kanaal het systeem-, AFK-, regels- en updateskanaal is, en
+  community-modus. Die stonden eerst alleen in de JSON, terwijl het het eerste is wat je invult.
+  Leeg laten betekent: laat staan wat er op de server staat.
 - **Rollen**: naam, kleur, apart tonen, pingbaar, en alle rechten als vinkjes per groep.
   De volgorde in de lijst is de rolhierarchie — bovenaan staat de hoogste rol.
 - **Kanalen en categorieen**: toevoegen, verwijderen, verplaatsen, hernoemen, type wisselen,

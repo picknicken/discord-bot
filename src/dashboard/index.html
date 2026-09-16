@@ -6,52 +6,62 @@
 <title>Setup Bot — dashboard</title>
 <style>
   /* ---------- tokens ---------- */
+  /*
+   * De kleuren van Discord zelf. Je bouwt hier een Discord-server, en die zie je
+   * daarna in Discord terug — dan hoort dit scherm daar niet los van te staan.
+   * Donker is de standaard, want dat is waar Discord in staat; licht blijft
+   * bestaan voor wie dat liever heeft.
+   */
   :root {
-    color-scheme: light;
-    --bg: #f6f7f9;
-    --surface: #ffffff;
-    --surface-2: #f1f2f5;
-    --surface-3: #e9eaef;
-    --border: #e3e5ea;
-    --border-strong: #d2d5dd;
-    --text: #16181d;
-    --text-2: #454a54;
-    --muted: #767c89;
-    --accent: #4b56d2;
+    color-scheme: dark;
+    --bg: #313338;          /* het midden, waar de inhoud staat */
+    --surface: #2b2d31;     /* panelen en de zijbalk */
+    --surface-2: #232428;
+    --surface-3: #1e1f22;   /* het diepste vlak, zoals de serverrail */
+    --border: #3f4147;
+    --border-strong: #4e5058;
+    --text: #f2f3f5;
+    --text-2: #dbdee1;
+    --muted: #949ba4;
+    --accent: #5865f2;      /* blurple */
     --accent-fg: #ffffff;
-    --ok: #17794a;
-    --ok-bg: #e6f4ec;
-    --warn: #97600a;
-    --warn-bg: #fdf1dc;
-    --bad: #c0303a;
-    --bad-bg: #fdeced;
-    --shadow-1: 0 1px 2px rgba(16, 18, 24, .05);
-    --shadow-2: 0 4px 16px -4px rgba(16, 18, 24, .12), 0 1px 3px rgba(16, 18, 24, .06);
-    --shadow-3: 0 24px 64px -12px rgba(16, 18, 24, .28);
-    --r-1: 6px; --r-2: 9px; --r-3: 14px;
+    --accent-bg: rgba(88, 101, 242, .20);
+    --ok: #3ba55d;
+    --ok-bg: rgba(59, 165, 93, .18);
+    --warn: #f0b232;
+    --warn-bg: rgba(240, 178, 50, .16);
+    --bad: #ed4245;
+    --bad-bg: rgba(237, 66, 69, .16);
+    --shadow-1: 0 1px 0 rgba(0, 0, 0, .2);
+    --shadow-2: 0 4px 16px -4px rgba(0, 0, 0, .5), 0 1px 3px rgba(0, 0, 0, .3);
+    --shadow-3: 0 24px 64px -12px rgba(0, 0, 0, .7);
+    --r-1: 4px; --r-2: 8px; --r-3: 12px;
     --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   }
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --bg: #0e0f13;
-    --surface: #17191f;
-    --surface-2: #1e2128;
-    --surface-3: #262a33;
-    --border: #262932;
-    --border-strong: #333845;
-    --text: #e9ebf0;
-    --text-2: #b7bdc9;
-    --muted: #858c9b;
-    --accent: #7c87f8;
-    --ok: #4cc38a;
-    --ok-bg: #15291f;
-    --warn: #e2b33c;
-    --warn-bg: #2b2313;
-    --bad: #f2666f;
-    --bad-bg: #2c1518;
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, .4);
-    --shadow-2: 0 4px 16px -4px rgba(0, 0, 0, .55), 0 1px 3px rgba(0, 0, 0, .4);
-    --shadow-3: 0 24px 64px -12px rgba(0, 0, 0, .7);
+
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #ffffff;
+    --surface: #f2f3f5;
+    --surface-2: #ebedef;
+    --surface-3: #e3e5e8;
+    --border: #e0e1e5;
+    --border-strong: #cdced3;
+    --text: #060607;
+    --text-2: #2e3338;
+    --muted: #5c5e66;
+    --accent: #5865f2;
+    --accent-fg: #ffffff;
+    --accent-bg: rgba(88, 101, 242, .12);
+    --ok: #248046;
+    --ok-bg: rgba(36, 128, 70, .12);
+    --warn: #8a6100;
+    --warn-bg: rgba(240, 178, 50, .20);
+    --bad: #c93b3e;
+    --bad-bg: rgba(201, 59, 62, .11);
+    --shadow-1: 0 1px 2px rgba(6, 6, 7, .06);
+    --shadow-2: 0 4px 16px -4px rgba(6, 6, 7, .12), 0 1px 3px rgba(6, 6, 7, .06);
+    --shadow-3: 0 24px 64px -12px rgba(6, 6, 7, .28);
   }
 
   * { box-sizing: border-box; }
@@ -279,6 +289,11 @@
   .rolwaarschuwing.fel { background: var(--bad-bg); color: var(--bad); }
   .rolwaarschuwing small { display: block; margin-top: 2px; opacity: .85; }
   .rolwaarschuwing .icon { margin-top: 2px; }
+
+  .tabs .tabhint {
+    font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 99px; padding: 0 5px; margin-left: 5px; font-weight: 600;
+  }
 
   /* ---------- instellingen ---------- */
   .rijen { border: 1px solid var(--border); border-radius: var(--r-2); overflow: hidden; background: var(--surface); }
@@ -812,7 +827,7 @@
     </div>
     <div class="tabs">
       <button id="tabTree" aria-selected="true">Structuur</button>
-      <button id="tabJson" aria-selected="false">JSON</button>
+      <button id="tabJson" aria-selected="false">JSON <span class="tabhint">geavanceerd</span></button>
       <button id="tabCheck" aria-selected="false">Controle</button>
       <button id="tabServer" aria-selected="false">Server</button>
     </div>

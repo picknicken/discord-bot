@@ -159,8 +159,9 @@ const opgeslagen = () => {
 };
 
 export function initTheme(button) {
-  const system = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  apply(opgeslagen() || system);
+  // Donker is de standaard: Discord staat donker, en dit scherm hoort daarbij.
+  // Wie ooit op de knop drukt, houdt zijn eigen keuze.
+  apply(opgeslagen() || 'dark');
 
   button.onclick = () => {
     const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
