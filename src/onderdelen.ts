@@ -18,19 +18,32 @@ export const ONDERDELEN = [
   'emojis',
   'instellingen',
   'onboarding',
+  'berichten',
 ] as const;
 
 export type Onderdeel = (typeof ONDERDELEN)[number];
+
+/**
+ * Wat er meegaat als je niets kiest.
+ *
+ * Berichten zitten daar bewust niet bij. De rest van een template beschrijft de
+ * vorm van je server; berichten zetten echte tekst in je kanalen, zichtbaar voor
+ * je leden, met de bot als afzender. Dat hoort een keuze te zijn die je maakt en
+ * niet iets wat er ongemerkt bij zit — zeker niet als je een template opnieuw
+ * uitrolt op een server waar mensen al praten.
+ */
+export const STANDAARD: Onderdeel[] = ONDERDELEN.filter((onderdeel) => onderdeel !== 'berichten');
 
 /** Wat er onder elk onderdeel valt, in gewone taal. */
 export const UITLEG: Record<Onderdeel, string> = {
   rollen: 'rollen aanmaken, bijwerken en op volgorde zetten',
   categorieen: 'categorieen aanmaken en bijwerken, met hun rechten',
-  kanalen: 'kanalen aanmaken, bijwerken, verwijderen en op volgorde zetten, met hun rechten en berichten',
+  kanalen: 'kanalen aanmaken, bijwerken, verwijderen en op volgorde zetten, met hun rechten',
   automod: 'de AutoMod-regels',
   emojis: 'de emoji uit de template',
   instellingen: 'serverinstellingen, het systeem- en regelskanaal, en community-modus',
   onboarding: 'de vragen die nieuwe leden krijgen',
+  berichten: 'de berichten uit de template in je kanalen posten (welkom, regels) — staat standaard uit',
 };
 
 export function onderdeelVan(action: PlanAction): Onderdeel {
@@ -62,7 +75,9 @@ export function onderdeelVan(action: PlanAction): Onderdeel {
 
 /** Leest "rollen,kanalen" of "alles" uit; geeft null terug bij een onbekende naam. */
 export function leesOnderdelen(waarde: string | undefined): Onderdeel[] | null {
-  if (!waarde || waarde.trim() === '' || waarde.trim().toLowerCase() === 'alles') return [...ONDERDELEN];
+  // "alles" is alles wat de server vormgeeft. Berichten posten valt daarbuiten
+  // en moet je met zoveel woorden vragen: --alleen alles,berichten.
+  if (!waarde || waarde.trim() === '' || waarde.trim().toLowerCase() === 'alles') return [...STANDAARD];
 
   const gevraagd = waarde
     .split(',')
@@ -131,7 +146,10 @@ export function filterPlan(plan: Plan, keuze: readonly Onderdeel[]): Plan {
 
 /** Eén regel die zegt wat er deze keer aan de beurt is. */
 export function beschrijfOnderdelen(keuze: readonly Onderdeel[]): string {
-  if (keuze.length === ONDERDELEN.length) return 'Alle onderdelen.';
   if (keuze.length === 0) return 'Niets gekozen — er gebeurt niets.';
+  if (keuze.length === ONDERDELEN.length) return 'Alle onderdelen, inclusief het posten van berichten.';
+  if (STANDAARD.every((onderdeel) => keuze.includes(onderdeel))) {
+    return 'Alle onderdelen. Berichten worden niet gepost.';
+  }
   return `Alleen: ${keuze.join(', ')}.`;
 }

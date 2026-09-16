@@ -546,11 +546,16 @@ function renderOnderdelen() {
   if (!lijst) return;
 
   const aan = new Set(gekozenOnderdelen());
+  // Bij de eerste keer tekenen staat aan wat standaard meegaat. Berichten horen
+  // daar niet bij: die zetten tekst in je kanalen, dat vraag je zelf aan.
+  const staatAan = (onderdeel) => (aan.size === 0 ? onderdeel.standaard !== false : aan.has(onderdeel.naam));
+
   lijst.innerHTML = state.onderdelen
     .map(
       (onderdeel) =>
         '<label class="check"><input type="checkbox" class="onderdeelpick" value="' + escape(onderdeel.naam) + '"' +
-        (aan.size === 0 || aan.has(onderdeel.naam) ? ' checked' : '') + '><span>' + escape(onderdeel.naam) +
+        (staatAan(onderdeel) ? ' checked' : '') + '><span>' + escape(onderdeel.naam) +
+        (onderdeel.standaard === false ? ' <span class="badge">standaard uit</span>' : '') +
         '<br><small class="muted">' + escape(onderdeel.uitleg) + '</small></span></label>',
     )
     .join('');
@@ -570,10 +575,17 @@ function toonOnderdeelKop() {
   const blok = $('onderdelenBlok');
   if (!blok) return;
   const gekozen = gekozenOnderdelen();
+  const standaard = state.onderdelen.filter((onderdeel) => onderdeel.standaard !== false);
   const alles = gekozen.length === state.onderdelen.length;
+  const gewoon = gekozen.length === standaard.length && standaard.every((onderdeel) => gekozen.includes(onderdeel.naam));
+
   blok.querySelector('summary').innerHTML =
     icon('shield', 'sm') + ' Welke onderdelen ' +
-    (alles ? '(alles)' : '<span class="badge warn">' + gekozen.length + ' van ' + state.onderdelen.length + '</span>');
+    (alles
+      ? '(alles, ook berichten posten)'
+      : gewoon
+        ? '(alles)'
+        : '<span class="badge warn">' + gekozen.length + ' van ' + state.onderdelen.length + '</span>');
 }
 
 function renderGuilds() {

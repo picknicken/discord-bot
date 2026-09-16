@@ -12,7 +12,7 @@ import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadTemplateMet } from '../templates.js';
 import { auditSummary, countBySeverity, lintTemplate } from '../lint.js';
 import { PERMISSION_CATALOGUE } from '../permissionCatalogue.js';
-import { filterPlan, leesOnderdelen, ONDERDELEN, UITLEG } from '../onderdelen.js';
+import { filterPlan, leesOnderdelen, ONDERDELEN, STANDAARD, UITLEG } from '../onderdelen.js';
 import { maakHaalbaar } from '../haalbaar.js';
 import { logSetup, readSetups } from '../setupLog.js';
 import { letopEmbed, meldInServer } from '../util/melden.js';
@@ -160,7 +160,11 @@ async function handle(
       templates: await describeTemplates(),
       backups: (await listBackups(config.backupsDir)).filter((backup) => magHier(backup.guildId)),
       permissions: PERMISSION_CATALOGUE,
-      onderdelen: ONDERDELEN.map((onderdeel) => ({ naam: onderdeel, uitleg: UITLEG[onderdeel] })),
+      onderdelen: ONDERDELEN.map((onderdeel) => ({
+        naam: onderdeel,
+        uitleg: UITLEG[onderdeel],
+        standaard: STANDAARD.includes(onderdeel),
+      })),
       setups: (await readSetups(config.historyDir, 500)).filter((run) => magHier(run.guildId)).slice(0, 15),
     });
   }
@@ -290,6 +294,8 @@ async function handle(
       if (plan.actions.length === 0) return send(response, 200, { applied: 0, failed: 0, errors: [], note: 'Niets te herstellen.' });
 
       logger.info(`Dashboard herstelt "${body.file}" op "${guild.name}" (${plan.actions.length} acties)`);
+      // Een back-up is de vorm van je server, geen gesprek. Terugzetten hoort
+      // dus nooit berichten te posten, ook niet die uit de momentopname.
       const result = await applyPlan(guild, backup.template, plan);
 
       // Terugzetten vult aan maar verwijdert niets, dus de server kan na afloop
@@ -464,6 +470,12 @@ async function handle(
     const template = geladen.template;
     const options = { prune: body.prune ?? false, update: body.update ?? true };
 
+    // Een lege lijst is niet hetzelfde als "geen keuze gemaakt". Wie alles
+    // uitvinkt bedoelt niet "doe dan maar alles".
+    if (Array.isArray(body.onderdelen) && body.onderdelen.length === 0) {
+      return send(response, 400, { error: 'Er is geen enkel onderdeel aangevinkt — er valt zo niets te doen.' });
+    }
+
     const onderdelen = leesOnderdelen(body.onderdelen?.join(','));
     if (!onderdelen) {
       return send(response, 400, { error: `Onbekend onderdeel. Kies uit: ${ONDERDELEN.join(', ')}.` });
@@ -554,8 +566,16 @@ async function handle(
       logger.info(
         `Dashboard past "${body.templateId}" toe op "${guild.name}" (${haalbaar.plan.actions.length} acties)`,
       );
-      const result = await applyPlan(guild, template, haalbaar.plan);
+      const result = await applyPlan(guild, template, haalbaar.plan, {
+        berichten: onderdelen.includes('berichten'),
+      });
       const meldingen = [...result.errors, ...haalbaar.aanpassingen];
+      if (result.overgeslagenBerichten) {
+        meldingen.push(
+          `${result.overgeslagenBerichten} berichten uit de template zijn niet gepost. ` +
+            'Vink "berichten" aan als je dat wel wilt.',
+        );
+      }
 
       await logSetup(config.historyDir, {
         at: new Date().toISOString(),

@@ -252,8 +252,14 @@ async function handleApply(interaction: ChatInputCommandInteraction, guild: Guil
 
     // Eerst een momentopname, net als het dashboard en de commandoregel.
     const backupFile = await backupGuild(guild, config.backupsDir, id).catch(() => null);
+    // Berichten posten zit bewust niet in /setup apply: dat commando richt de
+    // server in, het schrijft er niet in. Dat vraag je met --alleen berichten
+    // op de commandoregel, of met het vinkje in het dashboard.
     const result = await applyPlan(guild, template, plan);
     const letop = [...result.errors, ...aanpassingen];
+    if (result.overgeslagenBerichten) {
+      letop.push(`${result.overgeslagenBerichten} berichten uit de template zijn niet gepost.`);
+    }
 
     await logSetup(config.historyDir, {
       at: new Date().toISOString(),

@@ -613,11 +613,30 @@ npm run apply -- --guild 123456789 --template community --apply --alleen rollen
 | --- | --- |
 | `rollen` | rollen aanmaken, bijwerken en op volgorde zetten |
 | `categorieen` | categorieen aanmaken en bijwerken, met hun rechten |
-| `kanalen` | kanalen aanmaken, bijwerken, verwijderen en op volgorde zetten, met hun rechten en berichten |
+| `kanalen` | kanalen aanmaken, bijwerken, verwijderen en op volgorde zetten, met hun rechten |
 | `automod` | de AutoMod-regels |
 | `emojis` | de emoji uit de template |
 | `instellingen` | serverinstellingen, het systeem- en regelskanaal, en community-modus |
 | `onboarding` | de vragen die nieuwe leden krijgen |
+| `berichten` | de berichten uit de template posten (welkom, regels) — **staat standaard uit** |
+
+**Berichten gaan niet vanzelf mee.** De rest van een template beschrijft de vórm van je server;
+berichten zetten echte tekst in je kanalen, zichtbaar voor je leden, met de bot als afzender.
+Dat hoort een keuze te zijn, niet iets wat er ongemerkt bij zit als je een template opnieuw
+uitrolt op een server waar mensen al praten. Dus `alles` betekent hier: alles behalve posten.
+Wil je ze wel:
+
+```bash
+npm run apply -- --guild 123456789 --template community --apply --alleen alles,berichten
+```
+
+In het dashboard staat `berichten` als vinkje bij **Welke onderdelen**, met "standaard uit"
+erbij. En in de Action vul je bij *onderdelen* `alles,berichten` in. Rolt hij berichten niet
+uit, dan zegt hij dat achteraf — *"2 berichten uit de template zijn niet gepost"* — zodat je
+niet denkt dat ze verdwenen zijn.
+
+`/setup apply` in Discord post nooit berichten: dat commando richt de server in, het schrijft
+er niet in.
 
 Meerdere tegelijk mag: `--alleen kanalen,categorieen`. Het plan wordt altijd volledig
 berekend en daarna gefilterd, zodat de volgorde klopt — community-modus gaat nog steeds

@@ -33,7 +33,7 @@ on:
         default: false
         type: boolean
       onderdelen:
-        description: 'Welke delen: alles, of bijv. rollen,kanalen (rollen categorieen kanalen automod emojis instellingen onboarding)'
+        description: 'Welke delen: alles, of bijv. rollen,kanalen (rollen categorieen kanalen automod emojis instellingen onboarding berichten). "alles" post geen berichten; daarvoor: alles,berichten'
         required: false
         default: alles
         type: string

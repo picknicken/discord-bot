@@ -45,6 +45,8 @@ export interface ApplyResult {
   applied: number;
   failed: number;
   errors: string[];
+  /** Berichten uit de template die niet gepost zijn omdat je daar niet om vroeg. */
+  overgeslagenBerichten?: number;
 }
 
 const CHANNEL_TYPES: Record<ChannelSpec['type'], ChannelType> = {
@@ -94,9 +96,27 @@ const normalize = (value: string) => value.trim().toLowerCase();
  * kanaal- en rolbeheer zijn streng, en de volgorde is betekenisvol (rollen voor
  * overwrites, categorieen voor kanalen, kanalen voor alles wat ernaar verwijst).
  */
-export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Plan): Promise<ApplyResult> {
+export interface ApplyOptions {
+  /**
+   * Berichten uit de template in de kanalen posten. Standaard niet: dat zet
+   * echte tekst in je server, zichtbaar voor je leden, met de bot als afzender.
+   * Wie dat wil vraagt erom; het hoort niet ongemerkt bij "de server inrichten"
+   * te zitten.
+   */
+  berichten?: boolean;
+}
+
+export async function applyPlan(
+  guild: Guild,
+  template: ServerTemplate,
+  plan: Plan,
+  opties: ApplyOptions = {},
+): Promise<ApplyResult> {
   const result: ApplyResult = { applied: 0, failed: 0, errors: [] };
   const reason = `Server-setup: template "${template.name}"`;
+
+  /** Berichten die in de template staan maar niet gepost zijn, om het te kunnen melden. */
+  let overgeslagenBerichten = 0;
 
   /** Template-rolkey -> echte rol-id. */
   const roleIds = new Map<string, string>();
@@ -200,6 +220,10 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
    */
   const postMessages = async (channelId: string, spec: ChannelSpec): Promise<void> => {
     if (spec.messages.length === 0) return;
+    if (!opties.berichten) {
+      overgeslagenBerichten += spec.messages.length;
+      return;
+    }
     const channel = await guild.channels.fetch(channelId);
     if (!channel?.isTextBased()) return;
 
@@ -451,6 +475,7 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
     }
   }
 
+  if (overgeslagenBerichten > 0) result.overgeslagenBerichten = overgeslagenBerichten;
   return result;
 }
 
