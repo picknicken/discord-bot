@@ -1,4 +1,4 @@
-import { renderEditor, resetSelection } from './editor.js';
+import { renderEditor, resetSelection, zetFocus } from './editor.js';
 import { ask, busy, CHANNEL_ICONS, emptyState, escapeHtml as escape, icon, initTheme, kanDownloaden, toast, toonTekst } from './ui.js';
 
 const state = {
@@ -119,12 +119,12 @@ function stappen() {
     : false;
 
   return [
-    { naam: 'Template', klaar: Boolean(state.selected), scherm: 'templates' },
-    { naam: 'Rollen', klaar: Boolean(t && t.roles.length), scherm: 'bewerken' },
-    { naam: 'Kanalen', klaar: kanalen > 0, scherm: 'bewerken' },
-    { naam: 'Rechten', klaar: overwrites, scherm: 'bewerken' },
-    { naam: 'Controle', klaar: state.fouten === 0, scherm: 'controle' },
-    { naam: 'Toepassen', klaar: state.uitgerold, scherm: 'uitrollen' },
+    { naam: 'Template', klaar: Boolean(state.selected), scherm: 'templates', focus: 'alles' },
+    { naam: 'Rollen', klaar: Boolean(t && t.roles.length), scherm: 'bewerken', focus: 'rollen' },
+    { naam: 'Kanalen', klaar: kanalen > 0, scherm: 'bewerken', focus: 'kanalen' },
+    { naam: 'Rechten', klaar: overwrites, scherm: 'bewerken', focus: 'alles' },
+    { naam: 'Controle', klaar: state.fouten === 0, scherm: 'controle', focus: 'alles' },
+    { naam: 'Toepassen', klaar: state.uitgerold, scherm: 'uitrollen', focus: 'alles' },
   ];
 }
 
@@ -143,14 +143,17 @@ function tekenWizard() {
       const klasse = stap.klaar ? 'klaar' : index === nu ? 'nu' : '';
       const bol = stap.klaar ? icon('check', 'sm') : String(index + 1);
       return (
-        '<button class="' + klasse + '" data-stap="' + stap.scherm + '">' +
+        '<button class="' + klasse + '" data-stap="' + stap.scherm + '" data-focus="' + stap.focus + '">' +
         '<span class="bol">' + bol + '</span>' + escape(stap.naam) + '</button>'
       );
     })
     .join('');
 
   for (const knop of rail.querySelectorAll('[data-stap]')) {
-    knop.onclick = () => toonScherm(knop.dataset.stap);
+    knop.onclick = () => {
+      zetFocus(knop.dataset.focus);
+      toonScherm(knop.dataset.stap);
+    };
   }
 }
 
@@ -764,6 +767,13 @@ function renderTree() {
   renderEditor(view, {
     template: state.template,
     permissions: state.permissions,
+    // Het voorbeeld laat zien wat een rol straks ziet. Dat rekent de server uit,
+    // met dezelfde simulatie als het controlescherm — niet een tweede keer
+    // nagebouwd in de browser, want dan lopen die twee uit elkaar.
+    simuleer: async (json, role) => {
+      const data = await api('/analyze', { method: 'POST', body: JSON.stringify({ json, role }) });
+      return data.simulation;
+    },
     onChange: () => {
       // De JSON blijft de bron van waarheid voor opslaan en controleren.
       const after = JSON.stringify(state.template, null, 2);

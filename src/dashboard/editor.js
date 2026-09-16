@@ -128,8 +128,11 @@ function draw(container) {
   const detail = selection.type !== 'none' ? ' detail' : '';
   container.innerHTML =
     '<div class="editor' + detail + '"><div class="tree">' + tree() + '</div>' +
-    '<div class="props">' + props() + '</div></div>';
+    '<div class="props">' + props() + '</div>' +
+    '<div class="voorbeeld">' + voorbeeldBinnen() + '</div></div>';
   bind(container);
+  bindVoorbeeld(container);
+  bindFocus(container);
 
   // Na het opnieuw tekenen is het zoekveld nieuw; zet de cursor terug zodat
   // je gewoon door kunt typen.
@@ -140,6 +143,136 @@ function draw(container) {
       veld.setSelectionRange(veld.value.length, veld.value.length);
     }
   }
+}
+
+// --- voorbeeld: hoe de server er straks uitziet ------------------------------
+
+/**
+ * Een nagebouwde kanalenlijst naast de editor. Niet omdat het er leuk uitziet,
+ * maar omdat een template op papier niets zegt over wat een lid straks ziet:
+ * één overwrite verkeerd en het halve serverbeeld klopt niet. Hier zie je het
+ * meteen, per rol, zonder uit te rollen.
+ *
+ * Wat zichtbaar is voor wie, rekent de server uit (dezelfde simulatie als het
+ * controlescherm). Dat kost een verzoekje, dus dat gebeurt met vertraging en
+ * alleen als er echt iets veranderd is; de lijst zelf staat er meteen.
+ */
+let bekekenRol = '@everyone';
+let simulatie = { sleutel: '', data: null };
+let simulatieTimer = null;
+
+const voorbeeldRollen = () => [{ key: '@everyone', name: '@everyone' }, ...ctx.template.roles];
+
+function voorbeeldSleutel() {
+  return bekekenRol + '\u0000' + JSON.stringify(ctx.template);
+}
+
+/** Vraagt de simulatie op, met rust: pas als je even niets meer wijzigt. */
+function vraagSimulatie() {
+  if (!ctx.simuleer) return;
+  const sleutel = voorbeeldSleutel();
+  if (simulatie.sleutel === sleutel) return;
+
+  clearTimeout(simulatieTimer);
+  simulatieTimer = setTimeout(async () => {
+    const data = await ctx.simuleer(JSON.stringify(ctx.template), bekekenRol).catch(() => null);
+    simulatie = { sleutel, data };
+    // Alleen deze kolom opnieuw tekenen. De hele editor hertekenen zou de
+    // cursor uit het veld halen waar je net in typte.
+    tekenVoorbeeld();
+  }, 400);
+}
+
+function tekenVoorbeeld() {
+  const doel = ctx.container?.querySelector('.voorbeeld');
+  if (!doel) return;
+  doel.innerHTML = voorbeeldBinnen();
+  bindVoorbeeld(ctx.container);
+}
+
+/** De uitkomst hoort alleen bij deze template en deze rol, anders is hij oud. */
+function huidigeSimulatie() {
+  return simulatie.sleutel === voorbeeldSleutel() ? simulatie.data : null;
+}
+
+function voorbeeldKanaal(kanaal, zicht) {
+  const verborgen = zicht && zicht.visible === false;
+  return (
+    '<div class="dc-kanaal' + (verborgen ? ' weg' : '') + '"' +
+    (zicht ? ' title="' + escapeHtml(zicht.reason) + '"' : '') + '>' +
+    icon(CHANNEL_ICONS[kanaal.type] || 'hash', 'sm') +
+    '<span class="truncate">' + escapeHtml(kanaal.name) + '</span>' +
+    (verborgen ? icon('eyeoff', 'sm') : '') +
+    '</div>'
+  );
+}
+
+function voorbeeldBinnen() {
+  const template = ctx.template;
+  const sim = huidigeSimulatie();
+  vraagSimulatie();
+
+  /** De uitkomst per kanaalnaam, zodat de lijst en de simulatie bij elkaar horen. */
+  const zichtVan = (categorieNaam, kanaalNaam) => {
+    if (!sim) return null;
+    const lijst =
+      categorieNaam === null
+        ? sim.uncategorized
+        : (sim.categories.find((categorie) => categorie.name === categorieNaam)?.channels ?? []);
+    return lijst.find((kanaal) => kanaal.name === kanaalNaam) ?? null;
+  };
+
+  const keuze =
+    '<select id="vbRol" title="Bekijk de server door de ogen van deze rol">' +
+    voorbeeldRollen()
+      .map(
+        (rol) =>
+          '<option value="' + escapeHtml(rol.key) + '"' + (rol.key === bekekenRol ? ' selected' : '') + '>' +
+          escapeHtml(rol.name) + '</option>',
+      )
+      .join('') +
+    '</select>';
+
+  const lijst =
+    template.uncategorizedChannels.map((kanaal) => voorbeeldKanaal(kanaal, zichtVan(null, kanaal.name))).join('') +
+    template.categories
+      .map(
+        (categorie) =>
+          '<div class="dc-cat">' + escapeHtml(categorie.name) + '</div>' +
+          categorie.channels
+            .map((kanaal) => voorbeeldKanaal(kanaal, zichtVan(categorie.name, kanaal.name)))
+            .join(''),
+      )
+      .join('');
+
+  const voet = sim
+    ? sim.administrator
+      ? 'Administrator — ziet sowieso alles.'
+      : sim.visibleCount + ' van de ' + sim.totalCount + ' kanalen zichtbaar'
+    : 'berekenen…';
+
+  return (
+    '<div class="vbkop"><span class="grow">Voorbeeld</span>' + keuze + '</div>' +
+    '<div class="dc">' +
+    '<div class="dc-server">' + escapeHtml(template.name || 'Server') + '</div>' +
+    (lijst || '<div class="dc-leeg">Nog geen kanalen.</div>') +
+    '</div>' +
+    '<div class="vbvoet">' + escapeHtml(voet) + '</div>'
+  );
+}
+
+function bindFocus(container) {
+  const uit = container?.querySelector('#focusUit');
+  if (uit) uit.onclick = () => zetFocus('alles');
+}
+
+function bindVoorbeeld(container) {
+  const keuze = container?.querySelector('#vbRol');
+  if (!keuze) return;
+  keuze.onchange = () => {
+    bekekenRol = keuze.value;
+    tekenVoorbeeld();
+  };
 }
 
 /** Of een naam of recht op de zoekterm lijkt. */
@@ -257,19 +390,48 @@ function tree() {
 
   const leeg = zoekterm && !roles && !categories && !loose;
 
-  return (
-    '<input type="search" id="treeZoek" class="zoek" placeholder="Zoek rol, kanaal of recht…" ' +
-    'value="' + esc(zoekterm) + '" autocomplete="off">' +
-    (leeg ? '<p class="hint">Niets gevonden voor \u201c' + esc(zoekterm) + '\u201d.</p>' : '') +
+  const rollenBlok =
     '<div class="treehead"><h4>Rollen</h4><button class="btn-sm" data-add="role">' + icon('plus', 'sm') +
     'Rol</button></div>' +
     '<p class="hint">Bovenaan staat de hoogste rol.</p>' +
-    '<ul>' + (roles || '<li class="hint">' + (zoekterm ? 'geen rol met deze naam of dit recht' : 'nog geen rollen') + '</li>') + '</ul>' +
+    '<ul>' + (roles || '<li class="hint">' + (zoekterm ? 'geen rol met deze naam of dit recht' : 'nog geen rollen') + '</li>') + '</ul>';
+
+  const kanalenBlok =
     '<div class="treehead"><h4>Kanalen</h4><span class="row" style="gap:4px">' +
     '<button class="btn-sm" data-add="blok">' + icon('copy', 'sm') + 'Blok</button>' +
     '<button class="btn-sm" data-add="category">' + icon('plus', 'sm') + 'Categorie</button></span></div>' +
     '<ul>' + categories + '</ul>' +
-    (loose ? '<div class="treehead"><h4>Zonder categorie</h4></div><ul>' + loose + '</ul>' : '')
+    (loose ? '<div class="treehead"><h4>Zonder categorie</h4></div><ul>' + loose + '</ul>' : '');
+
+  return (
+    focusBalk() +
+    '<input type="search" id="treeZoek" class="zoek" placeholder="Zoek rol, kanaal of recht…" ' +
+    'value="' + esc(zoekterm) + '" autocomplete="off">' +
+    (leeg ? '<p class="hint">Niets gevonden voor \u201c' + esc(zoekterm) + '\u201d.</p>' : '') +
+    (focus === 'kanalen' ? '' : rollenBlok) +
+    (focus === 'rollen' ? '' : kanalenBlok)
+  );
+}
+
+/**
+ * Bij een stap uit de rail hoort maar één soort werk. Sta je op "Rollen", dan
+ * hoef je de kanalen niet te zien — dat is de helft minder om doorheen te
+ * kijken. Eén knop zet alles weer terug, zodat je nooit vastzit.
+ */
+let focus = 'alles';
+
+export function zetFocus(waarde) {
+  focus = waarde || 'alles';
+  if (ctx?.container) draw(ctx.container);
+}
+
+const FOCUS_TEKST = { rollen: 'Alleen de rollen', kanalen: 'Alleen de kanalen' };
+
+function focusBalk() {
+  if (!FOCUS_TEKST[focus]) return '';
+  return (
+    '<div class="focusbalk">' + icon('eye', 'sm') + '<span class="grow">' + FOCUS_TEKST[focus] + '</span>' +
+    '<button class="btn-sm" id="focusUit">Alles tonen</button></div>'
   );
 }
 
@@ -347,6 +509,8 @@ function roleProps(role) {
 
   return (
     '<h3>Rol</h3><p class="hint">Positie in de lijst bepaalt de hierarchie.</p>' +
+    rolChip(role) +
+    rolWaarschuwing(role) +
     field('Naam', text('name', role.name)) +
     field('Kleur', '<input type="color" data-edit="color" value="' + esc(role.color || '#99aab5') + '">') +
     '<div class="row">' +
@@ -355,6 +519,53 @@ function roleProps(role) {
     '</div>' +
     '<h4>Rechten</h4>' +
     groups
+  );
+}
+
+/** Hoe de rol er in Discord uitziet: de naam in zijn eigen kleur. */
+function rolChip(role) {
+  const kleur = role.color || '#99aab5';
+  return (
+    '<div class="rolchip"><span class="bol" style="background:' + esc(kleur) + '"></span>' +
+    '<span style="color:' + esc(kleur) + '">' + esc(role.name || 'Naamloos') + '</span>' +
+    (role.hoist ? '<span class="badge">apart in de ledenlijst</span>' : '') +
+    '</div>'
+  );
+}
+
+/**
+ * Rechten die verder reiken dan ze lijken. Administrator is de beruchtste: die
+ * zet elke kanaalinstelling opzij, dus een besloten kanaal is dan niet besloten.
+ * Dat hoor je te zien terwijl je het aanvinkt, niet pas als iemand meekijkt waar
+ * dat niet de bedoeling was.
+ */
+const ZWAAR = {
+  Administrator: 'Deze rol ziet en mag alles, ook in kanalen die je afschermt.',
+  ManageGuild: 'Mag de serverinstellingen aanpassen.',
+  ManageRoles: 'Mag rollen maken en uitdelen — ook aan zichzelf, tot aan zijn eigen hoogte.',
+  ManageChannels: 'Mag kanalen aanmaken en verwijderen.',
+  ManageWebhooks: 'Mag webhooks maken; daarmee kan iemand namens de server berichten sturen.',
+  BanMembers: 'Mag leden verbannen.',
+  KickMembers: 'Mag leden eruit zetten.',
+  MentionEveryone: 'Mag @everyone gebruiken.',
+};
+
+function rolWaarschuwing(role) {
+  const zwaar = role.permissions.filter((permission) => ZWAAR[permission]);
+  if (zwaar.length === 0) return '';
+
+  const administrator = role.permissions.includes('Administrator');
+  return (
+    '<div class="rolwaarschuwing' + (administrator ? ' fel' : '') + '">' +
+    icon('alert', 'sm') +
+    '<div><strong>' +
+    (administrator ? 'Administrator' : zwaar.length + ' zwaar recht' + (zwaar.length === 1 ? '' : 'en')) +
+    '</strong>' +
+    '<small>' +
+    (administrator
+      ? esc(ZWAAR.Administrator) + ' De rest van de rechten hieronder maakt dan niet meer uit.'
+      : esc(zwaar.map((permission) => ZWAAR[permission]).join(' '))) +
+    '</small></div></div>'
   );
 }
 

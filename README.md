@@ -200,6 +200,20 @@ een rol verwijderen haalt ze weg. De template blijft dus geldig terwijl je schui
 Bewerkingen zijn terug te draaien met **Ctrl+Z** (of de pijl in de kop), opnieuw met
 **Ctrl+Shift+Z**. In de JSON-tab houdt de browser zijn eigen tekst-undo.
 
+### Voorbeeld — hoe het er straks uitziet
+
+Naast de structuur staat een nagebouwde kanalenlijst: de server zoals Discord hem straks toont.
+Niet omdat het er leuk uitziet, maar omdat een template op papier niets zegt over wat een lid
+ziet. Eén overwrite verkeerd en het halve serverbeeld klopt niet.
+
+Bovenin kies je **wiens ogen**: `@everyone`, of een van je eigen rollen. Kanalen die die rol
+niet mag zien worden doorgestreept met een oog-icoon, en eronder staat hoeveel er overblijft —
+*"8 van de 15 kanalen zichtbaar"*. Wijs een doorgestreept kanaal aan en je ziet waaróm.
+
+Het rekent mee terwijl je typt, en gebruikt dezelfde simulatie als het controlescherm; niet een
+tweede keer nagebouwd in de browser, want dan lopen die twee vroeg of laat uit elkaar. Op een
+breed scherm staat het ernaast, daaronder eronder.
+
 ### Server — wat er nu echt staat
 
 Legt de template naast een aangevinkte server en kleurt elk onderdeel:
