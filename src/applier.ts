@@ -45,8 +45,6 @@ export interface ApplyResult {
   applied: number;
   failed: number;
   errors: string[];
-  /** Berichten uit de template die niet gepost zijn omdat je daar niet om vroeg. */
-  overgeslagenBerichten?: number;
 }
 
 const CHANNEL_TYPES: Record<ChannelSpec['type'], ChannelType> = {
@@ -96,27 +94,9 @@ const normalize = (value: string) => value.trim().toLowerCase();
  * kanaal- en rolbeheer zijn streng, en de volgorde is betekenisvol (rollen voor
  * overwrites, categorieen voor kanalen, kanalen voor alles wat ernaar verwijst).
  */
-export interface ApplyOptions {
-  /**
-   * Berichten uit de template in de kanalen posten. Standaard niet: dat zet
-   * echte tekst in je server, zichtbaar voor je leden, met de bot als afzender.
-   * Wie dat wil vraagt erom; het hoort niet ongemerkt bij "de server inrichten"
-   * te zitten.
-   */
-  berichten?: boolean;
-}
-
-export async function applyPlan(
-  guild: Guild,
-  template: ServerTemplate,
-  plan: Plan,
-  opties: ApplyOptions = {},
-): Promise<ApplyResult> {
+export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Plan): Promise<ApplyResult> {
   const result: ApplyResult = { applied: 0, failed: 0, errors: [] };
   const reason = `Server-setup: template "${template.name}"`;
-
-  /** Berichten die in de template staan maar niet gepost zijn, om het te kunnen melden. */
-  let overgeslagenBerichten = 0;
 
   /** Template-rolkey -> echte rol-id. */
   const roleIds = new Map<string, string>();
@@ -210,33 +190,6 @@ export async function applyPlan(
       }
     }
     return options;
-  };
-
-  /** Berichten horen bij het aanmaken: opnieuw toepassen post dus niets dubbel. */
-  /**
-   * Berichten posten telt apart. Het kanaal staat er dan al; als het posten
-   * misgaat - een kanaal waar niemand mag praten, of pinnen zonder
-   * ManageMessages - is dat geen mislukte aanmaak.
-   */
-  const postMessages = async (channelId: string, spec: ChannelSpec): Promise<void> => {
-    if (spec.messages.length === 0) return;
-    if (!opties.berichten) {
-      overgeslagenBerichten += spec.messages.length;
-      return;
-    }
-    const channel = await guild.channels.fetch(channelId);
-    if (!channel?.isTextBased()) return;
-
-    for (const message of spec.messages) {
-      try {
-        const sent = await channel.send({ content: message.content, allowedMentions: { parse: [] } });
-        if (message.pin) await sent.pin(reason);
-      } catch (error) {
-        const uitleg = error instanceof Error ? error.message : String(error);
-        result.errors.push(`bericht in #${spec.name} niet geplaatst: ${uitleg}`);
-        logger.warn(`Bericht in #${spec.name} niet geplaatst: ${uitleg}`);
-      }
-    }
   };
 
   const automodOptions = (rule: AutomodSpec) => {
@@ -357,7 +310,6 @@ export async function applyPlan(
             reason,
           } as GuildChannelCreateOptions);
           channelIds.set(normalize(action.channel.name), created.id);
-          await postMessages(created.id, action.channel);
           break;
         }
 
@@ -475,7 +427,6 @@ export async function applyPlan(
     }
   }
 
-  if (overgeslagenBerichten > 0) result.overgeslagenBerichten = overgeslagenBerichten;
   return result;
 }
 

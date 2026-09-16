@@ -63,7 +63,6 @@ export function exportGuild(guild: Guild, templateName = guild.name): ServerTemp
       overwrites: overwritesOf(channel),
       // Berichten worden bewust niet geexporteerd: die horen bij de inhoud van een
       // server, niet bij de structuur, en zouden bij elke uitrol opnieuw geplaatst worden.
-      messages: [],
       tags:
         'availableTags' in channel
           ? channel.availableTags.map((tag) => ({

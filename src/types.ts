@@ -40,12 +40,6 @@ export const roleSchema = z.object({
 
 export const channelTypeSchema = z.enum(['text', 'voice', 'forum', 'announcement', 'stage']);
 
-/** Bericht dat bij het aanmaken in het kanaal wordt gezet — regels, welkomsttekst, uitleg. */
-export const messageSchema = z.object({
-  content: z.string().min(1).max(2000),
-  pin: z.boolean().default(true),
-});
-
 export const forumTagSchema = z.object({
   name: z.string().min(1).max(20),
   emoji: z.string().optional(),
@@ -62,8 +56,6 @@ export const channelSchema = z.object({
   /** Alleen voor voice/stage; 0 = geen limiet. */
   userLimit: z.number().int().min(0).max(99).optional(),
   overwrites: z.array(overwriteSchema).default([]),
-  /** Alleen bij het aanmaken geplaatst, zodat opnieuw toepassen niets dubbel post. */
-  messages: z.array(messageSchema).default([]),
   /** Alleen forum. */
   tags: z.array(forumTagSchema).default([]),
   defaultReaction: z.string().optional(),
@@ -231,9 +223,6 @@ function validateReferences(template: ServerTemplate): ServerTemplate {
       checkRoles(`kanaal "${category.name}/${channel.name}"`, channel.overwrites.map((o) => o.role));
       if (channel.type !== 'forum' && channel.tags.length > 0) {
         problems.push(`kanaal "${channel.name}": tags werken alleen in een forumkanaal`);
-      }
-      if (channel.messages.length > 0 && channel.type !== 'text' && channel.type !== 'announcement') {
-        problems.push(`kanaal "${channel.name}": berichten kunnen alleen in een text- of announcement-kanaal`);
       }
     }
   }

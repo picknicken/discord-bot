@@ -62,7 +62,6 @@ export interface AuditSummary {
   overwrites: number;
   automod: number;
   emojis: number;
-  messages: number;
 }
 
 export function auditSummary(template: ServerTemplate): AuditSummary {
@@ -80,7 +79,6 @@ export function auditSummary(template: ServerTemplate): AuditSummary {
       channels.reduce((sum, channel) => sum + channel.overwrites.length, 0),
     automod: template.automod.length,
     emojis: template.emojis.length,
-    messages: channels.reduce((sum, channel) => sum + channel.messages.length, 0),
   };
 }
 

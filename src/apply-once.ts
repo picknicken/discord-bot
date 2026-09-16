@@ -251,16 +251,8 @@ client.once(Events.ClientReady, async (ready) => {
       if (backupFile) logger.info(`Momentopname bewaard: ${backupFile}`);
     }
 
-    const result = await applyPlan(guild, template, uitvoeren, {
-      berichten: options.onderdelen.includes('berichten'),
-    });
+    const result = await applyPlan(guild, template, uitvoeren);
     logger.info(`Klaar: ${result.applied} acties gelukt, ${result.failed} mislukt.`);
-    if (result.overgeslagenBerichten) {
-      logger.info(
-        `${result.overgeslagenBerichten} berichten uit de template zijn niet gepost. ` +
-          'Wil je dat wel? Voeg "berichten" toe aan --alleen.',
-      );
-    }
     for (const error of result.errors) logger.warn(error);
 
     if (haalbaar.aanpassingen.length > 0) {

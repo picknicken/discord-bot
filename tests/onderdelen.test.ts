@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { beschrijfOnderdelen, filterPlan, leesOnderdelen, onderdeelVan, ONDERDELEN, STANDAARD, UITLEG } from '../src/onderdelen.js';
+import { beschrijfOnderdelen, filterPlan, leesOnderdelen, onderdeelVan, ONDERDELEN, UITLEG } from '../src/onderdelen.js';
 import { planSetup } from '../src/planner.js';
 import type { Plan } from '../src/planner.js';
 import { parseTemplate } from '../src/types.js';
@@ -33,20 +33,10 @@ describe('onderdelen lezen', () => {
     expect(leesOnderdelen(' Rollen , KANALEN ')).toEqual(['rollen', 'kanalen']);
   });
 
-  it('geeft bij leeg of "alles" alles terug behalve het posten van berichten', () => {
-    expect(leesOnderdelen(undefined)).toEqual([...STANDAARD]);
-    expect(leesOnderdelen('alles')).toEqual([...STANDAARD]);
-    expect(leesOnderdelen('')).toEqual([...STANDAARD]);
-
-    // Berichten zetten tekst in je kanalen, met de bot als afzender. Dat hoort
-    // niet ongemerkt mee te liften met "richt mijn server in".
-    expect(STANDAARD).not.toContain('berichten');
-    expect(ONDERDELEN).toContain('berichten');
-  });
-
-  it('doet berichten wel als je er met zoveel woorden om vraagt', () => {
-    expect(leesOnderdelen('berichten')).toEqual(['berichten']);
-    expect(leesOnderdelen('kanalen,berichten')).toEqual(['kanalen', 'berichten']);
+  it('geeft alles terug bij leeg of "alles"', () => {
+    expect(leesOnderdelen(undefined)).toEqual([...ONDERDELEN]);
+    expect(leesOnderdelen('alles')).toEqual([...ONDERDELEN]);
+    expect(leesOnderdelen('')).toEqual([...ONDERDELEN]);
   });
 
   it('weigert een naam die niet bestaat', () => {
@@ -113,9 +103,8 @@ describe('een plan filteren', () => {
 });
 
 describe('uitleg bij de keuze', () => {
-  it('zegt het als alles meedoet, en of berichten daarbij zitten', () => {
-    expect(beschrijfOnderdelen([...ONDERDELEN])).toBe('Alle onderdelen, inclusief het posten van berichten.');
-    expect(beschrijfOnderdelen([...STANDAARD])).toBe('Alle onderdelen. Berichten worden niet gepost.');
+  it('zegt het als alles meedoet', () => {
+    expect(beschrijfOnderdelen([...ONDERDELEN])).toBe('Alle onderdelen.');
   });
 
   it('noemt anders wat er meedoet', () => {

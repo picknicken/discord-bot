@@ -367,10 +367,9 @@ export function describeActions(plan: Plan, limit = 25): string[] {
       case 'update-category':
         return `~ categorie ${action.category.name}`;
       case 'create-channel': {
-        const extras = [
-          action.channel.messages.length > 0 ? `${action.channel.messages.length} berichten` : '',
-          action.channel.tags.length > 0 ? `${action.channel.tags.length} tags` : '',
-        ].filter(Boolean);
+        const extras = [action.channel.tags.length > 0 ? `${action.channel.tags.length} tags` : ''].filter(
+          Boolean,
+        );
         return (
           `+ ${action.channel.type} #${action.channel.name}` +
           (action.categoryName ? ` in ${action.categoryName}` : '') +

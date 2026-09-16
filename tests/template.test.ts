@@ -75,10 +75,11 @@ describe('templateschema: nieuwe onderdelen', () => {
     expect(() => parseTemplate(withChannel({ type: 'text', tags: [{ name: 'Vraag' }] }))).toThrow(/forumkanaal/);
   });
 
-  it('weigert berichten in een voicekanaal', () => {
-    expect(() => parseTemplate(withChannel({ type: 'voice', messages: [{ content: 'hoi' }] }))).toThrow(
-      /text- of announcement/,
-    );
+  it('negeert berichten uit een oude template in plaats van te klappen', () => {
+    // De bot post niets meer in je kanalen. Templates van voor die tijd mogen
+    // daar niet op stuklopen; het veld verdwijnt gewoon.
+    const template = parseTemplate(withChannel({ type: 'text', messages: [{ content: 'hoi' }] }));
+    expect(template.categories[0]?.channels[0]).not.toHaveProperty('messages');
   });
 
   it('weigert community zonder regels- en updateskanaal', () => {
@@ -99,7 +100,7 @@ describe('templateschema: nieuwe onderdelen', () => {
         {
           name: 'Cat',
           channels: [
-            { name: 'chan', type: 'text', messages: [{ content: 'regels' }] },
+            { name: 'chan', type: 'text' },
             { name: 'forum', type: 'forum', tags: [{ name: 'Vraag', moderated: true }], defaultReaction: '👍' },
           ],
         },
@@ -108,7 +109,6 @@ describe('templateschema: nieuwe onderdelen', () => {
       onboarding: { defaultChannels: ['chan'], prompts: [{ title: 'Hoi?', options: [{ title: 'Ja', roles: ['mod'] }] }] },
     });
 
-    expect(template.categories[0]?.channels[0]?.messages[0]?.pin).toBe(true);
     expect(template.automod[0]?.action).toBe('block');
     expect(template.onboarding?.mode).toBe('default');
   });

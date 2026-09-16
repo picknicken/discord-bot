@@ -104,25 +104,13 @@
           "name": "👋│welkom",
           "type": "text",
           "topic": "Start hier: lees de regels en stel jezelf voor.",
-          "overwrites": [],
-          "messages": [
-            {
-              "content": "**Welkom!**\n\nLeuk dat je er bent. Lees even de regels in ✅│regels en stel jezelf voor in de gesprekken.\n\nVeel plezier.",
-              "pin": true
-            }
-          ]
+          "overwrites": []
         },
         {
           "name": "✅│regels",
           "type": "text",
           "topic": "De huisregels van deze server.",
-          "overwrites": [],
-          "messages": [
-            {
-              "content": "**Huisregels**\n\n1. Blijf respectvol. Geen haat, pesten of intimidatie.\n2. Geen spam, reclame of ongevraagde DMs.\n3. Houd het onderwerp in het juiste kanaal.\n4. Geen NSFW-inhoud.\n5. Volg de aanwijzingen van het team op.\n\nOvertredingen kunnen leiden tot een waarschuwing, time-out of ban.",
-              "pin": true
-            }
-          ]
+          "overwrites": []
         },
         {
           "name": "📣│aankondigingen",

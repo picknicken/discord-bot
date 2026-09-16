@@ -188,8 +188,7 @@ je hem op loslaat. Bedoeld om een server **helemaal in te richten voordat je uit
 - **Rollen**: naam, kleur, apart tonen, pingbaar, en alle rechten als vinkjes per groep.
   De volgorde in de lijst is de rolhierarchie — bovenaan staat de hoogste rol.
 - **Kanalen en categorieen**: toevoegen, verwijderen, verplaatsen, hernoemen, type wisselen,
-  onderwerp, slowmode, ledenlimiet, NSFW, forum-tags, en de berichten die bij het aanmaken
-  in het kanaal gezet worden.
+  onderwerp, slowmode, ledenlimiet, NSFW en forum-tags.
 - **Rechten-matrix** per categorie en kanaal: rollen in de kolommen, permissies in de rijen.
   Klik een cel door toestaan (✓), niet ingesteld (·) en weigeren (✗). Bij een kanaal staat
   erbij of het de rechten van zijn categorie erft of niet.
@@ -422,8 +421,6 @@ in het commando kiest. Meegeleverd: `community`, `gaming` en `bedrijf`.
   zelf kleine letters met streepjes; de emoji en het streepje blijven staan. Voicekanalen
   mogen hoofdletters en spaties houden: `🔊│Staf Voice`.
 - `slowmodeSeconds` (0–21600), `userLimit` (0–99, voice/stage), `nsfw`, `topic`.
-- `channels[].messages` — berichten die bij het **aanmaken** in het kanaal gezet worden,
-  standaard vastgepind. Opnieuw toepassen post niets dubbel. Alleen text en announcement.
 - `channels[].tags` / `defaultReaction` / `autoArchiveMinutes` — forumkanalen.
 - `guild` — `verificationLevel`, `explicitContentFilter`, `defaultMessageNotifications`,
   `systemChannel`, `afkChannel`, `rulesChannel`, `updatesChannel`, `afkTimeoutSeconds`,
@@ -434,7 +431,13 @@ in het commando kiest. Meegeleverd: `community`, `gaming` en `bedrijf`.
 - `onboarding` — vragen met keuzes, en de rollen en kanalen die daaraan hangen.
 
 Wat een template beschrijft, richt de server dus compleet in: van rollen en kanalen tot
-regels-bericht, AutoMod, onboarding en de volgorde waarin alles staat.
+AutoMod, onboarding en de volgorde waarin alles staat.
+
+**Wat een template níet doet: in je kanalen praten.** Een template beschrijft de vorm van je
+server — kanalen, rollen, rechten — en zet er geen tekst in. Geen welkomstbericht, geen
+regels-bericht, niets met de bot als afzender. Het kanaal `✅│regels` wordt gewoon aangemaakt;
+wat erin komt te staan schrijf jij zelf. (Oudere templates met een `messages`-veld laden nog
+prima: dat veld wordt genegeerd.)
 
 De snelste manier aan een eigen template te komen: richt een server met de hand in en
 draai `/setup export`.
@@ -618,25 +621,6 @@ npm run apply -- --guild 123456789 --template community --apply --alleen rollen
 | `emojis` | de emoji uit de template |
 | `instellingen` | serverinstellingen, het systeem- en regelskanaal, en community-modus |
 | `onboarding` | de vragen die nieuwe leden krijgen |
-| `berichten` | de berichten uit de template posten (welkom, regels) — **staat standaard uit** |
-
-**Berichten gaan niet vanzelf mee.** De rest van een template beschrijft de vórm van je server;
-berichten zetten echte tekst in je kanalen, zichtbaar voor je leden, met de bot als afzender.
-Dat hoort een keuze te zijn, niet iets wat er ongemerkt bij zit als je een template opnieuw
-uitrolt op een server waar mensen al praten. Dus `alles` betekent hier: alles behalve posten.
-Wil je ze wel:
-
-```bash
-npm run apply -- --guild 123456789 --template community --apply --alleen alles,berichten
-```
-
-In het dashboard staat `berichten` als vinkje bij **Welke onderdelen**, met "standaard uit"
-erbij. En in de Action vul je bij *onderdelen* `alles,berichten` in. Rolt hij berichten niet
-uit, dan zegt hij dat achteraf — *"2 berichten uit de template zijn niet gepost"* — zodat je
-niet denkt dat ze verdwenen zijn.
-
-`/setup apply` in Discord post nooit berichten: dat commando richt de server in, het schrijft
-er niet in.
 
 Meerdere tegelijk mag: `--alleen kanalen,categorieen`. Het plan wordt altijd volledig
 berekend en daarna gefilterd, zodat de volgorde klopt — community-modus gaat nog steeds
@@ -724,7 +708,7 @@ Dezelfde template op een andere server zetten zonder hem te kopieren: zet er een
 ```
 
 Invullen gebeurt vóór de controle, op de tekst van het bestand. Alles wat daarna komt — de
-rolnamen, topics, berichten, kleuren — ziet gewoon de ingevulde waarde, en elke bestaande
+rolnamen, topics, kleuren — ziet gewoon de ingevulde waarde, en elke bestaande
 controle werkt er zonder aanpassing op. Een waarde met aanhalingstekens erin blijft geldige
 JSON.
 

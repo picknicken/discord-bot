@@ -357,7 +357,6 @@
           "nsfw": false,
           "slowmodeSeconds": 0,
           "overwrites": [],
-          "messages": [],
           "tags": []
         }
       ]

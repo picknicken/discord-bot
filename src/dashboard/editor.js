@@ -16,7 +16,7 @@ const STATE_TITLES = { 1: 'toestaan', 0: 'niet ingesteld', '-1': 'weigeren' };
  */
 const kanaal = (naam, extra = {}) => ({
   name: naam, type: 'text', nsfw: false, slowmodeSeconds: 0,
-  overwrites: [], messages: [], tags: [], ...extra,
+  overwrites: [], tags: [], ...extra,
 });
 
 const BLOKKEN = {
@@ -29,10 +29,7 @@ const BLOKKEN = {
       overwrites: [{ role: '@everyone', allow: ['ViewChannel', 'ReadMessageHistory'], deny: ['SendMessages'] }],
       channels: [
         kanaal('👋│welkom', { topic: 'Start hier.' }),
-        kanaal('✅│regels', {
-          topic: 'De huisregels van deze server.',
-          messages: [{ content: '**Huisregels**\n\n1. Blijf respectvol.\n2. Geen spam of reclame.\n3. Houd het onderwerp in het juiste kanaal.', pin: true }],
-        }),
+        kanaal('✅│regels', { topic: 'De huisregels van deze server.' }),
       ],
     },
   },
@@ -585,18 +582,6 @@ function channelProps(channel) {
     (type) => '<option value="' + type + '"' + (channel.type === type ? ' selected' : '') + '>' + type + '</option>',
   ).join('');
 
-  const messages = (channel.messages || [])
-    .map(
-      (message, index) =>
-        '<div class="msg"><textarea data-message="' + index + '" rows="3">' + esc(message.content) +
-        '</textarea><div class="row">' +
-        '<label class="check"><input type="checkbox" data-messagepin="' + index + '"' +
-        (message.pin ? ' checked' : '') + '><span>vastpinnen</span></label>' +
-        '<button class="btn-sm btn-danger" data-delmessage="' + index + '">' + icon('trash', 'sm') +
-        '</button></div></div>',
-    )
-    .join('');
-
   const forum =
     channel.type === 'forum'
       ? field('Tags', text('tags', (channel.tags || []).map((tag) => tag.name).join(', ')), 'Komma gescheiden') +
@@ -623,12 +608,6 @@ function channelProps(channel) {
         '<div class="row">' + checkbox('nsfw', channel.nsfw, 'Markeren als NSFW') + '</div>'
       : '';
 
-  const messageBlock =
-    channel.type === 'text' || channel.type === 'announcement'
-      ? '<h4>Berichten bij aanmaken</h4><p class="hint">Alleen geplaatst als het kanaal nieuw is.</p>' +
-        messages + '<button class="btn-sm" data-addmessage="1">' + icon('plus', 'sm') + 'Bericht</button>'
-      : '';
-
   return (
     '<h3>Kanaal</h3><p class="hint">' + esc(channel.type) + '-kanaal</p>' +
     field('Naam', text('name', channel.name)) +
@@ -640,8 +619,7 @@ function channelProps(channel) {
       channel.overwrites.length === 0
         ? 'Leeg = dit kanaal erft de rechten van zijn categorie.'
         : 'Zodra hier iets staat, erft dit kanaal niets meer van de categorie.',
-    ) +
-    messageBlock
+    )
   );
 }
 
@@ -885,16 +863,6 @@ function bind(container) {
     changed();
   });
 
-  on('data-delmessage', (data) => {
-    currentChannel().messages.splice(Number(data.delmessage), 1);
-    changed();
-  });
-
-  on('data-addmessage', () => {
-    currentChannel().messages.push({ content: 'Nieuw bericht', pin: true });
-    changed();
-  });
-
   for (const input of container.querySelectorAll('[data-edit]')) {
     input.onchange = () => {
       const target =
@@ -935,20 +903,6 @@ function bind(container) {
     };
   }
 
-  for (const area of container.querySelectorAll('[data-message]')) {
-    area.onchange = () => {
-      currentChannel().messages[Number(area.dataset.message)].content = area.value;
-      ctx.onChange();
-    };
-  }
-
-  for (const input of container.querySelectorAll('[data-messagepin]')) {
-    input.onchange = () => {
-      currentChannel().messages[Number(input.dataset.messagepin)].pin = input.checked;
-      ctx.onChange();
-    };
-  }
-
   const zoekveld = container.querySelector('#treeZoek');
   if (zoekveld) {
     zoekveld.oninput = () => {
@@ -973,7 +927,6 @@ function newChannel() {
     nsfw: false,
     slowmodeSeconds: 0,
     overwrites: [],
-    messages: [],
     tags: [],
   };
 }
