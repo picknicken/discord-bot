@@ -144,6 +144,12 @@ describe('alleen je eigen servers in het dashboard', () => {
     expect(response.status).toBe(403);
   });
 
+  it('weigert leeghalen van een vreemde server, ook als preview', async () => {
+    const response = await post('/api/reset', { guildId: 'andermans-server' });
+    expect(response.status).toBe(403);
+    expect((await json(response)).error).toMatch(/geen beheerder/);
+  });
+
   it('weigert vergelijken, uitvoeren en terugzetten op een vreemde server', async () => {
     expect((await post('/api/compare', { json: '{"name":"X"}', guildId: 'andermans-server' })).status).toBe(403);
     expect((await get('/api/export/andermans-server')).status).toBe(403);

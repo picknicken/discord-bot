@@ -630,6 +630,12 @@ De bevestiging moet exact de naam van die server zijn, anders gebeurt er niets. 
 telefoon kan het ook: **Actions → Leeghalen**, met dezelfde bevestiging. Dat is een
 aparte workflow, zodat je hem niet per ongeluk aantikt naast "inrichten".
 
+**Of vanuit het dashboard:** bij **Servers** heeft elke serverkaart een knop *Leeghalen*. Dat
+gaat in twee schermen — eerst kies je wat er weg mag en welke rollen hoe dan ook blijven, dan
+zie je precies wat dat oplevert, en pas dan typ je de servernaam over. De knop om door te gaan
+blijft grijs tot die naam exact klopt. Ook hier gaat er eerst een momentopname naar `backups/`,
+en de uitrol komt bij **Geschiedenis** te staan als `(leeghalen)`.
+
 **Zelf kiezen wat er weg mag.** Standaard gaat alles weg. Wil je bijvoorbeeld de kanalen
 opnieuw doen maar de rollen houden — dan hoef je niemand opnieuw een rol te geven — dan zet
 je dat ene deel uit:

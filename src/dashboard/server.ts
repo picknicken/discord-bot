@@ -32,6 +32,7 @@ import {
   type Session,
 } from '../auth.js';
 import { backupGuild, listBackups, readBackup } from '../backup.js';
+import { ALLES, applyReset, countReset, describeReset, planReset, type ResetScope } from '../reset.js';
 import { listVersions, readVersion, recordVersion } from '../history.js';
 import { diffTemplates, summarizeDiff } from '../diff.js';
 import { simulate, simulatableRoles } from '../simulate.js';
@@ -300,6 +301,93 @@ async function handle(
         mismatch: rest.counts['type-mismatch'],
       });
     }
+  }
+
+  // --- Leeghalen ----------------------------------------------------------
+  // Het enige wat hier weggooit. Zonder bevestiging is het een preview; met
+  // bevestiging moet de servernaam exact kloppen, precies als op de
+  // commandoregel. Er gaat altijd eerst een momentopname naar schijf.
+  if (method === 'POST' && resource === 'reset') {
+    const body = await readJson<{
+      guildId?: string;
+      bevestig?: string;
+      backup?: boolean;
+      scope?: { rollen?: boolean; kanalen?: boolean; automod?: boolean; behoudRollen?: string[] };
+    }>(request);
+
+    if (!body.guildId) return send(response, 400, { error: 'Kies een server.' });
+    const nee = weigering(body.guildId);
+    if (nee) return send(response, 403, { error: nee });
+
+    const guild = client.guilds.cache.get(body.guildId);
+    if (!guild) return send(response, 404, { error: 'Server niet gevonden.' });
+
+    const scope: ResetScope = {
+      ...ALLES,
+      roles: body.scope?.rollen !== false,
+      channels: body.scope?.kanalen !== false,
+      automod: body.scope?.automod !== false,
+      behoudRollen: (body.scope?.behoudRollen ?? []).map((naam) => naam.trim()).filter(Boolean),
+    };
+
+    if (!scope.roles && !scope.channels && !scope.automod) {
+      return send(response, 400, { error: 'Er is niets aangevinkt om weg te halen.' });
+    }
+
+    const me = await guild.members.fetchMe();
+    const plan = planReset(await snapshotGuildFresh(guild), me.roles.highest.position, scope);
+    const totaal = countReset(plan);
+
+    // Preview: alleen laten zien wat er zou verdwijnen.
+    if (typeof body.bevestig !== 'string') {
+      return send(response, 200, {
+        guildName: guild.name,
+        counts: { kanalen: plan.channels.length, rollen: plan.roles.length, automod: plan.automod.length },
+        totaal,
+        acties: describeReset(plan),
+        overgeslagen: plan.skipped,
+      });
+    }
+
+    if (body.bevestig.trim() !== guild.name) {
+      return send(response, 400, { error: `De bevestiging klopt niet. Typ de servernaam exact over: "${guild.name}"` });
+    }
+
+    if (totaal === 0) return send(response, 200, { deleted: 0, failed: 0, errors: [], note: 'Er valt niets te verwijderen.' });
+
+    if (config.demo) {
+      return send(response, 200, { deleted: 0, failed: 0, errors: [], note: 'demo-modus — er is niets verwijderd' });
+    }
+
+    const missing = missingPermissions(me);
+    if (missing.length > 0) {
+      return send(response, 400, { error: `De bot mist rechten in deze server: ${missing.join(', ')}` });
+    }
+
+    // Dit is onomkeerbaar, dus de momentopname gaat eraan vooraf en niet erna.
+    let backup: string | null = null;
+    if (body.backup !== false) backup = await backupGuild(guild, config.backupsDir, 'voor-leeghalen');
+
+    logger.warn(`Dashboard haalt "${guild.name}" leeg (${totaal} onderdelen)`);
+    const result = await applyReset(guild, plan, `Leeggehaald via het dashboard door ${wie(session) ?? 'onbekend'}`);
+
+    await logSetup(config.historyDir, {
+      at: new Date().toISOString(),
+      guildId: guild.id,
+      guildName: guild.name,
+      template: '(leeghalen)',
+      door: wie(session) ?? 'dashboard',
+      mode: 'apply',
+      onderdelen: [scope.roles && 'rollen', scope.channels && 'kanalen', scope.automod && 'automod'].filter(
+        Boolean,
+      ) as string[],
+      applied: result.deleted,
+      failed: result.failed,
+      backup,
+      notes: result.errors.slice(0, 5),
+    });
+
+    return send(response, 200, { ...result, backup });
   }
 
   // --- Controle en simulatie ---------------------------------------------

@@ -90,11 +90,80 @@
   .dot-live { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 18%, transparent); }
 
   /* ---------- layout ---------- */
-  .grid {
-    display: grid; gap: 14px; padding: 14px 18px 40px;
-    grid-template-columns: 248px minmax(0, 1fr) 316px; align-items: start;
+  /* Links de vaste navigatie, rechts precies een scherm. Alles tegelijk tonen
+     was overzichtelijk voor wie het gebouwd heeft, niet voor wie het gebruikt. */
+  .app { display: grid; grid-template-columns: 216px minmax(0, 1fr); align-items: start; }
+
+  .sidebar {
+    position: sticky; top: 56px; height: calc(100vh - 56px);
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 12px 10px; border-right: 1px solid var(--border); background: var(--surface);
   }
-  @media (max-width: 1180px) { .grid { grid-template-columns: minmax(0, 1fr); padding: 12px; } }
+  .sidebar button {
+    display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px;
+    background: none; border: 0; box-shadow: none; color: var(--muted);
+    font-size: 13px; text-align: left; border-radius: var(--r-2);
+  }
+  .sidebar button:hover { background: var(--surface-2); color: var(--text); }
+  .sidebar button[aria-current="true"] { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+  .sidebar .telling {
+    margin-left: auto; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums;
+  }
+  .sidebar .kop {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+    padding: 12px 10px 4px;
+  }
+  .sidefoot { margin-top: auto; }
+
+  .content { padding: 14px 18px 40px; min-width: 0; }
+  .view { display: none; }
+  .view.actief { display: block; }
+  /* Templates: lijst links, editor rechts — die twee horen bij elkaar. */
+  .view.tweeluik.actief { display: grid; gap: 14px; grid-template-columns: 248px minmax(0, 1fr); align-items: start; }
+
+  .viewkop { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; }
+  .viewkop h2 { font-size: 16px; letter-spacing: -.01em; }
+  .viewkop p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+
+  .stats { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 16px; }
+  .stat {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-2);
+    padding: 12px 14px; box-shadow: var(--shadow-1);
+  }
+  .stat .cijfer { font-size: 22px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .stat .label { font-size: 11.5px; color: var(--muted); }
+
+  .kaarten { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .servercard {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-2);
+    padding: 13px 14px; box-shadow: var(--shadow-1);
+  }
+  .servercard .naam { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .servercard .statusrij { display: flex; flex-wrap: wrap; gap: 5px; margin: 9px 0 11px; }
+  .servercard .acties { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .probleem {
+    display: flex; gap: 9px; align-items: flex-start; padding: 9px 0;
+    border-top: 1px solid var(--border); font-size: 12.5px;
+  }
+  .probleem:first-child { border-top: 0; }
+  .probleem .icon { margin-top: 2px; }
+  .probleem.waarschuwing .icon { color: var(--warn); }
+  .probleem.fout .icon { color: var(--bad); }
+  .probleem.goed .icon { color: var(--ok); }
+  .probleem small { display: block; color: var(--muted); font-size: 11.5px; }
+
+  .demobalk {
+    border: 1px dashed var(--border); border-radius: var(--r-2); padding: 8px 10px;
+    font-size: 11.5px; color: var(--muted); background: var(--surface-2);
+  }
+
+  @media (max-width: 1180px) {
+    .app { grid-template-columns: minmax(0, 1fr); }
+    .sidebar { display: none; }
+    .content { padding: 12px 12px 76px; }
+    .view.tweeluik.actief { grid-template-columns: minmax(0, 1fr); }
+  }
 
   .panel {
     background: var(--surface); border: 1px solid var(--border);
@@ -537,9 +606,82 @@
   </div>
 </div>
 
+<div class="app">
+<aside class="sidebar" id="sidebar">
+  <button data-scherm="overzicht"><svg class="icon"><use href="#i-server"/></svg>Overzicht</button>
+  <button data-scherm="templates"><svg class="icon"><use href="#i-folder"/></svg>Templates<span class="telling" id="telTemplates"></span></button>
+  <button data-scherm="servers"><svg class="icon"><use href="#i-shield"/></svg>Servers<span class="telling" id="telServers"></span></button>
+  <button data-scherm="uitrollen"><svg class="icon"><use href="#i-zap"/></svg>Uitrollen</button>
+  <div class="kop">Terugkijken</div>
+  <button data-scherm="geschiedenis"><svg class="icon"><use href="#i-history"/></svg>Geschiedenis</button>
+  <button data-scherm="backups"><svg class="icon"><use href="#i-archive"/></svg>Back-ups</button>
+  <div class="sidefoot">
+    <div class="demobalk" id="demoBalk" hidden>
+      <strong>Demomodus</strong><br>Nagemaakte servers. Er verandert niets in Discord.
+    </div>
+  </div>
+</aside>
+
+<main class="content">
 <nav class="wizard" id="wizard" hidden></nav>
 
-<div class="grid">
+<section class="view" id="view-overzicht">
+  <div class="viewkop">
+    <div class="grow">
+      <h2>Overzicht</h2>
+      <p>Wat er klaarstaat, en wat er aandacht vraagt.</p>
+    </div>
+  </div>
+  <div class="stats" id="overzichtStats"></div>
+
+  <section class="panel" style="margin-bottom:14px">
+    <div class="phead"><svg class="icon"><use href="#i-alert"/></svg><h2 class="grow">Aandacht</h2></div>
+    <div class="pbody"><div id="overzichtProblemen"></div></div>
+  </section>
+
+  <section class="panel">
+    <div class="phead"><svg class="icon"><use href="#i-history"/></svg><h2 class="grow">Laatst uitgerold</h2></div>
+    <div class="pbody"><div id="overzichtRecent"></div></div>
+  </section>
+</section>
+
+<section class="view" id="view-servers">
+  <div class="viewkop">
+    <div class="grow">
+      <h2>Servers</h2>
+      <p>Waar de bot in zit en of hij er uit de voeten kan.</p>
+    </div>
+  </div>
+  <div class="kaarten" id="serverCards"></div>
+  <div id="joinable"></div>
+  <div class="row" style="margin-top:16px">
+    <button id="exportGuild" class="btn-sm"><svg class="icon sm"><use href="#i-download"/></svg>Server opslaan als template</button>
+  </div>
+</section>
+
+<section class="view" id="view-geschiedenis">
+  <div class="viewkop">
+    <div class="grow">
+      <h2>Geschiedenis</h2>
+      <p>Elke uitrol: welke template, op welke server, door wie, en of het lukte. Ook die vanaf de
+        commandoregel of uit een GitHub Action.</p>
+    </div>
+  </div>
+  <section class="panel"><div class="pbody"><div id="setupList"></div></div></section>
+</section>
+
+<section class="view" id="view-backups">
+  <div class="viewkop">
+    <div class="grow">
+      <h2>Back-ups</h2>
+      <p>Voor elk toepassen wordt de structuur van de server weggeschreven. Terugzetten vult aan en
+        werkt bij — verwijderde kanalen en hun berichten komen niet terug.</p>
+    </div>
+  </div>
+  <section class="panel"><div class="pbody"><div id="backupList"></div></div></section>
+</section>
+
+<section class="view tweeluik" id="view-templates">
   <section class="panel" id="scherm-templates">
     <div class="phead"><svg class="icon"><use href="#i-folder"/></svg><h2 class="grow">Templates</h2></div>
     <div id="templateList"></div>
@@ -601,7 +743,9 @@
       </div>
     </div>
   </section>
+</section>
 
+<section class="view" id="view-uitrollen">
   <section class="panel" id="scherm-uitrollen">
     <div class="phead"><svg class="icon"><use href="#i-server"/></svg><h2 class="grow">Uitrollen</h2></div>
     <div class="pbody">
@@ -645,38 +789,16 @@
       </div>
 
       <div id="planResult"></div>
-
-      <div id="joinable"></div>
-
-      <div class="row" style="margin-top:16px; border-top:1px solid var(--border); padding-top:13px">
-        <button id="exportGuild" class="btn-sm"><svg class="icon sm"><use href="#i-download"/></svg>Server opslaan als template</button>
-      </div>
-
-      <details id="setupsBlok" style="margin-top:12px">
-        <summary><svg class="icon sm"><use href="#i-history"/></svg> Wat is er eerder uitgerold</summary>
-        <p class="hint" style="margin:6px 0 8px">
-          Elke uitrol komt hierin: welke template, op welke server, door wie, en of het lukte.
-          Ook die vanaf de commandoregel of uit een GitHub Action.
-        </p>
-        <div id="setupList"></div>
-      </details>
-
-      <details style="margin-top:12px">
-        <summary><svg class="icon sm"><use href="#i-archive"/></svg> Back-ups</summary>
-        <p class="hint" style="margin:6px 0 8px">
-          Voor elk toepassen wordt de structuur van de server weggeschreven. Terugzetten vult aan
-          en werkt bij — verwijderde kanalen en hun berichten komen niet terug.
-        </p>
-        <div id="backupList"></div>
-      </details>
     </div>
   </section>
+</section>
+</main>
 </div>
 
 <nav class="mobilenav" id="mobilenav">
+  <button data-scherm="overzicht"><svg class="icon"><use href="#i-server"/></svg><span>Overzicht</span></button>
   <button data-scherm="templates"><svg class="icon"><use href="#i-folder"/></svg><span>Templates</span></button>
-  <button data-scherm="bewerken"><svg class="icon"><use href="#i-file"/></svg><span>Bewerken</span></button>
-  <button data-scherm="controle"><svg class="icon"><use href="#i-check"/></svg><span>Controle</span></button>
+  <button data-scherm="servers"><svg class="icon"><use href="#i-shield"/></svg><span>Servers</span></button>
   <button data-scherm="uitrollen"><svg class="icon"><use href="#i-zap"/></svg><span>Uitrollen</span></button>
 </nav>
 

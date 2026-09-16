@@ -19,6 +19,7 @@
     "invite": "tsx src/invite.ts",
     "dashboard": "tsx src/dashboard.ts",
     "demo": "tsx src/demo.ts",
+    "dashboard:dev": "tsx watch src/demo.ts",
     "build:demo": "tsx scripts/build-demo.ts",
     "copy:assets": "node scripts/copy-assets.mjs",
     "apply": "tsx src/apply-once.ts",

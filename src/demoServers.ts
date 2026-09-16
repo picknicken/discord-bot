@@ -1,0 +1,144 @@
+import { ChannelType, Collection, PermissionFlagsBits, PermissionsBitField } from 'discord.js';
+
+/**
+ * Nagemaakte servers voor de demo- en ontwikkelmodus.
+ *
+ * Een dashboard bouwen op één brave server gaat mis: de schermen die ertoe doen
+ * zijn juist die waar iets níet klopt. Hier staan ze allemaal naast elkaar — een
+ * server die klopt, een die is afgedwaald, een lege, en een waar de bot te weinig
+ * rechten heeft en onder een rol staat. Zo zie je bij elke wijziging in één
+ * oogopslag hoe alle vier de gevallen eruitzien, zonder Discord aan te raken.
+ */
+
+export type DemoScenario = 'klopt' | 'afgeweken' | 'leeg' | 'kapot';
+
+const rol = (id: string, name: string, position: number, color = 0x99aab5, managed = false) => ({
+  id,
+  name,
+  color,
+  hoist: false,
+  mentionable: false,
+  // position is de nette volgorde, rawPosition het nummer dat Discord bewaart.
+  // Allebei nodig: de code vergelijkt met het eerste en stuurt het tweede terug.
+  permissions: new PermissionsBitField(0n),
+  position,
+  rawPosition: position,
+  managed,
+});
+
+const kanaal = (id: string, name: string, type: ChannelType, parentId: string | null, position = 0) => ({
+  id,
+  name,
+  type,
+  parentId,
+  rawPosition: position,
+  topic: null,
+  nsfw: false,
+  rateLimitPerUser: 0,
+  userLimit: 0,
+  isThread: () => false,
+  permissionOverwrites: { cache: new Collection() },
+});
+
+interface DemoOpties {
+  id: string;
+  naam: string;
+  leden: number;
+  scenario: DemoScenario;
+}
+
+/** Wat er in de server staat, per geval. */
+function inhoud(id: string, scenario: DemoScenario) {
+  const roles = new Collection<string, ReturnType<typeof rol>>();
+  const channels = new Collection<string, ReturnType<typeof kanaal>>();
+  roles.set(id, rol(id, '@everyone', 0));
+
+  if (scenario === 'leeg') return { roles, channels };
+
+  roles.set('r1', rol('r1', 'Lid', 1, 0x57f287));
+  roles.set('r2', rol('r2', 'Oud-lid', 2, 0x99aab5));
+  roles.set('r3', rol('r3', 'Een andere bot', 3, 0x5865f2, true));
+
+  // Staat boven de bot (die op 4 staat), dus die rol kan de bot niet aanpassen.
+  if (scenario === 'kapot') roles.set('r4', rol('r4', 'Moderator', 8, 0xed4245));
+
+  for (const c of [
+    kanaal('c1', 'Welkom', ChannelType.GuildCategory, null, 0),
+    kanaal('c2', 'welkom', ChannelType.GuildText, 'c1', 0),
+    kanaal('c3', 'Gesprekken', ChannelType.GuildCategory, null, 1),
+    // In de kapotte server is "algemeen" een spraakkanaal terwijl elke template
+    // er een tekstkanaal van maakt: het geval waarin bijwerken niet kan en
+    // alleen opnieuw aanmaken helpt.
+    kanaal('c4', 'algemeen', scenario === 'kapot' ? ChannelType.GuildVoice : ChannelType.GuildText, 'c3', 0),
+  ]) {
+    channels.set(c.id, c);
+  }
+
+  if (scenario !== 'klopt') {
+    // Rommel die niet in de template staat; zichtbaar in het vergelijkscherm.
+    for (const c of [
+      kanaal('c5', 'oude-memes', ChannelType.GuildText, 'c3', 1),
+      kanaal('c6', 'Archief', ChannelType.GuildCategory, null, 2),
+      kanaal('c7', 'stof', ChannelType.GuildText, 'c6', 0),
+    ]) {
+      channels.set(c.id, c);
+    }
+  }
+
+  return { roles, channels };
+}
+
+const ALLE_RECHTEN =
+  PermissionFlagsBits.ManageChannels | PermissionFlagsBits.ManageRoles | PermissionFlagsBits.ManageGuild;
+
+export function demoServer({ id, naam, leden, scenario }: DemoOpties) {
+  const { roles, channels } = inhoud(id, scenario);
+
+  // De kapotte server: de bot mag geen rollen beheren. Dat is geen verzinsel —
+  // het is precies wat er gebeurt als iemand de bot handmatig toevoegt zonder
+  // de aangeboden rechten.
+  const rechten =
+    scenario === 'kapot'
+      ? PermissionFlagsBits.ManageChannels | PermissionFlagsBits.ManageGuild
+      : scenario === 'leeg'
+        ? PermissionFlagsBits.ViewChannel
+        : ALLE_RECHTEN;
+
+  return {
+    id,
+    name: naam,
+    memberCount: leden,
+    scenario,
+    iconURL: () => null,
+    description: null,
+    features: [] as string[],
+    systemChannelId: null,
+    afkChannelId: null,
+    rulesChannelId: null,
+    publicUpdatesChannelId: null,
+    roles: { cache: roles },
+    channels: { cache: channels },
+    emojis: { cache: new Collection() },
+    autoModerationRules: { cache: new Collection(), fetch: async () => new Collection() },
+    members: {
+      fetchMe: async () => ({
+        permissions: new PermissionsBitField(rechten),
+        // In de kapotte server staat de bot laag, dus Moderator staat erboven.
+        roles: { highest: { position: scenario === 'kapot' ? 4 : 9, rawPosition: scenario === 'kapot' ? 4 : 9 } },
+      }),
+    },
+  };
+}
+
+export const DEMO_SERVERS = [
+  { id: '1', naam: 'Picknicken Community', leden: 428, scenario: 'klopt' as const },
+  { id: '2', naam: 'Gaming Nederland', leden: 1204, scenario: 'afgeweken' as const },
+  { id: '3', naam: 'Test Server', leden: 3, scenario: 'leeg' as const },
+  { id: '4', naam: 'Kapotte Rechten', leden: 76, scenario: 'kapot' as const },
+];
+
+export function demoGuilds() {
+  const guilds = new Collection<string, ReturnType<typeof demoServer>>();
+  for (const server of DEMO_SERVERS) guilds.set(server.id, demoServer(server));
+  return guilds;
+}

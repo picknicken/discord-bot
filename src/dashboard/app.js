@@ -47,14 +47,15 @@ function renderUndo() {
   $('redo').disabled = history.future.length === 0;
 }
 
-async function api(path, options = {}) {
+async function api(path, { timeout = 30000, ...options } = {}) {
   let response;
   try {
     // Zonder deadline blijft de pagina eeuwig "laden" als er niets terugkomt.
+    // Werk dat Discord per stuk moet doen — uitrollen, leeghalen — krijgt langer.
     response = await fetch('/api' + path, {
       ...options,
       headers: options.body ? { 'content-type': 'application/json' } : {},
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(timeout),
     });
   } catch (error) {
     throw new Error(
@@ -71,16 +72,31 @@ async function api(path, options = {}) {
 
 // --- schermen en stappen ----------------------------------------------------
 
-/** Op een telefoon staat er een scherm tegelijk; op een breed scherm alles naast elkaar. */
+/**
+ * Eén scherm tegelijk, links de navigatie. "Bewerken" en "Controle" zijn geen
+ * eigen scherm maar een tabblad binnen Templates: je bewerkt nooit iets zonder
+ * eerst een template te kiezen, dus die twee horen bij elkaar te staan.
+ */
+const VIEW_VAN = {
+  overzicht: 'overzicht',
+  templates: 'templates',
+  bewerken: 'templates',
+  controle: 'templates',
+  servers: 'servers',
+  uitrollen: 'uitrollen',
+  geschiedenis: 'geschiedenis',
+  backups: 'backups',
+};
+
 function toonScherm(naam) {
   state.scherm = naam;
-  const paneel = naam === 'controle' ? 'bewerken' : naam;
+  const view = VIEW_VAN[naam] || 'overzicht';
 
-  for (const sectie of document.querySelectorAll('.grid > section')) {
-    sectie.classList.toggle('actief', sectie.id === 'scherm-' + paneel);
+  for (const sectie of document.querySelectorAll('.view')) {
+    sectie.classList.toggle('actief', sectie.id === 'view-' + view);
   }
-  for (const knop of document.querySelectorAll('#mobilenav button')) {
-    knop.setAttribute('aria-current', String(knop.dataset.scherm === naam));
+  for (const knop of document.querySelectorAll('#sidebar button, #mobilenav button')) {
+    knop.setAttribute('aria-current', String(VIEW_VAN[knop.dataset.scherm] === view));
   }
 
   if (naam === 'controle') showTab('Check');
@@ -112,12 +128,16 @@ function stappen() {
   ];
 }
 
+/** De stappenrail hoort bij het bouwen. Op Overzicht of Back-ups zegt hij niets. */
+const WIZARD_OP = ['templates', 'bewerken', 'controle', 'uitrollen'];
+
 function tekenWizard() {
   const rail = $('wizard');
   const lijst = stappen();
   const nu = lijst.findIndex((stap) => !stap.klaar);
 
-  rail.hidden = false;
+  rail.hidden = !WIZARD_OP.includes(state.scherm);
+  if (rail.hidden) return;
   rail.innerHTML = lijst
     .map((stap, index) => {
       const klasse = stap.klaar ? 'klaar' : index === nu ? 'nu' : '';
@@ -211,6 +231,280 @@ async function refresh() {
   renderOnderdelen();
   renderBackups();
   renderSetups();
+  renderOverzicht();
+  renderServerKaarten();
+  $('telTemplates').textContent = state.templates.length || '';
+  $('telServers').textContent = state.guilds.length || '';
+  $('demoBalk').hidden = !state.guilds.some((guild) => guild.id.length < 5);
+}
+
+// --- overzicht en servers ---------------------------------------------------
+
+/** Wat er aan de hand is, in de volgorde waarin het je zou moeten opvallen. */
+function problemen() {
+  const uit = [];
+
+  for (const guild of state.guilds) {
+    if (guild.missing.length > 0) {
+      uit.push({
+        soort: 'fout',
+        wat: guild.name + ' mist rechten',
+        waarom: 'De bot kan hier niet alles: ' + guild.missing.join(', ') + '.',
+      });
+    }
+    if (guild.rolesAbove > 0) {
+      uit.push({
+        soort: 'waarschuwing',
+        wat: guild.name + ': ' + guild.rolesAbove + ' rol' + (guild.rolesAbove === 1 ? '' : 'len') + ' boven de bot',
+        waarom: 'Die rollen kan hij niet aanpassen. Sleep de rol van de bot omhoog in Discord.',
+      });
+    }
+  }
+
+  for (const template of state.templates) {
+    if (template.error) {
+      uit.push({
+        soort: 'fout',
+        wat: 'Template "' + template.id + '" is stuk',
+        waarom: template.error.split('\n')[0],
+      });
+    }
+  }
+
+  return uit;
+}
+
+function renderOverzicht() {
+  const uitgerold = state.setups.filter((run) => run.mode === 'apply').length;
+  const cijfers = [
+    ['Servers', state.guilds.length],
+    ['Templates', state.templates.length],
+    ['Uitgerold', uitgerold],
+    ['Back-ups', state.backups.length],
+  ];
+
+  $('overzichtStats').innerHTML = cijfers
+    .map(([label, cijfer]) =>
+      '<div class="stat"><div class="cijfer">' + cijfer + '</div><div class="label">' + label + '</div></div>',
+    )
+    .join('');
+
+  const lijst = problemen();
+  $('overzichtProblemen').innerHTML = lijst.length
+    ? lijst
+        .map(
+          (probleem) =>
+            '<div class="probleem ' + probleem.soort + '">' +
+            icon(probleem.soort === 'fout' ? 'xcircle' : 'alert') +
+            '<div><strong>' + escape(probleem.wat) + '</strong>' +
+            '<small>' + escape(probleem.waarom) + '</small></div></div>',
+        )
+        .join('')
+    : '<div class="probleem goed">' + icon('check') +
+      '<div><strong>Niets aan de hand.</strong><small>Alle servers hebben de rechten die de bot ' +
+      'nodig heeft, en alle templates zijn leesbaar.</small></div></div>';
+
+  const recent = state.setups.slice(0, 5);
+  $('overzichtRecent').innerHTML = recent.length
+    ? recent
+        .map((run) => {
+          const uitkomst =
+            run.mode === 'preview'
+              ? '<span class="badge">preview</span>'
+              : run.failed > 0
+                ? '<span class="badge warn">' + run.applied + ' gelukt, ' + run.failed + ' mislukt</span>'
+                : '<span class="badge ok">' + run.applied + ' gelukt</span>';
+          return (
+            '<div class="backup"><span class="grow"><strong>' + escape(run.template) + '</strong> op ' +
+            escape(run.guildName) + '<div class="meta muted" style="font-size:11px">door ' +
+            escape(run.door) + '</div></span>' + uitkomst + '</div>'
+          );
+        })
+        .join('')
+    : '<p class="hint">Nog niets uitgerold.</p>';
+}
+
+/** Per server een kaart met de stand van zaken, in plaats van badges in een rij. */
+function renderServerKaarten() {
+  const doel = $('serverCards');
+  if (!doel) return;
+
+  if (state.guilds.length === 0) {
+    doel.innerHTML = emptyState(
+      'server',
+      state.session?.user
+        ? 'Geen servers waar jij beheerder bent en de bot in zit.'
+        : 'De bot zit nog in geen enkele server.',
+    );
+    return;
+  }
+
+  doel.innerHTML = state.guilds
+    .map((guild) => {
+      const status = [
+        guild.missing.length
+          ? '<span class="badge bad">' + icon('alert', 'sm') + 'mist ' + guild.missing.length + ' recht' +
+            (guild.missing.length === 1 ? '' : 'en') + '</span>'
+          : '<span class="badge ok">' + icon('check', 'sm') + 'rechten in orde</span>',
+        guild.rolesAbove > 0
+          ? '<span class="badge warn">' + guild.rolesAbove + ' rol boven de bot</span>'
+          : '<span class="badge ok">rolvolgorde in orde</span>',
+        guild.admin ? '<span class="badge">administrator</span>' : '',
+      ]
+        .filter(Boolean)
+        .join('');
+
+      return (
+        '<div class="servercard">' +
+        '<div class="naam">' +
+        (guild.iconUrl ? '<img src="' + escape(guild.iconUrl) + '" alt="" style="width:22px;height:22px;border-radius:6px">' : icon('server')) +
+        '<span class="truncate">' + escape(guild.name) + '</span></div>' +
+        '<div class="muted" style="font-size:11.5px">' + guild.memberCount + ' leden · ' +
+        guild.roleCount + ' rollen · ' + guild.channelCount + ' kanalen</div>' +
+        '<div class="statusrij">' + status + '</div>' +
+        '<div class="acties">' +
+        '<button class="btn-sm" data-vergelijk="' + escape(guild.id) + '">Vergelijken</button>' +
+        '<button class="btn-sm" data-uitrollen="' + escape(guild.id) + '">Uitrollen</button>' +
+        '<button class="btn-sm btn-danger" data-leeghalen="' + escape(guild.id) + '">Leeghalen</button>' +
+        '</div></div>'
+      );
+    })
+    .join('');
+
+  for (const knop of doel.querySelectorAll('[data-vergelijk]')) {
+    knop.onclick = () => {
+      kiesAlleenServer(knop.dataset.vergelijk);
+      toonScherm('bewerken');
+      showTab('Server');
+      runCompare();
+    };
+  }
+
+  for (const knop of doel.querySelectorAll('[data-uitrollen]')) {
+    knop.onclick = () => {
+      kiesAlleenServer(knop.dataset.uitrollen);
+      toonScherm('uitrollen');
+    };
+  }
+
+  for (const knop of doel.querySelectorAll('[data-leeghalen]')) {
+    knop.onclick = () => leeghalen(knop.dataset.leeghalen);
+  }
+}
+
+// --- leeghalen --------------------------------------------------------------
+
+/**
+ * Twee schermen, met opzet. Eerst kiezen wat er weg mag, dan zien wat dat
+ * precies is, en pas daarna de naam overtypen. Eén knop waarmee een server in
+ * één klik leeg is, is geen knop die je op een telefoon wilt hebben.
+ */
+async function leeghalen(guildId) {
+  const guild = state.guilds.find((kandidaat) => kandidaat.id === guildId);
+  if (!guild) return;
+
+  const keuze = await leeghaalOpties(guild.name);
+  if (!keuze) return;
+
+  let plan;
+  try {
+    plan = await api('/reset', { method: 'POST', body: JSON.stringify({ guildId, scope: keuze }) });
+  } catch (error) {
+    toast(error.message, 'bad');
+    return;
+  }
+
+  if (plan.totaal === 0) {
+    toast('Er valt niets te verwijderen in ' + guild.name + '.', 'info');
+    return;
+  }
+
+  const bevestigd = await ask({
+    title: 'Weet je het zeker?',
+    body:
+      'Dit verwijdert ' + plan.totaal + ' onderdelen uit "' + plan.guildName + '": ' +
+      plan.counts.kanalen + ' kanalen, ' + plan.counts.rollen + ' rollen, ' +
+      plan.counts.automod + ' automod-regels. Berichten in verwijderde kanalen zijn ook weg en komen ' +
+      'nergens meer terug. Er gaat eerst een momentopname van de structuur naar de back-ups. ' +
+      'Typ de servernaam over om door te gaan.',
+    confirmLabel: 'Leeghalen',
+    danger: true,
+    requireText: plan.guildName,
+  });
+
+  if (!bevestigd) return;
+
+  toast('Bezig met leeghalen…', 'info');
+  try {
+    const uitkomst = await api('/reset', {
+      method: 'POST',
+      body: JSON.stringify({ guildId, scope: keuze, bevestig: plan.guildName }),
+      // Elk kanaal is een apart verzoek aan Discord; bij een volle server tikt
+      // dat aan. Halverwege afbreken zou het ergste moment zijn om op te geven.
+      timeout: 5 * 60 * 1000,
+    });
+
+    if (uitkomst.note) toast(uitkomst.note, 'info');
+    else if (uitkomst.failed > 0) {
+      toast(uitkomst.deleted + ' verwijderd, ' + uitkomst.failed + ' mislukt', 'warn');
+      toonTekst({
+        title: 'Wat er misging',
+        tekst: (uitkomst.errors || []).join('\n'),
+        hint: uitkomst.hint || '',
+      });
+    } else toast(uitkomst.deleted + ' onderdelen verwijderd uit ' + plan.guildName, 'ok');
+  } catch (error) {
+    toast(error.message, 'bad');
+  }
+
+  await refresh();
+}
+
+/** Wat mag er weg, en wat blijft hoe dan ook staan. */
+function leeghaalOpties(guildName) {
+  const dialog = $('dialog');
+
+  dialog.innerHTML =
+    '<form method="dialog">' +
+    '<div class="dhead"><h3>' + escape(guildName) + ' leeghalen</h3></div>' +
+    '<div class="dbody">' +
+    '<p class="hint">Vink uit wat je wilt laten staan. Leden, berichten in bewaarde kanalen en ' +
+    'emoji\'s blijven sowieso.</p>' +
+    '<label class="check"><input type="checkbox" id="lhKanalen" checked><span>Kanalen en categorieën</span></label>' +
+    '<label class="check"><input type="checkbox" id="lhRollen" checked><span>Rollen</span></label>' +
+    '<label class="check"><input type="checkbox" id="lhAutomod" checked><span>AutoMod-regels</span></label>' +
+    '<label style="display:block;margin-top:12px;font-size:12px" class="muted">Rollen die hoe dan ook blijven staan</label>' +
+    '<input type="text" id="lhBehoud" placeholder="Admin, Moderator" autocomplete="off">' +
+    '</div>' +
+    '<div class="dfoot">' +
+    '<button value="cancel" type="submit">Annuleren</button>' +
+    '<button value="ok" type="submit" class="btn-danger">Bekijk wat er weggaat</button>' +
+    '</div></form>';
+
+  dialog.showModal();
+
+  return new Promise((resolve) => {
+    dialog.addEventListener(
+      'close',
+      () => {
+        if (dialog.returnValue !== 'ok') return resolve(null);
+        resolve({
+          kanalen: $('lhKanalen').checked,
+          rollen: $('lhRollen').checked,
+          automod: $('lhAutomod').checked,
+          behoudRollen: $('lhBehoud').value.split(',').map((naam) => naam.trim()).filter(Boolean),
+        });
+      },
+      { once: true },
+    );
+  });
+}
+
+/** Vanaf een serverkaart werk je met die ene server, niet met alles wat aanstond. */
+function kiesAlleenServer(guildId) {
+  for (const vinkje of document.querySelectorAll('#guildList input[type="checkbox"]')) {
+    vinkje.checked = vinkje.value === guildId;
+  }
 }
 
 function renderTemplates() {
@@ -638,6 +932,7 @@ async function herstelWatMist(guildId) {
   try {
     const data = await api('/apply', {
       method: 'POST',
+      timeout: 5 * 60 * 1000,
       body: JSON.stringify({
         templateId: state.selected,
         guildIds: [guildId],
@@ -889,7 +1184,14 @@ async function apply() {
 
   $('planResult').innerHTML = busy('Toepassen…');
   try {
-    const data = await api('/apply', { method: 'POST', body: JSON.stringify(planBody()) });
+    // Elke rol en elk kanaal is een apart verzoek aan Discord; een volle
+    // template haalt de standaarddeadline niet. Dan lijkt het mislukt terwijl
+    // hij gewoon nog bezig is.
+    const data = await api('/apply', {
+      method: 'POST',
+      body: JSON.stringify(planBody()),
+      timeout: 5 * 60 * 1000,
+    });
     $('planResult').innerHTML = data.results
       .map((result) =>
         '<div style="margin-top:14px"><strong>' + escape(result.guildName) + '</strong>' +
@@ -946,7 +1248,7 @@ async function restoreBackup(file) {
 
 // --- handlers --------------------------------------------------------------
 
-for (const knop of document.querySelectorAll('#mobilenav button')) {
+for (const knop of document.querySelectorAll('#mobilenav button, #sidebar button')) {
   knop.onclick = () => toonScherm(knop.dataset.scherm);
 }
 
@@ -1121,7 +1423,7 @@ window.addEventListener('beforeunload', (event) => {
 });
 
 initTheme($('themeToggle'));
-toonScherm('templates');
+toonScherm('overzicht');
 
 checkSession()
   .then((allowed) => (allowed ? refresh() : undefined))
