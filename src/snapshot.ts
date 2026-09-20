@@ -1,4 +1,4 @@
-import { ChannelType, type Guild } from 'discord.js';
+import { ChannelType, OverwriteType, type Guild, type GuildBasedChannel } from 'discord.js';
 import type { ChannelSpec } from './types.js';
 
 /**
@@ -38,11 +38,28 @@ export interface SnapshotRole {
   isEveryone: boolean;
 }
 
+/**
+ * De rechten die op een kanaal of categorie staan, per rol-id.
+ *
+ * Zonder deze konden we niet vergelijken of de rechten al kloppen, en zette de
+ * planner ze bij elke uitrol opnieuw - twintig regels "permissies" in elke
+ * preview, waardoor je de echte wijziging niet meer zag.
+ *
+ * Alleen rollen; rechten die aan een persoon hangen laten we met rust, want die
+ * staan niet in een template en horen dus ook niet weggehaald te worden.
+ */
+export interface SnapshotOverwrite {
+  roleId: string;
+  allow: bigint;
+  deny: bigint;
+}
+
 export interface SnapshotCategory {
   id: string;
   name: string;
   /** Het nummer zoals Discord het bewaart. */
   position: number;
+  overwrites: SnapshotOverwrite[];
 }
 
 export interface SnapshotChannel {
@@ -55,6 +72,7 @@ export interface SnapshotChannel {
   slowmodeSeconds: number;
   userLimit: number | null;
   position: number;
+  overwrites: SnapshotOverwrite[];
 }
 
 const CHANNEL_TYPE_MAP: Partial<Record<ChannelType, ChannelSpec['type']>> = {
@@ -67,6 +85,19 @@ const CHANNEL_TYPE_MAP: Partial<Record<ChannelType, ChannelSpec['type']>> = {
 
 export function mapChannelType(type: ChannelType): ChannelSpec['type'] | null {
   return CHANNEL_TYPE_MAP[type] ?? null;
+}
+
+/** De rolrechten op een kanaal, in dezelfde vorm als waarmee we vergelijken. */
+function leesOverwrites(channel: GuildBasedChannel): SnapshotOverwrite[] {
+  if (!('permissionOverwrites' in channel)) return [];
+
+  return [...channel.permissionOverwrites.cache.values()]
+    .filter((overwrite) => overwrite.type === OverwriteType.Role)
+    .map((overwrite) => ({
+      roleId: overwrite.id,
+      allow: overwrite.allow.bitfield,
+      deny: overwrite.deny.bitfield,
+    }));
 }
 
 export function snapshotGuild(guild: Guild): GuildSnapshot {
@@ -89,7 +120,12 @@ export function snapshotGuild(guild: Guild): GuildSnapshot {
   for (const channel of guild.channels.cache.values()) {
     if (channel.isThread()) continue;
     if (channel.type === ChannelType.GuildCategory) {
-      categories.push({ id: channel.id, name: channel.name, position: channel.rawPosition });
+      categories.push({
+        id: channel.id,
+        name: channel.name,
+        position: channel.rawPosition,
+        overwrites: leesOverwrites(channel),
+      });
       continue;
     }
     const mapped = mapChannelType(channel.type);
@@ -104,6 +140,7 @@ export function snapshotGuild(guild: Guild): GuildSnapshot {
       slowmodeSeconds: 'rateLimitPerUser' in channel ? channel.rateLimitPerUser ?? 0 : 0,
       userLimit: 'userLimit' in channel ? channel.userLimit : null,
       position: channel.rawPosition,
+      overwrites: leesOverwrites(channel),
     });
   }
 

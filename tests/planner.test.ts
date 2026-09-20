@@ -117,7 +117,7 @@ describe('planSetup', () => {
           isEveryone: false,
         },
       ],
-      categories: [{ id: '10', name: 'Algemeen', position: 0 }],
+      categories: [{ id: '10', name: 'Algemeen', position: 0, overwrites: [] }],
       channels: [
         {
           id: '11',
@@ -128,6 +128,7 @@ describe('planSetup', () => {
           nsfw: false,
           slowmodeSeconds: 0,
           userLimit: null,
+          overwrites: [],
           position: 0,
         },
       ],
@@ -141,7 +142,7 @@ describe('planSetup', () => {
   it('matcht hoofdletterongevoelig op naam', () => {
     const existing: GuildSnapshot = {
       ...emptyGuild,
-      categories: [{ id: '10', name: 'ALGEMEEN', position: 0 }],
+      categories: [{ id: '10', name: 'ALGEMEEN', position: 0, overwrites: [] }],
     };
     const plan = planSetup(existing, template, { prune: false, update: false });
     expect(plan.actions.some((action) => action.kind === 'create-category')).toBe(false);
@@ -160,6 +161,7 @@ describe('planSetup', () => {
           nsfw: false,
           slowmodeSeconds: 0,
           userLimit: null,
+          overwrites: [],
           position: 0,
         },
       ],

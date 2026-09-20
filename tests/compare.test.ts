@@ -10,7 +10,7 @@ const role = (id: string, name: string, extra: Partial<SnapshotRole> = {}): Snap
 
 const channel = (id: string, name: string, parentId: string | null, extra: Partial<SnapshotChannel> = {}): SnapshotChannel => ({
   id, name, type: 'text', parentId, topic: null, nsfw: false, slowmodeSeconds: 0,
-  userLimit: null, position: 0, ...extra,
+  userLimit: null, position: 0, overwrites: [], ...extra,
 });
 
 const snapshot = (overrides: Partial<GuildSnapshot> = {}): GuildSnapshot => ({
@@ -42,7 +42,7 @@ describe('template naast de server', () => {
     const result = compare(
       snapshot({
         roles: [role('0', '@everyone', { isEveryone: true }), role('1', 'lid')],
-        categories: [{ id: '10', name: 'gesprekken', position: 0 }],
+        categories: [{ id: '10', name: 'gesprekken', position: 0, overwrites: [] }],
         channels: [channel('11', 'Algemeen', '10')],
       }),
       template,
@@ -58,7 +58,7 @@ describe('template naast de server', () => {
     const result = compare(
       snapshot({
         roles: [role('0', '@everyone', { isEveryone: true }), role('2', 'Oude rol')],
-        categories: [{ id: '10', name: 'Gesprekken', position: 0 }, { id: '20', name: 'Archief', position: 1 }],
+        categories: [{ id: '10', name: 'Gesprekken', position: 0, overwrites: [] }, { id: '20', name: 'Archief', position: 1, overwrites: [] }],
         channels: [channel('12', 'oud-kanaal', '10'), channel('21', 'stof', '20'), channel('30', 'los', null)],
       }),
       template,
@@ -77,7 +77,7 @@ describe('template naast de server', () => {
   it('meldt een kanaal met dezelfde naam maar een ander type', () => {
     const result = compare(
       snapshot({
-        categories: [{ id: '10', name: 'Gesprekken', position: 0 }],
+        categories: [{ id: '10', name: 'Gesprekken', position: 0, overwrites: [] }],
         channels: [channel('13', 'Lounge', '10', { type: 'text' })],
       }),
       template,

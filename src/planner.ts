@@ -1,10 +1,11 @@
 import { toBitfield } from './permissions.js';
-import type { GuildSnapshot, SnapshotChannel } from './snapshot.js';
+import type { GuildSnapshot, SnapshotChannel, SnapshotOverwrite } from './snapshot.js';
 import type {
   AutomodSpec,
   CategorySpec,
   ChannelSpec,
   EmojiSpec,
+  Overwrite,
   RoleSpec,
   ServerTemplate,
 } from './types.js';
@@ -92,6 +93,58 @@ function channelChanges(spec: ChannelSpec, existing: SnapshotChannel): string[] 
   return changes;
 }
 
+/**
+ * Staan de rechten van de template al zo op de server?
+ *
+ * De momentopname bewaart rolrechten per rol-id, de template noemt rollen bij
+ * hun sleutel. Vandaar de omweg via de naam. Bestaat een rol nog niet, dan valt
+ * er niets te vergelijken en moet hij dus gezet worden.
+ *
+ * Rechten voor rollen die de template niet noemt, tellen niet mee. Dat is geen
+ * slordigheid: de bot geeft zichzelf een sleutel tot kanalen die voor @everyone
+ * verstopt zijn, anders kan hij ze daarna niet meer bijwerken. Zou die meetellen,
+ * dan zou elk verstopt kanaal voor eeuwig "anders" blijven.
+ */
+function rechtenGelijk(
+  gewenst: readonly Overwrite[],
+  bestaand: readonly SnapshotOverwrite[],
+  rolIds: ReadonlyMap<string, string>,
+): boolean {
+  const opId = new Map(bestaand.map((overwrite) => [overwrite.roleId, overwrite]));
+  const genoemd = new Set<string>();
+
+  for (const overwrite of gewenst) {
+    const id = rolIds.get(overwrite.role);
+    if (!id) return false;
+    genoemd.add(id);
+
+    const nu = opId.get(id);
+    if (!nu) return false;
+    if (nu.allow !== toBitfield(overwrite.allow) || nu.deny !== toBitfield(overwrite.deny)) return false;
+  }
+
+  // Een recht dat de template kent maar niet meer noemt, hoort weg. Van rollen
+  // buiten de template blijven we af.
+  for (const overwrite of bestaand) {
+    if (genoemd.has(overwrite.roleId)) continue;
+    if ([...rolIds.values()].includes(overwrite.roleId)) return false;
+  }
+
+  return true;
+}
+
+/** Rolsleutel uit de template -> het echte rol-id op de server, via de naam. */
+function rolIdsVanTemplate(snapshot: GuildSnapshot, template: ServerTemplate): Map<string, string> {
+  const opNaam = new Map(snapshot.roles.map((role) => [normalize(role.name), role.id]));
+  const ids = new Map<string, string>([['@everyone', snapshot.id]]);
+
+  for (const role of template.roles) {
+    const id = opNaam.get(normalize(role.name));
+    if (id) ids.set(role.key, id);
+  }
+  return ids;
+}
+
 function planChannels(snapshot: GuildSnapshot, template: ServerTemplate, options: PlanOptions): {
   actions: PlanAction[];
   keptChannelIds: Set<string>;
@@ -101,6 +154,7 @@ function planChannels(snapshot: GuildSnapshot, template: ServerTemplate, options
   const keptChannelIds = new Set<string>();
   const keptCategoryIds = new Set<string>();
 
+  const rolIds = rolIdsVanTemplate(snapshot, template);
   const categoryByName = new Map(snapshot.categories.map((category) => [normalize(category.name), category]));
 
   const findChannel = (name: string, type: ChannelSpec['type'], parentId: string | null) =>
@@ -122,7 +176,7 @@ function planChannels(snapshot: GuildSnapshot, template: ServerTemplate, options
     }
 
     keptCategoryIds.add(existingCategory.id);
-    if (options.update) {
+    if (options.update && !rechtenGelijk(category.overwrites, existingCategory.overwrites, rolIds)) {
       actions.push({
         kind: 'update-category',
         channelId: existingCategory.id,
@@ -139,8 +193,15 @@ function planChannels(snapshot: GuildSnapshot, template: ServerTemplate, options
       }
       keptChannelIds.add(existing.id);
       if (!options.update) continue;
+
+      // Een kanaal erft de rechten van zijn categorie zodra het er zelf geen
+      // heeft. Dan is "leeg" precies goed en hoeft er niets gezet te worden.
       const changes = channelChanges(channel, existing);
-      changes.push('permissies');
+      if (channel.overwrites.length > 0 && !rechtenGelijk(channel.overwrites, existing.overwrites, rolIds)) {
+        changes.push('permissies');
+      }
+      if (changes.length === 0) continue;
+
       actions.push({
         kind: 'update-channel',
         channelId: existing.id,
@@ -159,8 +220,13 @@ function planChannels(snapshot: GuildSnapshot, template: ServerTemplate, options
     }
     keptChannelIds.add(existing.id);
     if (!options.update) continue;
+
     const changes = channelChanges(channel, existing);
-    changes.push('permissies');
+    if (channel.overwrites.length > 0 && !rechtenGelijk(channel.overwrites, existing.overwrites, rolIds)) {
+      changes.push('permissies');
+    }
+    if (changes.length === 0) continue;
+
     actions.push({ kind: 'update-channel', channelId: existing.id, channel, categoryName: null, changes });
   }
 

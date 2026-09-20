@@ -17,9 +17,9 @@ const snapshot: GuildSnapshot = {
     role('r3', 'Een bot', 3, { managed: true }),
     role('r4', 'Eigenaar', 8),
   ],
-  categories: [{ id: 'c1', name: 'Gesprekken', position: 0 }],
+  categories: [{ id: 'c1', name: 'Gesprekken', position: 0, overwrites: [] }],
   channels: [
-    { id: 'ch1', name: 'algemeen', type: 'text', parentId: 'c1', topic: null, nsfw: false, slowmodeSeconds: 0, userLimit: null, position: 0 },
+    { id: 'ch1', name: 'algemeen', type: 'text', parentId: 'c1', topic: null, nsfw: false, slowmodeSeconds: 0, userLimit: null, position: 0, overwrites: [] },
   ],
   emojis: [],
   automod: [{ id: 'a1', name: 'Spam' }],
