@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Server } from 'node:http';
-import { Collection, PermissionFlagsBits, PermissionsBitField, type Client } from 'discord.js';
+import { ChannelType, Collection, PermissionFlagsBits, PermissionsBitField, type Client } from 'discord.js';
 
 // config.ts leest de omgeving bij het importeren, dus die moet eerst staan.
 const werkmap = mkdtempSync(path.join(tmpdir(), 'clan-dashboard-'));
@@ -94,7 +94,11 @@ const guild = {
       ['role-corporal', rol('role-corporal', 'Corporal', 2)],
     ]),
   },
-  channels: { cache: new Collection() },
+  channels: {
+    cache: new Collection<string, unknown>([
+      ['kanaal-1', { id: 'kanaal-1', name: 'welkom', type: ChannelType.GuildText }],
+    ]),
+  },
   emojis: { cache: new Collection() },
   members: {
     fetchMe: async () => ({
@@ -297,6 +301,24 @@ describe('clan-api van het dashboard', () => {
     const data = await json(await get(`/api/clan/${GUILD_ID}`));
     expect(data.clans[0].fout).toMatch(/kent die clan of naam niet/);
     expect(data.rollen).toHaveLength(4);
+  });
+
+  it('biedt de kanalen aan voor het welkomstbericht', async () => {
+    const data = await json(await get(`/api/clan/${GUILD_ID}`));
+
+    expect(data.kanalen).toEqual([{ id: 'kanaal-1', naam: 'welkom' }]);
+    // Een nagemaakte client zegt niets over intents; dan hoort het scherm er
+    // ook niets over te beweren.
+    expect(data.ledenIntent).toBeNull();
+  });
+
+  it('bewaart of nieuwe leden begroet worden', async () => {
+    await stuur(`/api/clan/${GUILD_ID}`, 'PUT', {
+      instellingen: { clans: [], welkom: false, welkomKanaal: 'kanaal-1' },
+    });
+
+    const data = await json(await get(`/api/clan/${GUILD_ID}`));
+    expect(data.instellingen).toMatchObject({ welkom: false, welkomKanaal: 'kanaal-1' });
   });
 
   it('kent een server niet die er niet is', async () => {

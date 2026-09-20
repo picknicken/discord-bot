@@ -2,7 +2,15 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PermissionFlagsBits, type Client, type Guild } from 'discord.js';
+import {
+  ChannelType,
+  GatewayIntentBits,
+  PermissionFlagsBits,
+  type Client,
+  type Guild,
+  type GuildMember,
+  type TextChannel,
+} from 'discord.js';
 import { config } from '../config.js';
 import { missingPermissions, rolesAboveBot } from '../botPermissions.js';
 import { applyPlan } from '../applier.js';
@@ -666,8 +674,16 @@ async function handle(
         // een vaste lijst zou voor de helft niet kloppen.
         clans: await Promise.all(dossier.instellingen.clans.map((clan) => beschrijfClan(clan, rollen))),
         koppelingen: await beschrijfKoppelingen(guild, dossier),
+        // Kanalen waar het welkomstbericht in kan. Alleen tekstkanalen, en
+        // alleen die waar de bot ook echt mag praten.
+        kanalen: tekstkanalen(guild, me),
         magRollen: me.permissions.has(PermissionFlagsBits.ManageRoles),
         magBijnamen: me.permissions.has(PermissionFlagsBits.ManageNicknames),
+        // Zonder de Server Members Intent hoort de bot niemand binnenkomen, en
+        // blijft het welkomstbericht dus uit. Dat hoort op het scherm te staan
+        // en niet alleen in een logregel die niemand openslaat. null = niet te
+        // zien (demo, of een nagemaakte client): dan zeggen we er niets over.
+        ledenIntent: client.options?.intents?.has(GatewayIntentBits.GuildMembers) ?? null,
         demo: config.demo,
       });
     }
@@ -908,6 +924,23 @@ async function beschrijfKoppelingen(guild: Guild, dossier: ClanDossier) {
       inServer: Boolean(lid),
     };
   });
+}
+
+/**
+ * De tekstkanalen waar de bot mag praten, voor de keuze van het welkomstkanaal.
+ * In de demo bestaan die rechten niet; daar tellen alle tekstkanalen mee.
+ */
+function tekstkanalen(guild: Guild, me: GuildMember) {
+  return [...guild.channels.cache.values()]
+    .filter((kanaal): kanaal is TextChannel => kanaal.type === ChannelType.GuildText)
+    .filter((kanaal) => {
+      if (typeof kanaal.permissionsFor !== 'function') return true;
+      return Boolean(
+        kanaal.permissionsFor(me)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages]),
+      );
+    })
+    .map((kanaal) => ({ id: kanaal.id, naam: kanaal.name }))
+    .sort((a, b) => a.naam.localeCompare(b.naam));
 }
 
 /** De ledenlijst zonder de honderden regels zelf — die hoeft de pagina niet. */

@@ -44,6 +44,16 @@ export const clanInstellingenSchema = z.object({
   opruimen: z.boolean().default(true),
   /** Elk uur vanzelf bijwerken, zonder dat iemand op een knop drukt. */
   automatisch: z.boolean().default(false),
+  /**
+   * Nieuwe leden begroeten met de knop "Koppel je OSRS-naam". Zonder dat moet
+   * iedereen zelf /clan koppel ontdekken, en dat doet niemand.
+   */
+  welkom: z.boolean().default(true),
+  /**
+   * In welk kanaal dat bericht komt. Leeg = het systeemkanaal van de server,
+   * en anders het eerste kanaal waar de bot mag praten.
+   */
+  welkomKanaal: z.string().regex(/^[A-Za-z0-9_-]{1,32}$/).nullable().default(null),
 });
 
 export type ClanInstellingen = z.infer<typeof clanInstellingenSchema>;

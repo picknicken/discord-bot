@@ -1,9 +1,10 @@
-import { Client, Events, GatewayIntentBits, Team, type ClientApplication } from 'discord.js';
+import { Client, Events, Team, type ClientApplication } from 'discord.js';
 import { config } from './config.js';
 import { koppelBot } from './bot.js';
 import { zaaiTemplates } from './templates.js';
 import { authEnabled, createDashboard } from './dashboard/server.js';
 import { startAutomatischeSync } from './clan/synchroniseren.js';
+import { kiesIntents } from './util/intents.js';
 import { logger } from './util/logger.js';
 import { login } from './util/start.js';
 
@@ -20,7 +21,9 @@ if (gezaaid.length > 0) {
   logger.info(`Templates klaargezet in ${config.templatesDir}: ${gezaaid.join(', ')}`);
 }
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+// Welke intents we mogen vragen hangt af van een schakelaar in het Developer
+// Portal; vragen we er een die uitstaat, dan weigert Discord de hele inlog.
+const client = new Client({ intents: await kiesIntents(config.token) });
 
 // Dezelfde bot, dus /setup werkt ook als je alleen dit proces draait.
 koppelBot(client);

@@ -118,11 +118,12 @@ function paneelUitleg() {
     '<a href="https://wiseoldman.net/groups" target="_blank" rel="noopener">wiseoldman.net</a> — ' +
     'daar houdt je clan zijn ledenlijst met rangen bij.</li>' +
     '<li>Koppel per rang uit die clan een Discord-rol.</li>' +
-    '<li>Leden doen in Discord <code>/clan koppel rsn:hunnaam</code>. De bot zoekt die naam op in de ' +
-    'ledenlijst en geeft de rol die bij hun rang hoort.</li>' +
+    '<li>Nieuwe leden krijgen bij binnenkomst een knop <em>Koppel je OSRS-naam</em>. Eén tik, naam ' +
+    'invullen, klaar. (Of zelf: <code>/clan koppel</code>.)</li>' +
     '</ol>' +
-    '<small class="muted">Staat iemand in geen van de gekozen clans, dan krijgt hij hooguit de gastrol. ' +
-    'Clans die je hier niet kiest tellen niet mee.</small>' +
+    '<small class="muted">Staat iemand in geen van de gekozen clans, dan krijgt hij geen rol — zijn naam ' +
+    'blijft wel gekoppeld, dus zodra hij lid wordt telt hij vanzelf mee. Clans die je hier niet kiest ' +
+    'tellen niet mee.</small>' +
     '</div></div>'
   );
 }
@@ -134,6 +135,13 @@ function rechtenmelding() {
   }
   if (gegevens.instellingen.bijnaam && !gegevens.magBijnamen) {
     meldingen.push('Bijnamen gelijktrekken staat aan, maar de bot mist het recht "Bijnamen beheren".');
+  }
+  if (gegevens.instellingen.welkom && gegevens.ledenIntent === false) {
+    meldingen.push(
+      'Het welkomstbericht staat aan, maar de bot hoort niemand binnenkomen: zet in het Developer Portal ' +
+        'onder Bot → Privileged Gateway Intents de "Server Members Intent" aan en start de bot opnieuw. ' +
+        'Met /clan knop kun je ondertussen zelf een knop neerzetten.',
+    );
   }
   if (gegevens.demo) {
     meldingen.push('Demomodus: je kunt alles instellen en een voorbeeld bekijken, maar er verandert niets in Discord.');
@@ -223,10 +231,25 @@ function paneelExtra() {
     '<label class="check" style="margin-bottom:8px"><input type="checkbox" id="' + id + '"' + (aan ? ' checked' : '') + '>' +
     '<span>' + escapeHtml(label) + '<br><small class="muted">' + escapeHtml(uitleg) + '</small></span></label>';
 
+  const kanalen = (gegevens.kanalen ?? [])
+    .map(
+      (kanaal) =>
+        '<option value="' + escapeHtml(kanaal.id) + '"' +
+        (kanaal.id === gegevens.instellingen.welkomKanaal ? ' selected' : '') + '>#' +
+        escapeHtml(kanaal.naam) + '</option>',
+    )
+    .join('');
+
   return paneel(
     'server',
     'Verder nog',
-    '<label class="field"><span>Rol voor gekoppelde leden die in géén van de gekozen clans zitten</span>' +
+    vink('clanWelkom', gegevens.instellingen.welkom, 'Nieuwe leden begroeten met een koppelknop',
+      'Discord verraadt niet wie iemand in het spel is; dit vraagt het meteen, met één knop.') +
+      '<label class="field" style="margin-left:26px"><span>In welk kanaal</span>' +
+      '<select id="clanWelkomKanaal"><option value="">automatisch — het systeemkanaal</option>' +
+      kanalen + '</select></label>' +
+      '<label class="field"><span>Rol voor gekoppelde leden die in géén van de gekozen clans zitten ' +
+      '(leeg laten = geen rol)</span>' +
       rolKiezer('gast', null, gegevens.instellingen.gastRol ?? '') + '</label>' +
       vink('clanBijnaam', gegevens.instellingen.bijnaam, 'Bijnaam gelijktrekken met de OSRS-naam',
         'Handig als je in Discord wilt zien wie wie is in het spel.') +
@@ -398,6 +421,8 @@ function uitScherm() {
     bijnaam: el('clanBijnaam').checked,
     opruimen: el('clanOpruimen').checked,
     automatisch: el('clanAutomatisch').checked,
+    welkom: el('clanWelkom').checked,
+    welkomKanaal: el('clanWelkomKanaal')?.value || null,
   };
 }
 

@@ -22,6 +22,7 @@ Daarnaast is er een tweede tak, voor OSRS-clans (via WiseOldMan):
 | `/clan status` | Welke clans hier meetellen, en wat er over jou bekend is |
 | `/clan wie lid:<@lid>` | Beheer: welke OSRS-naam hoort bij dit lid |
 | `/clan sync` | Beheer: werkt de clanrollen van iedereen bij |
+| `/clan knop` | Beheer: zet een knop neer waarmee leden hun naam koppelen |
 
 Hetzelfde kan lokaal via het dashboard (`npm run dashboard`), inclusief het bewerken van
 templates en het instellen van de clanrangen.
@@ -541,18 +542,46 @@ regel die zich zonder voorrangslijstje laat uitleggen: elke clan die je kiest te
 
 ### Wie is wie
 
-Leden koppelen zichzelf met `/clan koppel rsn:<naam>`. De bot zoekt die naam op in de
-ledenlijsten van de gekozen clans en zet de bijbehorende rollen erop — allemaal in hetzelfde
-antwoord, dat alleen zij zien:
+Dit is het enige stukje dat niet vanzelf gaat, en dat kan ook niet: **Discord weet alleen
+iemands Discord-naam.** Welk OSRS-account daarachter zit weet niemand — WiseOldMan niet, en de
+bot dus ook niet. Elk lid moet één keer zeggen hoe hij in het spel heet. Daarna gaat alles
+vanzelf.
+
+Daarom staat er een knop klaar. Wie de server binnenkomt krijgt meteen een bericht:
 
 ```
-/clan koppel rsn:Tess
--> Tess staat in Mijn Clan als Captain.
-   Krijgt @Captain, @Clanlid.
+👋 Welkom! Zit je in de clan?
+   Zit je in Mijn Clan? Koppel dan je OSRS-naam, dan krijg je meteen
+   de rol die bij je rang hoort.
+   [ 🎣 Koppel je OSRS-naam ]
 ```
 
-Staat iemand er niet in, dan vraagt de bot WiseOldMan in welke clans hij wél zit. Dat scheelt
-het verschil tussen *"je naam staat verkeerd"* en *"je zit in een clan die hier niet meetelt"*.
+Eén tik, naam invullen in het venstertje, klaar — geen commando's typen, wat op een telefoon
+een groot verschil is. Het antwoord ziet alleen hij:
+
+```
+Tess staat in Mijn Clan als Captain.
+Krijgt @Captain, @Clanlid.
+```
+
+Voor wie er al was: `/clan knop` zet dezelfde knop vast in het kanaal waar je hem uitvoert. Die
+blijft werken, ook voor wie later komt. En `/clan koppel rsn:<naam>` bestaat gewoon nog.
+
+**Staat iemand niet in een van de gekozen clans, dan krijgt hij geen rol** — maar zijn naam
+blijft wel gekoppeld. Zo weet je alsnog wie wie is in het spel, en zodra hij lid wordt telt hij
+bij de eerstvolgende ronde vanzelf mee. Wil je zulke mensen tóch een rol geven (bijvoorbeeld
+`@Gast`), vul dan de gastrol in; laat je hem leeg, dan gebeurt er niets.
+
+De bot vraagt WiseOldMan bovendien in welke clans zo iemand wél zit. Dat scheelt het verschil
+tussen *"je naam staat verkeerd"* en *"je zit in een clan die hier niet meetelt"*.
+
+#### Server Members Intent
+
+Om binnenkomers te kúnnen begroeten moet de bot ze zien binnenkomen, en dat is bij Discord een
+schakelaar: **Developer Portal → jouw applicatie → Bot → Privileged Gateway Intents → Server
+Members Intent**. Staat hij uit, dan start de bot gewoon (hij vraagt er dan niet om — anders
+zou Discord de hele inlog weigeren), maar blijft het welkomstbericht achterwege. Je ziet het
+in het log en in het clanscherm, en `/clan knop` werkt ondertussen wel.
 
 In het dashboard staan alle koppelingen bij elkaar: wie het deed (zelf of een beheerder), waar
 het lid voor het laatst gezien is, en wie er niet meer in de server zit. Handmatig koppelen kan
@@ -641,7 +670,10 @@ src/
   botPermissions.ts     de enige lijst met rechten die de bot vraagt
   commands/setup.ts     /setup met list, preview, apply, export
   commands/clan.ts      /clan: koppelen, bijwerken en opzoeken van clanrangen
+  events/guildMemberAdd.ts  nieuwe leden begroeten met de koppelknop
   clan/wiseoldman.ts    de WiseOldMan-API: clans zoeken, ledenlijst, met cache
+  clan/koppelen.ts      een naam koppelen en er meteen de juiste rollen bij zetten
+  clan/knop.ts          de knop "Koppel je OSRS-naam" en het venstertje erachter
   clan/rangen.ts        clanrang + instellingen -> welke rol, als plan
   clan/opslag.ts        gekozen clans en koppelingen per server, op schijf
   clan/synchroniseren.ts  plan maken, uitvoeren en elk uur vanzelf bijwerken
@@ -653,6 +685,7 @@ src/
   dashboard/editor.js   de klik-editor voor rollen, kanalen en permissies
   dashboard/ui.js       iconen, meldingen, dialogen en het thema
   dashboard/clan.js     het clanscherm: clans kiezen, rangen, leden en bijwerken
+  util/intents.ts       welke intents de bot mag vragen, volgens het portal
 assets/logo.png         avatar en applicatie-icoon
   types.ts              zod-schema en validatie van templates
   templates.ts          templates inlezen uit de map

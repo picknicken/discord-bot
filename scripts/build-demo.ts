@@ -47,10 +47,12 @@ function demoClan() {
 
   const instellingen = {
     clans: [clan],
-    gastRol: '24',
+    gastRol: null,
     bijnaam: false,
     opruimen: true,
     automatisch: true,
+    welkom: true,
+    welkomKanaal: null,
   };
 
   const koppelingen = [
@@ -110,8 +112,14 @@ function demoClan() {
           gezienOp: lid ? opgehaaldOp : null,
         };
       }),
+      kanalen: [
+        { id: 'k1', naam: 'welkom' },
+        { id: 'k2', naam: 'algemeen' },
+      ],
       magRollen: true,
       magBijnamen: false,
+      // In de demo is er geen echte client, dus daar valt niets over te zeggen.
+      ledenIntent: null,
       demo: true,
     },
     plan,

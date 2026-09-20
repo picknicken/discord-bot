@@ -8,15 +8,11 @@ import {
 } from 'discord.js';
 import { config } from '../config.js';
 import { serverToegestaan } from '../toegestaan.js';
-import { geldigeNaam, haalSpelerClans, netteRang, normaliseerNaam, WomFout } from '../clan/wiseoldman.js';
-import {
-  alGekoppeldAan,
-  koppel,
-  leesDossier,
-  ontkoppel,
-  type ClanDossier,
-} from '../clan/opslag.js';
+import { netteRang } from '../clan/wiseoldman.js';
+import { leesDossier, ontkoppel, type ClanDossier } from '../clan/opslag.js';
 import { synchroniseerServer } from '../clan/synchroniseren.js';
+import { koppelEnMeld, werkBij } from '../clan/koppelen.js';
+import { koppelBericht } from '../clan/knop.js';
 import { logger } from '../util/logger.js';
 
 /**
@@ -52,10 +48,15 @@ export const data = new SlashCommandBuilder()
   )
   .addSubcommand((sub) =>
     sub.setName('sync').setDescription('Beheer: werk de clanrollen van iedereen bij'),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('knop')
+      .setDescription('Beheer: zet hier een knop neer waarmee leden hun OSRS-naam koppelen'),
   );
 
-/** De twee subcommando's die iets over andere mensen zeggen of doen. */
-const ALLEEN_BEHEER = new Set(['wie', 'sync']);
+/** De subcommando's die iets over andere mensen zeggen of doen. */
+const ALLEEN_BEHEER = new Set(['wie', 'sync', 'knop']);
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.inGuild() || !interaction.guild) {
@@ -94,6 +95,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       return handleWie(interaction);
     case 'sync':
       return handleSync(interaction);
+    case 'knop':
+      return handleKnop(interaction);
     default:
       await interaction.reply({ content: 'Onbekend subcommando.', flags: MessageFlags.Ephemeral });
   }
@@ -101,40 +104,21 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
 async function handleKoppel(interaction: ChatInputCommandInteraction): Promise<void> {
   const guild = interaction.guild as Guild;
-  const rsn = interaction.options.getString('rsn', true).trim();
-
-  if (!geldigeNaam(rsn)) {
-    await interaction.reply({
-      content: `"${rsn}" kan geen OSRS-naam zijn: maximaal 12 tekens, alleen letters, cijfers, spaties en streepjes.`,
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+  const rsn = interaction.options.getString('rsn', true);
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const dossier = await leesDossier(config.clanDir, guild.id);
+  // Precies hetzelfde pad als de knop "Koppel je OSRS-naam", zodat beide
+  // hetzelfde doen en hetzelfde antwoorden.
+  const uitkomst = await koppelEnMeld({
+    clanDir: config.clanDir,
+    guild,
+    discordId: interaction.user.id,
+    rsn,
+    door: 'zelf',
+  });
 
-  const bezet = alGekoppeldAan(dossier, rsn, interaction.user.id);
-  if (bezet) {
-    // Twee mensen op dezelfde naam betekent dat de een de rol van de ander
-    // krijgt. Dat moet een beheerder oplossen, niet een van de twee.
-    await interaction.editReply(
-      `"${rsn}" staat al gekoppeld aan <@${bezet}>. Klopt dat niet? Vraag een beheerder om het recht te zetten.`,
-    );
-    return;
-  }
-
-  await koppel(config.clanDir, guild.id, interaction.user.id, rsn, 'zelf');
-
-  if (dossier.instellingen.clans.length === 0) {
-    await interaction.editReply(
-      `Genoteerd: **${rsn}**. Er is voor deze server nog geen clan gekozen, dus er is nog geen rol aan te geven.`,
-    );
-    return;
-  }
-
-  await interaction.editReply(await werkBij(guild, interaction.user.id, rsn));
+  await interaction.editReply(uitkomst.bericht);
 }
 
 async function handleMij(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -154,7 +138,7 @@ async function handleMij(interaction: ChatInputCommandInteraction): Promise<void
     return;
   }
 
-  await interaction.editReply(await werkBij(guild, interaction.user.id, eigen.rsn));
+  await interaction.editReply((await werkBij(config.clanDir, guild, interaction.user.id, eigen.rsn)).bericht);
 }
 
 async function handleOntkoppel(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -259,82 +243,40 @@ async function handleSync(interaction: ChatInputCommandInteraction): Promise<voi
   }
 }
 
+/**
+ * Een knop neerzetten die blijft staan. Het welkomstbericht bereikt alleen wie
+ * ná vandaag binnenkomt; hiermee kunnen de leden die er al zijn hem ook vinden.
+ */
+async function handleKnop(interaction: ChatInputCommandInteraction): Promise<void> {
+  const guild = interaction.guild as Guild;
+  const dossier = await leesDossier(config.clanDir, guild.id);
+
+  if (dossier.instellingen.clans.length === 0) {
+    await interaction.reply({
+      content: 'Kies eerst een clan in het dashboard, anders valt er nog niets te koppelen.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (!interaction.channel?.isSendable()) {
+    await interaction.reply({
+      content: 'Hier kan de bot geen bericht plaatsen. Probeer het in een ander kanaal.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  await interaction.channel.send(koppelBericht(dossier));
+  await interaction.reply({ content: 'De knop staat er. Hij blijft werken, ook voor wie later komt.', flags: MessageFlags.Ephemeral });
+}
+
 // --- gedeeld ---------------------------------------------------------------
 
 /** "Tess — Corporal in Mijn Clan", of gewoon de naam als er nog niets gezien is. */
 function beschrijfKoppeling(rsn: string, gezien: Array<{ clan: string; rang: string }>): string {
   if (gezien.length === 0) return `**${rsn}** — clan nog onbekend`;
   return `**${rsn}** — ${gezien.map((plek) => `${netteRang(plek.rang)} in ${plek.clan}`).join(', ')}`;
-}
-
-/** Eén lid bijwerken en er een leesbare zin over teruggeven. */
-async function werkBij(guild: Guild, discordId: string, rsn: string): Promise<string> {
-  let uitkomst;
-  try {
-    uitkomst = await synchroniseerServer(config.clanDir, guild, {
-      alleen: [discordId],
-      reden: 'Clanrol bijgewerkt via /clan',
-    });
-  } catch (error) {
-    if (error instanceof WomFout) return `Genoteerd, maar WiseOldMan antwoordde niet: ${error.message}`;
-    throw error;
-  }
-
-  const gezocht = normaliseerNaam(rsn);
-  const staatIn = uitkomst.groepen.filter((groep) =>
-    groep.leden.some((lid) => normaliseerNaam(lid.naam) === gezocht),
-  );
-
-  if (staatIn.length === 0) return await buitenDeClans(rsn, uitkomst.groepen.map((groep) => groep.naam));
-
-  const wissel = uitkomst.plan.wissels[0];
-
-  // "Tess staat in Mijn Clan als Captain." — eerst waar je staat, dan pas wat
-  // dat voor je rollen betekent.
-  const plekken = wissel
-    ? wissel.gevonden.map((plek) => `**${plek.clan}** als **${netteRang(plek.rang)}**`)
-    : staatIn.map((groep) => `**${groep.naam}**`);
-
-  const regels = [`**${rsn}** staat in ${plekken.join(' en ')}.`];
-
-  if (!wissel) regels.push('Je rollen klopten al.');
-  else regels.push(wissel.wijziging.charAt(0).toUpperCase() + wissel.wijziging.slice(1) + '.');
-
-  if (uitkomst.mislukt > 0) regels.push(`Let op: ${uitkomst.fouten[0] ?? 'aanpassen mislukte'}`);
-
-  return regels.join('\n');
-}
-
-/**
- * Wie niet gevonden is wil vooral weten waarom. WiseOldMan weet in welke clans
- * iemand wél zit; dat scheelt het verschil tussen "je naam staat verkeerd" en
- * "je zit in een clan die hier niet meetelt".
- */
-async function buitenDeClans(rsn: string, gekozen: string[]): Promise<string> {
-  const waar = gekozen.length === 1 ? gekozen[0] : `een van deze clans: ${gekozen.join(', ')}`;
-
-  let elders: Awaited<ReturnType<typeof haalSpelerClans>> = [];
-  try {
-    elders = await haalSpelerClans(rsn);
-  } catch (error) {
-    // Niet kunnen kijken is geen reden om helemaal niets te zeggen.
-    if (!(error instanceof WomFout)) throw error;
-    logger.warn(`Clans opzoeken mislukte voor "${rsn}"`, error);
-  }
-
-  const buiten = elders.filter((clan) => !gekozen.some((naam) => normaliseerNaam(naam) === normaliseerNaam(clan.naam)));
-
-  if (buiten.length > 0) {
-    return (
-      `**${rsn}** staat niet in ${waar}, maar wel in ` +
-      `${buiten.map((clan) => `**${clan.naam}**`).join(', ')}. Die telt hier niet mee.`
-    );
-  }
-
-  return (
-    `**${rsn}** staat niet in ${waar}. Klopt je naam precies? ` +
-    'Is dat zo, dan staat hij nog niet in de ledenlijst op WiseOldMan — die wordt door de clan zelf bijgehouden.'
-  );
 }
 
 /**
