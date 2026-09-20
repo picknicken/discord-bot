@@ -516,7 +516,11 @@ Milan     — (staat er niet in) ->   @Gast
 
 ### Instellen
 
-Dashboard → **Clan**. Per server:
+Eerst eenmalig `/clan` aanmelden bij Discord: `npm run deploy` (met `DISCORD_DEV_GUILD_ID` op
+je testserver staat het commando daar meteen klaar), of **Actions → Commands registreren**.
+Zonder die stap bestaat `/clan` niet in Discord.
+
+Daarna, in het dashboard → **Clan**. Per server:
 
 1. **Clans die meetellen** — zoek je clan op naam en klik **Laat meetellen**. Alleen de clans
    die je hier kiest doen mee; iemand die in een andere clan zit telt niet. Je kunt er meer
@@ -770,6 +774,12 @@ uit te voeren. De log toont regel voor regel wat er gebeurde.
 
 Handig voor een eerste test, en voor een server inrichten terwijl je onderweg bent. Het is
 geen vervanging van het dashboard: bewerken doe je daar, uitvoeren kan hier.
+
+**Commando's aanmelden bij Discord** gaat net zo: **Actions → Commands registreren → Run
+workflow**. Vul je testserver-id in, dan staan `/setup` en `/clan` daar meteen klaar; laat je
+het leeg, dan gelden ze overal maar kan het tot een uur duren. Dit is nodig zodra er een
+commando bijkomt of verandert — tot dat moment bestaat `/clan` niet in Discord. Op een
+computer doet `npm run deploy` hetzelfde.
 
 Hetzelfde commando werkt ook gewoon in een terminal:
 
