@@ -4,7 +4,7 @@ import { cpSync, mkdirSync } from 'node:fs';
 // mee naar dist/, anders draait een gebouwde versie zonder frontend.
 mkdirSync('dist/dashboard', { recursive: true });
 
-for (const file of ['index.html', 'app.js', 'editor.js', 'ui.js']) {
+for (const file of ['index.html', 'app.js', 'editor.js', 'ui.js', 'clan.js']) {
   cpSync(`src/dashboard/${file}`, `dist/dashboard/${file}`);
 }
 

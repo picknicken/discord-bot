@@ -1,11 +1,24 @@
-import { Events, MessageFlags, type Client } from 'discord.js';
+import { Events, MessageFlags, type AutocompleteInteraction, type ChatInputCommandInteraction, type Client } from 'discord.js';
 import * as setup from './commands/setup.js';
+import * as clan from './commands/clan.js';
 import { handleGuildCreate } from './events/guildCreate.js';
 import { logger } from './util/logger.js';
 
 /**
- * Alles wat de bot in Discord zelf doet: het /setup-commando en het welkom als
- * hij aan een server wordt toegevoegd.
+ * De commando's van deze bot. Twee takken: /setup richt een server in vanuit een
+ * template, /clan hangt er de clanrangen uit RuneScape aan. Ze staan hier naast
+ * elkaar zodat het registreren, het afhandelen en het uitrollen naar Discord
+ * allemaal uit dezelfde lijst lezen.
+ */
+export const COMMANDS: Array<{
+  data: { name: string; toJSON: () => unknown };
+  execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
+}> = [setup, clan];
+
+/**
+ * Alles wat de bot in Discord zelf doet: de commando's en het welkom als hij aan
+ * een server wordt toegevoegd.
  *
  * Staat hier apart zodat zowel `npm start` (alleen de bot) als het dashboard
  * hetzelfde koppelt. Draai je het dashboard ergens live, dan werkt /setup daar
@@ -22,13 +35,15 @@ export function koppelBot(client: Client): void {
 
   client.on(Events.InteractionCreate, async (interaction) => {
     try {
-      if (interaction.isAutocomplete() && interaction.commandName === setup.data.name) {
-        await setup.autocomplete(interaction);
+      if (interaction.isAutocomplete()) {
+        const command = COMMANDS.find((kandidaat) => kandidaat.data.name === interaction.commandName);
+        await command?.autocomplete?.(interaction);
         return;
       }
 
-      if (interaction.isChatInputCommand() && interaction.commandName === setup.data.name) {
-        await setup.execute(interaction);
+      if (interaction.isChatInputCommand()) {
+        const command = COMMANDS.find((kandidaat) => kandidaat.data.name === interaction.commandName);
+        if (command) await command.execute(interaction);
       }
     } catch (error) {
       logger.error('Interactie mislukt', error);

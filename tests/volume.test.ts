@@ -38,7 +38,7 @@ describe('templates klaarzetten op een leeg volume', () => {
 });
 
 describe('paden volgen het volume', () => {
-  it('zet templates, back-ups en geschiedenis op het volume', async () => {
+  it('zet templates, back-ups, geschiedenis en clankoppelingen op het volume', async () => {
     const volume = mkdtempSync(path.join(tmpdir(), 'railway-'));
     mkdirSync(path.join(volume, 'templates'), { recursive: true });
 
@@ -48,11 +48,13 @@ describe('paden volgen het volume', () => {
     delete process.env.TEMPLATES_DIR;
     delete process.env.BACKUPS_DIR;
     delete process.env.HISTORY_DIR;
+    delete process.env.CLAN_DIR;
 
     const { config } = await import('../src/config.js');
 
     expect(config.templatesDir).toBe(`${volume}/templates`);
     expect(config.backupsDir).toBe(`${volume}/backups`);
     expect(config.historyDir).toBe(`${volume}/history`);
+    expect(config.clanDir).toBe(`${volume}/clan`);
   });
 });

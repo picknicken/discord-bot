@@ -261,6 +261,21 @@
   .empty { text-align: center; padding: 26px 14px; color: var(--muted); }
   .empty .icon { width: 22px; height: 22px; margin-bottom: 8px; opacity: .6; }
 
+  /* ---------- clanrangen ---------- */
+  /* Twaalf rangen met een rol ernaast: een raster leest hier prettiger dan een
+     rij losse velden, want je kijkt van boven naar beneden of er gaten in zitten. */
+  .rangen { display: grid; grid-template-columns: minmax(120px, 160px) minmax(0, 1fr) auto; gap: 6px 10px; align-items: center; }
+  .rangen .rang { font-size: 12.5px; color: var(--text-2); }
+  .rangen select { width: 100%; }
+  .rangen .telling { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 4.5rem; text-align: right; }
+  @media (max-width: 620px) { .rangen { grid-template-columns: minmax(0, 1fr) auto; } .rangen .rang { grid-column: 1 / -1; } }
+
+  .wissel { display: flex; gap: 9px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--border); }
+  .wissel:first-child { border-top: 0; }
+  .wissel .icon { margin-top: 2px; color: var(--muted); }
+  .wissel strong { display: block; font-size: 13px; }
+  .wissel small { display: block; font-size: 11.5px; }
+
   /* ---------- editor ---------- */
   textarea#editor {
     width: 100%; min-height: 460px; font-family: var(--mono); font-size: 12.5px;
@@ -689,6 +704,7 @@
   <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 8h11a5 5 0 0 1 0 10H9"/><path d="M7 4 3 8l4 4"/></symbol>
   <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
   <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></symbol>
+  <symbol id="i-crown" viewBox="0 0 24 24"><path d="M4 18h16M3 6l4.5 4L12 4l4.5 6L21 6l-1.6 9H4.6Z"/></symbol>
   <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></symbol>
 </defs></svg>
 
@@ -720,6 +736,8 @@
   <button data-scherm="templates"><svg class="icon"><use href="#i-folder"/></svg>Templates<span class="telling" id="telTemplates"></span></button>
   <button data-scherm="servers"><svg class="icon"><use href="#i-shield"/></svg>Servers<span class="telling" id="telServers"></span></button>
   <button data-scherm="uitrollen"><svg class="icon"><use href="#i-zap"/></svg>Uitrollen</button>
+  <div class="kop">RuneScape</div>
+  <button data-scherm="clan"><svg class="icon"><use href="#i-crown"/></svg>Clan<span class="telling" id="telClan"></span></button>
   <div class="kop">Terugkijken</div>
   <button data-scherm="geschiedenis"><svg class="icon"><use href="#i-history"/></svg>Geschiedenis</button>
   <button data-scherm="backups"><svg class="icon"><use href="#i-archive"/></svg>Back-ups</button>
@@ -767,6 +785,17 @@
   <div class="row" style="margin-top:16px">
     <button id="exportGuild" class="btn-sm"><svg class="icon sm"><use href="#i-download"/></svg>Server opslaan als template</button>
   </div>
+</section>
+
+<section class="view" id="view-clan">
+  <div class="viewkop">
+    <div class="grow">
+      <h2>Clan</h2>
+      <p>Wie in welke RuneScape-clan zit, en welke Discord-rol daarbij hoort.</p>
+    </div>
+    <select id="clanServer" title="Voor welke server"></select>
+  </div>
+  <div id="clanInhoud"></div>
 </section>
 
 <section class="view" id="view-geschiedenis">

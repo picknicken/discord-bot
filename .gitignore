@@ -7,8 +7,10 @@ dist/
 .DS_Store
 coverage/
 
-# Lokale momentopnames en template-historie
+# Lokale momentopnames, template-historie en clankoppelingen
 backups/
 history/
+# Met een streep ervoor: alleen de datamap in de hoofdmap, niet src/clan/.
+/clan/
 .demo/
 .avatar-hash

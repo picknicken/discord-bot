@@ -12,8 +12,19 @@ kanalen, permissie-overwrites en serverinstellingen — in een keer, reproduceer
 | `/setup apply template:<naam> bevestig:<servernaam>` | Voert het plan uit |
 | `/setup export` | Exporteert de huidige server als template-bestand (JSON-bijlage) |
 
+Daarnaast is er een tweede tak, voor RuneScape-clans:
+
+| Commando | Wat het doet |
+| --- | --- |
+| `/clan koppel rsn:<naam>` | Koppelt je RuneScape-naam en geeft je de rol die bij je clanrang hoort |
+| `/clan mij` | Werkt je eigen clanrol nu bij |
+| `/clan ontkoppel` | Haalt je naam en je clanrollen weer weg |
+| `/clan status` | Wat er voor deze server is ingesteld, en wat er over jou bekend is |
+| `/clan wie lid:<@lid>` | Beheer: welke RuneScape-naam hoort bij dit lid |
+| `/clan sync` | Beheer: werkt de clanrollen van iedereen bij |
+
 Hetzelfde kan lokaal via het dashboard (`npm run dashboard`), inclusief het bewerken van
-templates.
+templates en het instellen van de clanrangen.
 
 Bij het joinen van een server controleert de bot zichzelf en post hij een kort bericht:
 of hij klaar is voor gebruik, of precies welk recht ontbreekt met een link die het herstelt.
@@ -485,6 +496,98 @@ prima: dat veld wordt genegeerd.)
 De snelste manier aan een eigen template te komen: richt een server met de hand in en
 draai `/setup export`.
 
+## Clanrangen (RuneScape)
+
+De tweede tak van deze bot. `/setup` bouwt de server; dit bepaalt wie er binnen welke rol
+krijgt, op basis van de rang die iemand in het spel heeft.
+
+```
+RuneScape                Discord
+Sparc Mac — Owner    ->   @Owner  + @Clanlid
+Tess      — Captain  ->   @Captain + @Clanlid
+Bram      — (weg)    ->   @Gast
+```
+
+### Instellen
+
+Dashboard → **Clan**. Per server:
+
+1. **Welke clan** — de clannaam precies zoals hij in RuneScape heet. Met **Ledenlijst ophalen**
+   controleer je meteen of hij klopt: er verschijnt hoeveel leden er zijn en hoeveel er op elke
+   rang staan.
+2. **Rang naar rol** — per clanrang een Discord-rol. Staan de rollen er al met dezelfde naam,
+   dan vult **Invullen op rolnaam** ze in één klik in; staan ze er nog niet, dan maakt
+   **Ontbrekende rollen aanmaken** ze aan. Je hoeft niet alle twaalf rangen in te vullen: wie
+   op een rang staat zonder rol zakt door naar de eerstvolgende lagere rang die er wél een
+   heeft. Een clan die alleen `@Leiding` en `@Lid` uitdeelt vult dus twee regels in.
+3. **Verder nog** — een rol voor iedereen in de clan (bovenop de rangrol), een rol voor
+   gekoppelde leden die niet (meer) in de clan zitten, de bijnaam in Discord gelijktrekken met
+   de RuneScape-naam, en of de bot elk uur vanzelf bijwerkt.
+4. **Rollen bijwerken** — eerst **Voorbeeld**: per lid één regel met wat hij krijgt en verliest.
+   Pas daarna de knop die het echt doet.
+
+### Wie is wie
+
+Leden koppelen zichzelf met `/clan koppel rsn:<naam>`. De bot kijkt de naam op bij Jagex,
+controleert of die in de clan staat en zet de bijbehorende rol erop — allemaal in hetzelfde
+antwoord, dat alleen zij zien. Staat iemand in een andere clan, dan zegt hij welke.
+
+In het dashboard staan alle koppelingen bij elkaar: wie het deed (zelf of een beheerder),
+welke rang er voor het laatst gezien is, en wie er niet meer in de server zit. Handmatig
+koppelen kan daar ook, voor een lid dat het zelf niet lukt. Eén RuneScape-naam kan maar aan
+één Discord-account vastzitten; de tweede poging wordt geweigerd in plaats van stilletjes
+overgenomen.
+
+### Wat de bot niet aanraakt
+
+- **Alleen de rollen die hier zijn ingesteld.** De rangrollen, de lidrol en de gastrol. Een lid
+  dat daarnaast `@Eventteam` heeft, houdt die — ook bij een promotie, een degradatie of het
+  verlaten van de clan.
+- **Alleen gekoppelde leden.** Wie geen naam heeft opgegeven blijft buiten schot. In het
+  voorbeeld zie je wel welke clanleden nog geen koppeling hebben.
+- **Niets zonder dat het kan.** Een rol boven de rol van de bot, of een lid dat boven hem
+  staat: dat staat in het voorbeeld als waarschuwing, in plaats van dat het halverwege misgaat.
+
+### Waar de gegevens vandaan komen
+
+Twee openbare eindpunten van Jagex, zonder sleutel en zonder account:
+
+| Waarvoor | Adres |
+| --- | --- |
+| Ledenlijst met ieders clanrang | `secure.runescape.com/m=clan-hiscores/members_lite.ws?clanName=...` |
+| In welke clan zit deze speler | `services.runescape.com/m=website-data/playerDetails.ws?names=[...]` |
+
+Dit is RuneScape 3. Old School RuneScape heeft geen clan-API; daar is dit dus niet op te
+gebruiken.
+
+De ledenlijst wordt vijf minuten onthouden, zodat het openen van een scherm niet elke keer
+een verzoek is. **Ledenlijst ophalen** en `/clan sync` halen hem altijd vers op. Jagex werkt
+die lijst zelf ongeveer eens per dag bij: wie vandaag lid is geworden, staat er morgen in.
+Ligt RuneScape eruit, dan zegt de bot dat en verandert hij niets — een lege ledenlijst zou
+anders betekenen dat iedereen zijn rol kwijtraakt.
+
+### Vanzelf bijwerken
+
+Promoties gebeuren in het spel, en daar komt geen Discord-melding van. Staat **Elk uur vanzelf
+bijwerken** aan, dan loopt de bot dat interval langs alle servers waar dat aanstaat. Het
+interval zet je met `CLAN_SYNC_MINUTEN` (0 = nooit). Zowel `npm start` als `npm run dashboard`
+doet dit; draai je ze allebei tegelijk, zet het dan in één van de twee uit.
+
+### Opslag
+
+Eén JSON-bestand per server in `CLAN_DIR` (standaard `./clan`, of `clan/` op een aangekoppeld
+volume). Daarin staan de instellingen en de koppelingen. Te openen, te kopiëren en met de hand
+te repareren. Staat er onzin in, dan stopt de bot met een melding in plaats van het als leeg te
+lezen — anders zou de eerstvolgende synchronisatie iedereen zijn rol afnemen.
+
+### Rechten
+
+De bot heeft **Rollen beheren** nodig, en zijn eigen rol moet bóven de rollen staan die hij
+uitdeelt. Voor het gelijktrekken van bijnamen komt daar **Bijnamen beheren** bij. De eigenaar
+van de server kan door niemand hernoemd worden, ook niet door een bot met alle rechten; zijn
+rollen lukken wel. Er is geen privileged intent nodig: de bot haalt alleen de leden op die
+gekoppeld zijn, op id.
+
 ## Hoe het werkt
 
 ```
@@ -513,6 +616,11 @@ src/
   invite.ts             invite-link printen
   botPermissions.ts     de enige lijst met rechten die de bot vraagt
   commands/setup.ts     /setup met list, preview, apply, export
+  commands/clan.ts      /clan: koppelen, bijwerken en opzoeken van clanrangen
+  clan/runescape.ts     de twee eindpunten van Jagex, met cache
+  clan/rangen.ts        clanrang + instellingen -> welke rol, als plan
+  clan/opslag.ts        instellingen en koppelingen per server, op schijf
+  clan/synchroniseren.ts  plan maken, uitvoeren en elk uur vanzelf bijwerken
   events/guildCreate.ts zelfcontrole en welkomstbericht bij het joinen
   dashboard.ts          start de bot met het lokale dashboard ernaast
   dashboard/server.ts   API voor templates, plannen, controleren en toepassen
@@ -520,6 +628,7 @@ src/
   dashboard/app.js      dashboardlogica in de browser
   dashboard/editor.js   de klik-editor voor rollen, kanalen en permissies
   dashboard/ui.js       iconen, meldingen, dialogen en het thema
+  dashboard/clan.js     het clanscherm: clan, rangen, leden en bijwerken
 assets/logo.png         avatar en applicatie-icoon
   types.ts              zod-schema en validatie van templates
   templates.ts          templates inlezen uit de map
@@ -596,8 +705,8 @@ HISTORY_DIR=./history
   `redirectUri` — dat is precies de tekst die in het portal moet staan.
 - `GUILD_IDS` leeg = geen beperking. Vul je er server-ids in (met komma's ertussen), dan mag
   de bot alleen daar iets.
-- `TEMPLATES_DIR`, `BACKUPS_DIR` en `HISTORY_DIR` mag je weglaten zodra er een volume hangt —
-  zie hieronder.
+- `TEMPLATES_DIR`, `BACKUPS_DIR`, `HISTORY_DIR` en `CLAN_DIR` mag je weglaten zodra er een
+  volume hangt — zie hieronder.
 
 #### Een volume, anders ben je alles kwijt bij elke deploy
 
@@ -617,12 +726,13 @@ Als mountpad vul je `/data` in. Kies niet `/app`: daar staat de code zelf. Railw
 service daarna en zet zelf `RAILWAY_VOLUME_MOUNT_PATH=/data` in de omgeving — die hoef je niet
 zelf aan te maken.
 
-Meer hoef je niet te doen: staat die variabele er, dan verhuizen templates, back-ups en
-geschiedenis vanzelf mee naar `/data/templates`, `/data/backups` en `/data/history`. De
+Meer hoef je niet te doen: staat die variabele er, dan verhuizen templates, back-ups,
+geschiedenis en de clankoppelingen vanzelf mee naar `/data/templates`, `/data/backups`,
+`/data/history` en `/data/clan`. De
 meegeleverde templates worden bij de eerste start naar het lege volume gekopieerd — en daarna
 nooit meer, anders zou je eigen versie elke herstart overschreven worden.
 
-Had je `TEMPLATES_DIR`, `BACKUPS_DIR` of `HISTORY_DIR` zelf ingevuld? Haal ze dan weg, anders
+Had je `TEMPLATES_DIR`, `BACKUPS_DIR`, `HISTORY_DIR` of `CLAN_DIR` zelf ingevuld? Haal ze dan weg, anders
 winnen die van het volume. Heb je liever een ander pad: `DATA_DIR` doet hetzelfde op een host
 die geen Railway is.
 

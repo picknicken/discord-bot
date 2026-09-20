@@ -1,9 +1,9 @@
 import { REST, Routes } from 'discord.js';
 import { config } from './config.js';
-import * as setup from './commands/setup.js';
+import { COMMANDS } from './bot.js';
 import { logger } from './util/logger.js';
 
-const body = [setup.data.toJSON()];
+const body = COMMANDS.map((command) => command.data.toJSON());
 const rest = new REST().setToken(config.token);
 
 const route = config.devGuildId
@@ -12,8 +12,10 @@ const route = config.devGuildId
 
 await rest.put(route, { body });
 
+const namen = COMMANDS.map((command) => `/${command.data.name}`).join(', ');
+
 logger.info(
   config.devGuildId
-    ? `Commands geregistreerd in testserver ${config.devGuildId} (direct actief).`
-    : 'Commands globaal geregistreerd (kan tot een uur duren voor ze overal zichtbaar zijn).',
+    ? `${namen} geregistreerd in testserver ${config.devGuildId} (direct actief).`
+    : `${namen} globaal geregistreerd (kan tot een uur duren voor ze overal zichtbaar zijn).`,
 );
