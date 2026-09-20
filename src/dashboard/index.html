@@ -845,7 +845,16 @@
         werkt bij — verwijderde kanalen en hun berichten komen niet terug.</p>
     </div>
   </div>
-  <section class="panel"><div class="pbody"><div id="backupList"></div></div></section>
+  <section class="panel">
+    <div class="pbody">
+      <div id="backupList"></div>
+      <div class="row" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
+        <button id="backupUit" class="btn-sm"><svg class="icon sm"><use href="#i-up"/></svg>Back-up uit bestand terugzetten</button>
+        <input type="file" id="backupBestand" accept="application/json,.json" hidden>
+      </div>
+      <div id="backupResult"></div>
+    </div>
+  </section>
 </section>
 
 <section class="view" id="view-instellingen">

@@ -255,6 +255,21 @@ Groen is nieuw, grijs is bijwerken met erachter wát er verandert, en rood staat
 eigen blok: dat is het enige dat je niet terugkrijgt, en het gebeurt alleen als je *"kanalen
 verwijderen die niet in de template staan"* hebt aangevinkt.
 
+### Back-ups — ophalen en terugzetten
+
+Voor elk toepassen en elk leeghalen gaat de structuur van de server naar `backups/`. In het
+**Back-ups**-scherm staat per momentopname een knop om hem **terug te zetten** en een om hem te
+**downloaden**.
+
+Dat downloaden is geen bijzaak: draait de bot bij een hostingpartij zonder volume, dan staat die
+map op een schijf die bij de volgende deploy leeg is. Een back-up die je niet kunt ophalen, is
+geen back-up. Haal hem dus op en bewaar hem ergens.
+
+Andersom kan ook: **Back-up uit bestand terugzetten** leest een gedownload bestand weer in, vraagt
+op welke server het moet, en vult die server aan. Zo kun je ook de structuur van de ene server op
+de andere zetten. Terugzetten verwijdert nooit iets, dus wat er extra staat blijft staan — dat
+meldt hij er achteraf bij.
+
 ### Instellingen — waar deze bot op staat
 
 Het laatste scherm in de zijbalk toont wat deze installatie ervan gemaakt heeft: op welk adres
@@ -1075,8 +1090,6 @@ Developer Portal.
   terugzetten ook nooit iets.
 - **Berichten worden alleen bij het aanmaken geplaatst.** Dat houdt opnieuw toepassen veilig,
   maar betekent ook dat een gewijzigde regelstekst niet vanzelf in een bestaand kanaal komt.
-- **AutoMod-regels worden niet geexporteerd** bij `export`: die staan niet in de cache en
-  zouden een losse API-call vergen. Rollen, kanalen, rechten en emoji's wel.
 - **Stickers** vallen buiten deze versie.
 - Een **banner** werkt pas vanaf boostniveau 2; zonder boosts negeert Discord het veld.
 - De **rolvolgorde** wordt onder de rol van de bot gezet. Staat die te laag, dan wordt de

@@ -1,6 +1,6 @@
 import { renderEditor, resetSelection, zetFocus } from './editor.js';
 import { clanTelling, koppelClan, toonClan } from './clan.js';
-import { ask, busy, CHANNEL_ICONS, emptyState, escapeHtml as escape, icon, initTheme, kanDownloaden, toast, toonTekst } from './ui.js';
+import { ask, busy, CHANNEL_ICONS, emptyState, escapeHtml as escape, icon, initTheme, kanDownloaden, kiesUit, toast, toonTekst } from './ui.js';
 
 const state = {
   templates: [], guilds: [], backups: [], permissions: [],
@@ -738,6 +738,8 @@ function renderBackups() {
       '<div class="backup"><span class="grow"><strong>' + escape(backup.guildName) + '</strong>' +
       '<div class="meta muted" style="font-size:11px">' + escape(backup.createdAt.slice(0, 16).replace('T', ' ')) +
       ' · ' + backup.roles + ' rollen · ' + backup.channels + ' kanalen</div></span>' +
+      '<a class="btn-sm" href="/api/backups/' + encodeURIComponent(backup.file) + '" download title="Opslaan op dit apparaat">' +
+      icon('download', 'sm') + '</a>' +
       '<button class="btn-sm" data-backup="' + escape(backup.file) + '">' + icon('undo', 'sm') + 'Terug</button></div>')
     .join('');
 
@@ -1369,14 +1371,72 @@ async function restoreBackup(file) {
   });
   if (!confirmed) return;
 
-  $('planResult').innerHTML = busy('Terugzetten…');
+  await zetTerug({ file }, backup.guildName);
+}
+
+/**
+ * Een back-up uit een bestand op je eigen apparaat. Zonder dit is een
+ * gedownloade back-up een bestand waar je niets mee kunt.
+ */
+async function backupUitBestand(bestand) {
+  let inhoud;
   try {
-    const result = await api('/backups/restore', { method: 'POST', body: JSON.stringify({ file }) });
+    inhoud = await bestand.text();
+  } catch {
+    return toast('Kon het bestand niet lezen.', 'bad');
+  }
+
+  const doel = await kiesServer('Op welke server terugzetten?');
+  if (!doel) return;
+
+  const server = state.guilds.find((guild) => guild.id === doel);
+  const akkoord = await ask({
+    title: 'Back-up terugzetten?',
+    body:
+      'Uit "' + bestand.name + '", op "' + (server?.name ?? doel) + '".\n\n' +
+      'Dit vult aan en werkt bij; er wordt niets verwijderd. Let op: je zet hier de structuur van ' +
+      'de ene server op de andere, dus kijk of dat is wat je bedoelt.',
+    confirmLabel: 'Terugzetten',
+  });
+  if (!akkoord) return;
+
+  await zetTerug({ inhoud, guildId: doel }, server?.name ?? doel);
+}
+
+/** Kies een van je servers. Bij precies één is er niets te kiezen. */
+async function kiesServer(titel) {
+  if (state.guilds.length === 0) {
+    toast('Geen server om naar terug te zetten.', 'bad');
+    return null;
+  }
+  if (state.guilds.length === 1) return state.guilds[0].id;
+
+  return kiesUit({
+    title: titel,
+    opties: state.guilds.map((guild) => ({
+      waarde: guild.id,
+      naam: guild.name,
+      uitleg: guild.memberCount + ' leden · ' + guild.channelCount + ' kanalen',
+    })),
+  });
+}
+
+async function zetTerug(body, naam) {
+  const doel = $('backupResult');
+  doel.innerHTML = busy('Terugzetten…');
+
+  try {
+    const result = await api('/backups/restore', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      timeout: 5 * 60 * 1000,
+    });
     const rest = (result.leftover || 0) + (result.mismatch || 0);
 
-    $('planResult').innerHTML =
+    doel.innerHTML =
       '<div class="note ' + (result.failed ? 'warn' : 'ok') + '" style="margin-top:12px">' +
-      escape(result.note || result.applied + ' acties gelukt, ' + result.failed + ' mislukt') + '</div>' +
+      escape(naam + ': ' + (result.note || result.applied + ' acties gelukt, ' + result.failed + ' mislukt')) +
+      '</div>' +
       (rest > 0
         ? '<div class="note warn" style="margin-top:8px">' + rest +
           ' onderdeel(en) staan er nog die niet in deze back-up zaten. Terugzetten vult aan en ' +
@@ -1387,11 +1447,18 @@ async function restoreBackup(file) {
     toast(rest > 0 ? 'Teruggezet, maar niet identiek' : 'Back-up teruggezet', rest > 0 ? 'bad' : 'ok');
     await refresh();
   } catch (error) {
-    $('planResult').innerHTML = '<div class="note bad" style="margin-top:12px">' + escape(error.message) + '</div>';
+    doel.innerHTML = '<div class="note bad" style="margin-top:12px">' + escape(error.message) + '</div>';
   }
 }
 
 // --- handlers --------------------------------------------------------------
+
+$('backupUit').onclick = () => $('backupBestand').click();
+$('backupBestand').onchange = async () => {
+  const bestand = $('backupBestand').files[0];
+  $('backupBestand').value = '';
+  if (bestand) await backupUitBestand(bestand);
+};
 
 for (const knop of document.querySelectorAll('#mobilenav button, #sidebar button')) {
   knop.onclick = () => toonScherm(knop.dataset.scherm);

@@ -1,7 +1,16 @@
-import { ChannelType, type AnyThreadChannel, type Guild, type GuildBasedChannel } from 'discord.js';
+import {
+  AutoModerationActionType,
+  AutoModerationRuleKeywordPresetType,
+  AutoModerationRuleTriggerType,
+  ChannelType,
+  type AnyThreadChannel,
+  type AutoModerationRule,
+  type Guild,
+  type GuildBasedChannel,
+} from 'discord.js';
 import { toNames } from './permissions.js';
 import { mapChannelType } from './snapshot.js';
-import type { CategorySpec, ChannelSpec, Overwrite, RoleSpec, ServerTemplate } from './types.js';
+import type { AutomodSpec, CategorySpec, ChannelSpec, Overwrite, RoleSpec, ServerTemplate } from './types.js';
 
 const slug = (value: string) =>
   value
@@ -124,7 +133,65 @@ export function exportGuild(guild: Guild, templateName = guild.name): ServerTemp
       image: emoji.imageURL({ size: 128 }),
       roles: emoji.roles.cache.map((role) => roleKeys.get(role.id) ?? '').filter(Boolean),
     })),
-    // AutoMod-regels staan niet in de cache; die zou een losse API-call vergen.
-    automod: [],
+    automod: [...guild.autoModerationRules.cache.values()].map((rule) =>
+      automodUitServer(rule, roleKeys, channelName),
+    ),
+  };
+}
+
+/**
+ * Zelfde als `exportGuild`, maar haalt eerst de AutoMod-regels op.
+ *
+ * Die staan niet in de cache. Zonder deze stap kwam er een template uit zonder
+ * je AutoMod-regels — en het vervelende was: zonder dat iets dat zei. Je dacht
+ * een kopie van je server te hebben en miste stilletjes een stuk.
+ */
+export async function exportGuildFresh(guild: Guild, templateName = guild.name): Promise<ServerTemplate> {
+  await guild.autoModerationRules.fetch().catch(() => null);
+  return exportGuild(guild, templateName);
+}
+
+const TRIGGER_NAMEN = {
+  [AutoModerationRuleTriggerType.Keyword]: 'keyword',
+  [AutoModerationRuleTriggerType.KeywordPreset]: 'keyword_preset',
+  [AutoModerationRuleTriggerType.Spam]: 'spam',
+  [AutoModerationRuleTriggerType.MentionSpam]: 'mention_spam',
+} as const;
+
+const PRESET_NAMEN = {
+  [AutoModerationRuleKeywordPresetType.Profanity]: 'profanity',
+  [AutoModerationRuleKeywordPresetType.SexualContent]: 'sexual_content',
+  [AutoModerationRuleKeywordPresetType.Slurs]: 'slurs',
+} as const;
+
+/** Een AutoMod-regel van Discord terug naar de vorm die in een template past. */
+export function automodUitServer(
+  rule: AutoModerationRule,
+  roleKeys: Map<string, string>,
+  channelName: (id: string | null) => string | undefined,
+): AutomodSpec {
+  const trigger = TRIGGER_NAMEN[rule.triggerType as keyof typeof TRIGGER_NAMEN] ?? 'spam';
+  const blokkeer = rule.actions.find((actie) => actie.type === AutoModerationActionType.BlockMessage);
+  const melden = rule.actions.find((actie) => actie.type === AutoModerationActionType.SendAlertMessage);
+  const timeout = rule.actions.find((actie) => actie.type === AutoModerationActionType.Timeout);
+
+  return {
+    name: rule.name,
+    trigger,
+    keywords: [...(rule.triggerMetadata.keywordFilter ?? [])],
+    regexPatterns: [...(rule.triggerMetadata.regexPatterns ?? [])],
+    allowList: [...(rule.triggerMetadata.allowList ?? [])],
+    presets: [...(rule.triggerMetadata.presets ?? [])]
+      .map((preset) => PRESET_NAMEN[preset as keyof typeof PRESET_NAMEN])
+      .filter(Boolean),
+    mentionLimit: rule.triggerMetadata.mentionTotalLimit ?? undefined,
+    // Discord staat meerdere acties toe; een template kent er één. Blokkeren is
+    // de zwaarste en wint, daarna melden, dan time-out.
+    action: blokkeer ? 'block' : melden ? 'alert' : timeout ? 'timeout' : 'block',
+    customMessage: blokkeer?.metadata.customMessage ?? undefined,
+    timeoutSeconds: timeout?.metadata.durationSeconds ?? undefined,
+    alertChannel: melden?.metadata.channelId ? channelName(melden.metadata.channelId) : undefined,
+    exemptRoles: rule.exemptRoles.map((rol) => roleKeys.get(rol.id) ?? '').filter(Boolean),
+    enabled: rule.enabled,
   };
 }
