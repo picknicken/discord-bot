@@ -39,6 +39,13 @@ afterAll(() => {
 /** Onthoudt welke rollen dit lid kreeg of kwijtraakte. */
 const gedaan: string[] = [];
 
+/**
+ * Eén lid dat zijn rollen onthoudt. Een nagemaakt lid dat na `roles.add` nog
+ * steeds niets heeft, zou de tweede keer weer dezelfde wijziging opleveren —
+ * en dan test je iets wat in Discord niet gebeurt.
+ */
+const rollenVanLid = new Collection<string, unknown>();
+
 function stubGuild(): Guild {
   const lid = {
     id: '111111111',
@@ -46,9 +53,15 @@ function stubGuild(): Guild {
     nickname: null,
     manageable: true,
     roles: {
-      cache: new Collection<string, unknown>(),
-      add: async (ids: string[]) => gedaan.push('erbij:' + ids.join(',')),
-      remove: async (ids: string[]) => gedaan.push('eraf:' + ids.join(',')),
+      cache: rollenVanLid,
+      add: async (ids: string[]) => {
+        gedaan.push('erbij:' + ids.join(','));
+        for (const id of ids) rollenVanLid.set(id, { id });
+      },
+      remove: async (ids: string[]) => {
+        gedaan.push('eraf:' + ids.join(','));
+        for (const id of ids) rollenVanLid.delete(id);
+      },
     },
     setNickname: async () => undefined,
   };
@@ -76,6 +89,7 @@ function stubGuild(): Guild {
 async function kiesClan() {
   leegClanCache();
   gedaan.length = 0;
+  rollenVanLid.clear();
   // Schoon beginnen: een koppeling uit een vorige test is hier geen "die naam
   // is al bezet" maar ruis.
   rmSync(path.join(clanDir, `${GUILD_ID}.json`), { force: true });
@@ -99,6 +113,36 @@ describe('koppelen', () => {
     expect(uitkomst.inClan).toBe(true);
     expect(uitkomst.bericht).toMatch(/staat in \*\*Mijn Clan\*\* als \*\*Captain\*\*/);
     expect(gedaan).toEqual(['erbij:role-captain']);
+  });
+
+  it('noemt de rang ook als er niets te veranderen valt', async () => {
+    await kiesClan();
+    await vraag('Tess');
+
+    // Tweede keer: de rol staat er al, dus er verandert niets. Je rang hoort
+    // dan nog steeds in het antwoord te staan.
+    const nogmaals = await vraag('Tess');
+    expect(nogmaals.bericht).toMatch(/staat in \*\*Mijn Clan\*\* als \*\*Captain\*\*/);
+    expect(nogmaals.bericht).toMatch(/klopten al/);
+  });
+
+  it('zegt eerlijk dat er nog geen rol aan die rang hangt', async () => {
+    // Niets gekoppeld aan "captain": dan is "je rollen klopten al" een leugen.
+    leegClanCache();
+    rollenVanLid.clear();
+    rmSync(path.join(clanDir, `${GUILD_ID}.json`), { force: true });
+    await zetInstellingen(
+      clanDir,
+      GUILD_ID,
+      parseClanInstellingen({ clans: [{ groupId: 139, naam: 'Mijn Clan', lidRol: null, rangRollen: {} }] }),
+    );
+
+    const uitkomst = await vraag('Tess');
+
+    expect(uitkomst.inClan).toBe(true);
+    expect(uitkomst.bericht).toMatch(/als \*\*Captain\*\*/);
+    expect(uitkomst.bericht).toMatch(/nog geen Discord-rol/);
+    expect(uitkomst.bericht).not.toMatch(/klopten al/);
   });
 
   it('bewaart de naam ook als iemand niet in de clan zit, en geeft geen rol', async () => {

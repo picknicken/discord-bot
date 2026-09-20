@@ -90,9 +90,14 @@ export async function werkBij(
   }
 
   const gezocht = normaliseerNaam(rsn);
-  const staatIn = uitkomst.groepen.filter((groep) =>
-    groep.leden.some((lid) => normaliseerNaam(lid.naam) === gezocht),
-  );
+
+  // Waar hij staat en met welke rang. Dit lezen we uit de ledenlijsten zelf en
+  // niet uit het plan: staat er niets te veranderen, dan is er ook geen plan —
+  // en dan wil je nog steeds horen wat je rang is.
+  const staatIn = uitkomst.groepen.flatMap((groep) => {
+    const lid = groep.leden.find((kandidaat) => normaliseerNaam(kandidaat.naam) === gezocht);
+    return lid ? [{ groupId: groep.id, clan: groep.naam, rang: lid.rang }] : [];
+  });
 
   if (staatIn.length === 0) {
     return {
@@ -101,18 +106,35 @@ export async function werkBij(
     };
   }
 
-  const wissel = uitkomst.plan.wissels[0];
-
   // "Tess staat in Mijn Clan als Captain." — eerst waar je staat, dan pas wat
   // dat voor je rollen betekent.
-  const plekken = wissel
-    ? wissel.gevonden.map((plek) => `**${plek.clan}** als **${netteRang(plek.rang)}**`)
-    : staatIn.map((groep) => `**${groep.naam}**`);
+  const regels = [
+    `**${rsn}** staat in ` +
+      staatIn.map((plek) => `**${plek.clan}** als **${netteRang(plek.rang)}**`).join(' en ') +
+      '.',
+  ];
 
-  const regels = [`**${rsn}** staat in ${plekken.join(' en ')}.`];
+  const wissel = uitkomst.plan.wissels[0];
 
-  if (!wissel) regels.push('Je rollen klopten al.');
-  else if (wissel.wijziging) regels.push(wissel.wijziging.charAt(0).toUpperCase() + wissel.wijziging.slice(1) + '.');
+  if (wissel?.wijziging) {
+    regels.push(wissel.wijziging.charAt(0).toUpperCase() + wissel.wijziging.slice(1) + '.');
+  } else {
+    // Niets te doen kan twee dingen betekenen, en het verschil is nogal groot:
+    // je hebt de goede rollen al, óf er hangt hier nog helemaal geen rol aan
+    // jouw rang. Dat tweede als "klopt al" verkopen is ronduit misleidend.
+    const instellingen = (await leesDossier(clanDir, guild.id)).instellingen;
+
+    const rollenVoorHem = staatIn.flatMap((plek) => {
+      const clan = instellingen.clans.find((kandidaat) => kandidaat.groupId === plek.groupId);
+      return [clan?.lidRol, clan?.rangRollen[plek.rang]].filter(Boolean);
+    });
+
+    regels.push(
+      rollenVoorHem.length > 0
+        ? 'Je rollen klopten al.'
+        : 'Aan die rang hangt hier nog geen Discord-rol. Een beheerder koppelt die in het dashboard, onder Clan.',
+    );
+  }
 
   if (uitkomst.mislukt > 0) regels.push(`Let op: ${uitkomst.fouten[0] ?? 'aanpassen mislukte'}`);
 
