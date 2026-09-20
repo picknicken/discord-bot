@@ -419,7 +419,10 @@ Gevraagde scopes zijn `identify` en `guilds` — geen e-mail, geen toegang tot b
 ### Op de telefoon
 
 De pagina is gebouwd voor smalle schermen: de kolommen stapelen en de rechten-matrix scrollt
-binnen zijn eigen kader.
+binnen zijn eigen kader. De zijbalk verdwijnt en er komt een balk onderaan met de vier
+schermen die je het meest gebruikt — Overzicht, Templates, Servers en Uitrollen. De rest
+(Clan, Geschiedenis, Back-ups, Instellingen en de licht/donker-knop) zit achter **Meer**,
+dat oplicht zodra je op zo'n scherm bent.
 
 Om er vanaf je telefoon bij te kunnen moet het dashboard van localhost af, en dat mag alleen
 met inloggen aan — zonder client secret weigert hij te starten op een ander adres:

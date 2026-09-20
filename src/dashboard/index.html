@@ -665,6 +665,34 @@
     .mobilenav .icon { width: 19px; height: 19px; }
   }
 
+  /* Het blad met de overige schermen. Onderaan, binnen duimbereik. */
+  .blad {
+    border: 0; padding: 0; background: none; max-width: 100%; width: 100%;
+    margin: auto auto 0; color: var(--text);
+  }
+  .blad::backdrop { background: rgba(0, 0, 0, .55); backdrop-filter: blur(2px); }
+  .blad > * { width: 100%; }
+  .blad {
+    background: var(--surface); border-top-left-radius: 16px; border-top-right-radius: 16px;
+    border: 1px solid var(--border); border-bottom: 0;
+    padding: 8px 10px calc(14px + env(safe-area-inset-bottom));
+    box-shadow: var(--shadow-3);
+  }
+  .bladkop {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+    padding: 8px 10px 6px; text-align: left;
+  }
+  .blad button {
+    display: flex; align-items: center; gap: 11px; width: 100%; padding: 13px 10px;
+    background: none; border: 0; box-shadow: none; color: var(--text);
+    font-size: 14.5px; text-align: left; border-radius: var(--r-2);
+  }
+  .blad button[aria-current="true"] { color: var(--accent); background: var(--accent-bg); font-weight: 600; }
+  .blad .bladsluit {
+    justify-content: center; margin-top: 6px; background: var(--surface-2); color: var(--muted);
+    font-size: 13.5px;
+  }
+
   @media (max-width: 900px) {
     body { padding-bottom: 0; }
     .grid { grid-template-columns: minmax(0, 1fr); padding: 10px 12px 84px; }
@@ -734,6 +762,7 @@
   <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></symbol>
   <symbol id="i-crown" viewBox="0 0 24 24"><path d="M4 18h16M3 6l4.5 4L12 4l4.5 6L21 6l-1.6 9H4.6Z"/></symbol>
   <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></symbol>
+  <symbol id="i-meer" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></symbol>
 </defs></svg>
 
 <header>
@@ -982,13 +1011,28 @@
 </main>
 </div>
 
+<!--
+  Vier schermen passen er op een telefoon naast elkaar; de rest zat daardoor
+  achter een zijbalk die op smalle schermen verdwijnt - dus onbereikbaar. Die
+  staan nu achter "Meer", dat oplicht als je op zo'n scherm bent.
+-->
 <nav class="mobilenav" id="mobilenav">
   <button data-scherm="overzicht"><svg class="icon"><use href="#i-server"/></svg><span>Overzicht</span></button>
   <button data-scherm="templates"><svg class="icon"><use href="#i-folder"/></svg><span>Templates</span></button>
   <button data-scherm="servers"><svg class="icon"><use href="#i-shield"/></svg><span>Servers</span></button>
   <button data-scherm="uitrollen"><svg class="icon"><use href="#i-zap"/></svg><span>Uitrollen</span></button>
-  <button data-scherm="clan"><svg class="icon"><use href="#i-crown"/></svg><span>Clan</span></button>
+  <button id="meerKnop"><svg class="icon"><use href="#i-meer"/></svg><span>Meer</span></button>
 </nav>
+
+<dialog id="meerBlad" class="blad">
+  <div class="bladkop">Meer</div>
+  <button data-scherm="clan"><svg class="icon"><use href="#i-crown"/></svg><span class="grow">Clan</span></button>
+  <button data-scherm="geschiedenis"><svg class="icon"><use href="#i-history"/></svg><span class="grow">Geschiedenis</span></button>
+  <button data-scherm="backups"><svg class="icon"><use href="#i-archive"/></svg><span class="grow">Back-ups</span></button>
+  <button data-scherm="instellingen"><svg class="icon"><use href="#i-shield"/></svg><span class="grow">Instellingen</span></button>
+  <button id="bladThema"><svg class="icon"><use href="#i-moon"/></svg><span class="grow">Licht of donker</span></button>
+  <button id="bladSluit" class="bladsluit">Sluiten</button>
+</dialog>
 
 <div class="toasts" id="toasts"></div>
 <dialog id="dialog"></dialog>

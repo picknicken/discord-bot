@@ -98,9 +98,16 @@ function toonScherm(naam) {
   for (const sectie of document.querySelectorAll('.view')) {
     sectie.classList.toggle('actief', sectie.id === 'view-' + view);
   }
-  for (const knop of document.querySelectorAll('#sidebar button, #mobilenav button')) {
+  for (const knop of document.querySelectorAll('#sidebar button, #mobilenav button[data-scherm], #meerBlad button[data-scherm]')) {
     knop.setAttribute('aria-current', String(VIEW_VAN[knop.dataset.scherm] === view));
   }
+
+  // Zit het huidige scherm achter "Meer", dan hoort die knop op te lichten -
+  // anders lijkt het alsof je nergens bent.
+  const achterMeer = [...document.querySelectorAll('#meerBlad button[data-scherm]')].some(
+    (knop) => VIEW_VAN[knop.dataset.scherm] === view,
+  );
+  $('meerKnop').setAttribute('aria-current', String(achterMeer));
 
   if (naam === 'controle') showTab('Check');
   else if (naam === 'bewerken' && $('treeView').hidden) showTab('Tree');
@@ -1460,9 +1467,26 @@ $('backupBestand').onchange = async () => {
   if (bestand) await backupUitBestand(bestand);
 };
 
-for (const knop of document.querySelectorAll('#mobilenav button, #sidebar button')) {
-  knop.onclick = () => toonScherm(knop.dataset.scherm);
+for (const knop of document.querySelectorAll('#mobilenav button[data-scherm], #sidebar button, #meerBlad button[data-scherm]')) {
+  knop.onclick = () => {
+    $('meerBlad').close();
+    toonScherm(knop.dataset.scherm);
+  };
 }
+
+// --- het blad met de overige schermen ---------------------------------------
+
+$('meerKnop').onclick = () => $('meerBlad').showModal();
+$('bladSluit').onclick = () => $('meerBlad').close();
+$('bladThema').onclick = () => {
+  $('themeToggle').click();
+  $('meerBlad').close();
+};
+
+// Tikken naast het blad sluit het ook; een dialog vangt die klik zelf op.
+$('meerBlad').onclick = (event) => {
+  if (event.target === $('meerBlad')) $('meerBlad').close();
+};
 
 $('tabTree').onclick = () => showTab('Tree');
 $('tabJson').onclick = () => showTab('Json');
