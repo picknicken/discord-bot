@@ -8,6 +8,120 @@ import { describeActions, planSetup, summarizePlan } from '../src/planner.js';
 import { simulate, simulatableRoles } from '../src/simulate.js';
 import type { GuildSnapshot, SnapshotChannel } from '../src/snapshot.js';
 import { loadAllTemplates } from '../src/templates.js';
+import { planClanRangen, raadRangRollen, type RolInfo } from '../src/clan/rangen.js';
+import { netteRang } from '../src/clan/wiseoldman.js';
+
+/**
+ * Een verzonnen clan voor het clanscherm. Net als bij de servers hierboven is
+ * hij met opzet niet brandschoon: er staat iemand in die uit de clan is gezet,
+ * een lid dat nog geen koppeling heeft, en een rol die boven de bot staat. Zo
+ * laat de demo zien hoe de meldingen eruitzien in plaats van alleen het
+ * gelukkige geval.
+ */
+function demoClan() {
+  const rollen: RolInfo[] = [
+    { id: '20', naam: 'Owner', beheerbaar: false },
+    { id: '21', naam: 'Captain', beheerbaar: true },
+    { id: '22', naam: 'Corporal', beheerbaar: true },
+    { id: '23', naam: 'Clanlid', beheerbaar: true },
+    { id: '24', naam: 'Gast', beheerbaar: true },
+    { id: '25', naam: 'Eventteam', beheerbaar: true },
+  ];
+
+  const leden = [
+    { naam: 'Sparc Mac', rang: 'owner' },
+    { naam: 'Tess', rang: 'captain' },
+    { naam: 'Bram RS', rang: 'corporal' },
+    { naam: 'Noa', rang: 'member' },
+    { naam: 'Kees', rang: 'member' },
+  ];
+
+  const GROUP_ID = 139;
+
+  const clan = {
+    groupId: GROUP_ID,
+    naam: 'Mijn Clan',
+    lidRol: '23',
+    rangRollen: { owner: '20', captain: '21', corporal: '22' } as Record<string, string>,
+  };
+
+  const instellingen = {
+    clans: [clan],
+    gastRol: '24',
+    bijnaam: false,
+    opruimen: true,
+    automatisch: true,
+  };
+
+  const koppelingen = [
+    { discordId: '101', rsn: 'Sparc Mac', door: 'zelf', weergavenaam: 'Sparc', inServer: true },
+    { discordId: '102', rsn: 'Tess', door: 'zelf', weergavenaam: 'Tessa', inServer: true },
+    { discordId: '103', rsn: 'Bram RS', door: 'Jij', weergavenaam: 'Bram', inServer: true },
+    { discordId: '104', rsn: 'Oud lid', door: 'zelf', weergavenaam: 'Milan', inServer: true },
+  ];
+
+  // Het plan komt uit dezelfde functie als in het echt; alleen de invoer is
+  // verzonnen. Zo kan de demo niet uit de pas gaan lopen met de bot.
+  const plan = planClanRangen({
+    instellingen,
+    koppelingen: koppelingen.map(({ discordId, rsn }) => ({ discordId, rsn })),
+    ledenlijsten: [{ groupId: GROUP_ID, naam: clan.naam, leden }],
+    leden: new Map([
+      ['101', { id: '101', naam: 'Sparc', bijnaam: null, rollen: ['20', '23'], beheerbaar: false }],
+      ['102', { id: '102', naam: 'Tessa', bijnaam: null, rollen: ['22', '23'], beheerbaar: true }],
+      ['103', { id: '103', naam: 'Bram', bijnaam: null, rollen: ['25'], beheerbaar: true }],
+      ['104', { id: '104', naam: 'Milan', bijnaam: null, rollen: ['22', '23'], beheerbaar: true }],
+    ]),
+    rollen: new Map(rollen.map((rol) => [rol.id, rol])),
+  });
+
+  const telling = new Map<string, number>();
+  for (const lid of leden) telling.set(lid.rang, (telling.get(lid.rang) ?? 0) + 1);
+
+  const rangen = [...telling.entries()]
+    .map(([rang, aantal]) => ({ rang, naam: netteRang(rang), aantal }))
+    .sort((a, b) => b.aantal - a.aantal || a.naam.localeCompare(b.naam));
+
+  const opgehaaldOp = '2026-09-13T16:00:00.000Z';
+
+  return {
+    gegevens: {
+      guildId: '1',
+      guildName: 'Mijn Testserver',
+      instellingen,
+      laatsteSync: opgehaaldOp,
+      rollen,
+      clans: [
+        {
+          ...clan,
+          aantal: leden.length,
+          rangen,
+          voorstel: raadRangRollen(rollen, rangen.map((regel) => regel.rang)),
+          fout: null,
+        },
+      ],
+      koppelingen: koppelingen.map((koppeling) => {
+        const lid = leden.find((each) => each.naam === koppeling.rsn);
+        return {
+          ...koppeling,
+          gezien: lid
+            ? [{ groupId: GROUP_ID, clan: clan.naam, rang: lid.rang, rangNaam: netteRang(lid.rang) }]
+            : [],
+          gezienOp: lid ? opgehaaldOp : null,
+        };
+      }),
+      magRollen: true,
+      magBijnamen: false,
+      demo: true,
+    },
+    plan,
+    groepen: [{ groupId: GROUP_ID, naam: clan.naam, aantal: leden.length, opgehaaldOp }],
+    zoekresultaat: [
+      { id: GROUP_ID, naam: 'Mijn Clan', aantal: leden.length, clanChat: 'mijnclan' },
+      { id: 240, naam: 'Mijn Clan Events', aantal: 31, clanChat: null },
+    ],
+  };
+}
 
 /**
  * Bouwt een statische demo van het dashboard: dezelfde pagina en dezelfde
@@ -125,6 +239,7 @@ async function main() {
         ];
       }),
     ),
+    clan: demoClan(),
     comparisons: Object.fromEntries(
       templates.map(({ template }) => [template.name, compare(demoSnapshot, template)]),
     ),
@@ -191,7 +306,7 @@ async function main() {
 async function bundleScripts(): Promise<string> {
   const delen: string[] = [];
 
-  for (const file of ['ui.js', 'editor.js', '__mock__', 'app.js']) {
+  for (const file of ['ui.js', 'editor.js', 'clan.js', '__mock__', 'app.js']) {
     const bron = file === '__mock__' ? mockScript() : await readFile(path.join(SOURCE, file), 'utf8');
 
     const schoon = bron
@@ -241,6 +356,7 @@ function mockScript(): string {
   return `const data = JSON.parse(document.getElementById('demo-data').textContent);
 const templates = { ...data.templates };
 const order = Object.keys(templates);
+let clanInstellingen = data.clan.gegevens.instellingen;
 
 const named = (body, bucket) => {
   try {
@@ -332,6 +448,33 @@ window.fetch = async (input, options = {}) => {
 
   if (path.startsWith('/export/')) {
     return json({ id: 'mijn-testserver', json: templates[order[0]].json });
+  }
+
+  const clanMatch = path.match(/^\\/clan\\/([\\w-]+)(?:\\/(\\w+))?$/);
+  if (clanMatch) {
+    const sub = clanMatch[2];
+    if (!sub) {
+      if (method === 'PUT') {
+        clanInstellingen = JSON.parse(body).instellingen;
+        return json({ instellingen: clanInstellingen, saved: true });
+      }
+      return json({ ...data.clan.gegevens, instellingen: clanInstellingen });
+    }
+    if (sub === 'zoek') return json({ gevonden: data.clan.zoekresultaat });
+    if (sub === 'toevoegen' || sub === 'verwijderen') {
+      return json({ instellingen: clanInstellingen, clans: data.clan.gegevens.clans });
+    }
+    if (sub === 'leden') return json({ clan: data.clan.gegevens.clans[0] });
+    if (sub === 'plan') return json({ plan: data.clan.plan, groepen: data.clan.groepen });
+    if (sub === 'sync') {
+      return json({
+        plan: data.clan.plan, groepen: data.clan.groepen,
+        aangepast: 0, mislukt: 0, fouten: [],
+        note: 'demo — er is geen bot verbonden, dus er zijn geen rollen gewijzigd',
+      });
+    }
+    if (sub === 'koppel' || sub === 'ontkoppel') return json({ koppelingen: data.clan.gegevens.koppelingen });
+    if (sub === 'rollen') return json({ gemaakt: [], fouten: [], note: 'demo — er zijn geen rollen aangemaakt' });
   }
 
   if (path.startsWith('/backups/')) {

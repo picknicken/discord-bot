@@ -1,0 +1,70 @@
+# De slash-commando's bij Discord aanmelden, vanaf je telefoon.
+#
+# Nodig na elke wijziging aan een commando, en de eerste keer dat /clan erbij
+# komt: tot dit gedraaid heeft bestaat het commando niet in Discord.
+#
+# Vooraf eenmalig, onder Settings -> Secrets and variables -> Actions:
+#   DISCORD_TOKEN      de token van je bot
+#   DISCORD_CLIENT_ID  het Application ID
+#
+# Er verandert niets aan een server: dit gaat alleen over welke commando's er
+# bestaan.
+name: Commands registreren
+
+on:
+  workflow_dispatch:
+    inputs:
+      guild_id:
+        description: 'Testserver-id — daar staan ze meteen klaar. Leeg = overal, maar dat kan een uur duren.'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  registreren:
+    name: registreren
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Controleer of de secrets ingesteld zijn
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+        run: |
+          if [ -z "$DISCORD_TOKEN" ] || [ -z "$DISCORD_CLIENT_ID" ]; then
+            echo "::error::Zet DISCORD_TOKEN en DISCORD_CLIENT_ID onder Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Commands aanmelden
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+          # Een server-id hier betekent: alleen in die server, en meteen
+          # zichtbaar. Leeg betekent globaal, en dat kan tot een uur duren.
+          DISCORD_DEV_GUILD_ID: ${{ inputs.guild_id }}
+        run: |
+          {
+            echo "## Commands geregistreerd"
+            echo ""
+            echo '```'
+            node dist/deploy-commands.js
+            echo '```'
+            echo ""
+            if [ -n "$DISCORD_DEV_GUILD_ID" ]; then
+              echo "Alleen in server \`$DISCORD_DEV_GUILD_ID\`, en daar meteen zichtbaar."
+            else
+              echo "Overal waar de bot in zit. Het kan tot een uur duren voor Discord ze toont."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

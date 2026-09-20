@@ -74,6 +74,10 @@ export const config = {
   backupsDir: schoon(process.env.BACKUPS_DIR) || opVolume('backups') || './backups',
   /** Vorige versies van templates, bijgehouden door het dashboard. */
   historyDir: schoon(process.env.HISTORY_DIR) || opVolume('history') || './history',
+  /** Clankoppelingen en rangrollen, per server één bestand. */
+  clanDir: schoon(process.env.CLAN_DIR) || opVolume('clan') || './clan',
+  /** Hoe vaak de clanrangen vanzelf worden bijgewerkt, in minuten. 0 = nooit. */
+  clanSyncMinuten: Math.max(0, Number(schoon(process.env.CLAN_SYNC_MINUTEN) || 60)),
   /**
    * Server-ids waar deze installatie iets mag. Leeg = geen beperking.
    * Vooral voor GitHub Actions: daar is het server-id een invoerveld.

@@ -1,4 +1,5 @@
 import { renderEditor, resetSelection, zetFocus } from './editor.js';
+import { clanTelling, koppelClan, toonClan } from './clan.js';
 import { ask, busy, CHANNEL_ICONS, emptyState, escapeHtml as escape, icon, initTheme, kanDownloaden, toast, toonTekst } from './ui.js';
 
 const state = {
@@ -85,6 +86,7 @@ const VIEW_VAN = {
   controle: 'templates',
   servers: 'servers',
   uitrollen: 'uitrollen',
+  clan: 'clan',
   geschiedenis: 'geschiedenis',
   backups: 'backups',
 };
@@ -102,6 +104,9 @@ function toonScherm(naam) {
 
   if (naam === 'controle') showTab('Check');
   else if (naam === 'bewerken' && $('treeView').hidden) showTab('Tree');
+  // Het clanscherm haalt zijn eigen gegevens op; dat hoeft niet bij elke
+  // verversing van de rest, alleen als je er daadwerkelijk naar kijkt.
+  else if (naam === 'clan') void toonClan();
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
   tekenWizard();
@@ -240,6 +245,7 @@ async function refresh() {
   renderInstellingen(data.instellingen);
   $('telTemplates').textContent = state.templates.length || '';
   $('telServers').textContent = state.guilds.length || '';
+  $('telClan').textContent = clanTelling() || '';
   $('demoBalk').hidden = !state.guilds.some((guild) => guild.id.length < 5);
 }
 
@@ -1562,6 +1568,7 @@ window.addEventListener('beforeunload', (event) => {
 });
 
 initTheme($('themeToggle'));
+koppelClan({ api, state });
 toonScherm('overzicht');
 
 checkSession()

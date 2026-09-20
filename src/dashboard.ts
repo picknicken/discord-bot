@@ -3,6 +3,7 @@ import { config } from './config.js';
 import { koppelBot } from './bot.js';
 import { zaaiTemplates } from './templates.js';
 import { authEnabled, createDashboard } from './dashboard/server.js';
+import { startAutomatischeSync } from './clan/synchroniseren.js';
 import { logger } from './util/logger.js';
 import { login } from './util/start.js';
 
@@ -55,6 +56,10 @@ client.once(Events.ClientReady, async (ready) => {
   if (authEnabled() && owners.length === 0 && config.dashboardOwners.length === 0) {
     logger.warn('Geen eigenaar gevonden en DASHBOARD_OWNERS is leeg — niemand kan inloggen.');
   }
+
+  // Ook hier, want wie alleen het dashboard draait heeft verder geen proces dat
+  // de clanrangen bijhoudt.
+  if (config.clanSyncMinuten > 0) startAutomatischeSync(ready, config.clanDir, config.clanSyncMinuten);
 
   const server = createDashboard(ready, { applicationOwners: owners });
 
