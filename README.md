@@ -12,15 +12,15 @@ kanalen, permissie-overwrites en serverinstellingen — in een keer, reproduceer
 | `/setup apply template:<naam> bevestig:<servernaam>` | Voert het plan uit |
 | `/setup export` | Exporteert de huidige server als template-bestand (JSON-bijlage) |
 
-Daarnaast is er een tweede tak, voor RuneScape-clans:
+Daarnaast is er een tweede tak, voor OSRS-clans (via WiseOldMan):
 
 | Commando | Wat het doet |
 | --- | --- |
-| `/clan koppel rsn:<naam>` | Koppelt je RuneScape-naam en geeft je de rol die bij je clanrang hoort |
+| `/clan koppel rsn:<naam>` | Koppelt je OSRS-naam en geeft je de rol die bij je clanrang hoort |
 | `/clan mij` | Werkt je eigen clanrol nu bij |
 | `/clan ontkoppel` | Haalt je naam en je clanrollen weer weg |
-| `/clan status` | Wat er voor deze server is ingesteld, en wat er over jou bekend is |
-| `/clan wie lid:<@lid>` | Beheer: welke RuneScape-naam hoort bij dit lid |
+| `/clan status` | Welke clans hier meetellen, en wat er over jou bekend is |
+| `/clan wie lid:<@lid>` | Beheer: welke OSRS-naam hoort bij dit lid |
 | `/clan sync` | Beheer: werkt de clanrollen van iedereen bij |
 
 Hetzelfde kan lokaal via het dashboard (`npm run dashboard`), inclusief het bewerken van
@@ -496,79 +496,99 @@ prima: dat veld wordt genegeerd.)
 De snelste manier aan een eigen template te komen: richt een server met de hand in en
 draai `/setup export`.
 
-## Clanrangen (RuneScape)
+## Clanrangen (OSRS via WiseOldMan)
 
 De tweede tak van deze bot. `/setup` bouwt de server; dit bepaalt wie er binnen welke rol
-krijgt, op basis van de rang die iemand in het spel heeft.
+krijgt, op basis van de rang die iemand in de clan heeft.
+
+Old School RuneScape heeft zelf geen clan-API. [WiseOldMan](https://wiseoldman.net) wel: daar
+heet een clan een **group**, en die group heeft een ledenlijst met per speler zijn rang. Dat
+is precies wat hier gebruikt wordt. Je clan moet er dus op staan en bijgehouden worden — dat
+doet de clan zelf, met de WiseOldMan-plugin in RuneLite of op de site.
 
 ```
-RuneScape                Discord
-Sparc Mac — Owner    ->   @Owner  + @Clanlid
-Tess      — Captain  ->   @Captain + @Clanlid
-Bram      — (weg)    ->   @Gast
+WiseOldMan (group "Mijn Clan")        Discord
+Sparc Mac — owner              ->   @Owner   + @Clanlid
+Tess      — captain            ->   @Captain + @Clanlid
+Noa       — member             ->              @Clanlid
+Milan     — (staat er niet in) ->   @Gast
 ```
 
 ### Instellen
 
 Dashboard → **Clan**. Per server:
 
-1. **Welke clan** — de clannaam precies zoals hij in RuneScape heet. Met **Ledenlijst ophalen**
-   controleer je meteen of hij klopt: er verschijnt hoeveel leden er zijn en hoeveel er op elke
-   rang staan.
-2. **Rang naar rol** — per clanrang een Discord-rol. Staan de rollen er al met dezelfde naam,
-   dan vult **Invullen op rolnaam** ze in één klik in; staan ze er nog niet, dan maakt
-   **Ontbrekende rollen aanmaken** ze aan. Je hoeft niet alle twaalf rangen in te vullen: wie
-   op een rang staat zonder rol zakt door naar de eerstvolgende lagere rang die er wél een
-   heeft. Een clan die alleen `@Leiding` en `@Lid` uitdeelt vult dus twee regels in.
-3. **Verder nog** — een rol voor iedereen in de clan (bovenop de rangrol), een rol voor
-   gekoppelde leden die niet (meer) in de clan zitten, de bijnaam in Discord gelijktrekken met
-   de RuneScape-naam, en of de bot elk uur vanzelf bijwerkt.
-4. **Rollen bijwerken** — eerst **Voorbeeld**: per lid één regel met wat hij krijgt en verliest.
+1. **Clans die meetellen** — zoek je clan op naam en klik **Laat meetellen**. Alleen de clans
+   die je hier kiest doen mee; iemand die in een andere clan zit telt niet. Je kunt er meer
+   dan één kiezen (handig voor een Discord met een hoofdclan en een tweede clan).
+2. **Per rang een rol** — onder elke clan staan de rangen die daar *in gebruik* zijn, met
+   hoeveel leden erop staan. Die lijst komt uit de ledenlijst zelf: elke OSRS-clan verzint
+   zijn eigen rangen, dus een vaste lijst zou voor de helft niet kloppen. **Invullen op
+   rolnaam** pakt rollen die al zo heten; **Ontbrekende rollen aanmaken** maakt ze anders aan.
+3. **Rol voor iedereen in deze clan** — bovenaan het clanblok, bijvoorbeeld `@Clanlid`. Die
+   krijgt iedereen die in de ledenlijst staat, ook als er aan hun rang niets hangt.
+4. **Verder nog** — een rol voor gekoppelde leden die in géén van de gekozen clans zitten, de
+   bijnaam in Discord gelijktrekken met de OSRS-naam, en of de bot elk uur vanzelf bijwerkt.
+5. **Rollen bijwerken** — eerst **Voorbeeld**: per lid één regel met wat hij krijgt en verliest.
    Pas daarna de knop die het echt doet.
+
+Staat iemand in twee gekozen clans, dan krijgt hij van allebei de rollen. Dat is de enige
+regel die zich zonder voorrangslijstje laat uitleggen: elke clan die je kiest telt op zichzelf.
 
 ### Wie is wie
 
-Leden koppelen zichzelf met `/clan koppel rsn:<naam>`. De bot kijkt de naam op bij Jagex,
-controleert of die in de clan staat en zet de bijbehorende rol erop — allemaal in hetzelfde
-antwoord, dat alleen zij zien. Staat iemand in een andere clan, dan zegt hij welke.
+Leden koppelen zichzelf met `/clan koppel rsn:<naam>`. De bot zoekt die naam op in de
+ledenlijsten van de gekozen clans en zet de bijbehorende rollen erop — allemaal in hetzelfde
+antwoord, dat alleen zij zien:
 
-In het dashboard staan alle koppelingen bij elkaar: wie het deed (zelf of een beheerder),
-welke rang er voor het laatst gezien is, en wie er niet meer in de server zit. Handmatig
-koppelen kan daar ook, voor een lid dat het zelf niet lukt. Eén RuneScape-naam kan maar aan
-één Discord-account vastzitten; de tweede poging wordt geweigerd in plaats van stilletjes
-overgenomen.
+```
+/clan koppel rsn:Tess
+-> Tess staat in Mijn Clan als Captain.
+   Krijgt @Captain, @Clanlid.
+```
+
+Staat iemand er niet in, dan vraagt de bot WiseOldMan in welke clans hij wél zit. Dat scheelt
+het verschil tussen *"je naam staat verkeerd"* en *"je zit in een clan die hier niet meetelt"*.
+
+In het dashboard staan alle koppelingen bij elkaar: wie het deed (zelf of een beheerder), waar
+het lid voor het laatst gezien is, en wie er niet meer in de server zit. Handmatig koppelen kan
+daar ook, voor een lid dat het zelf niet lukt. Eén OSRS-naam kan maar aan één Discord-account
+vastzitten; de tweede poging wordt geweigerd in plaats van stilletjes overgenomen.
 
 ### Wat de bot niet aanraakt
 
-- **Alleen de rollen die hier zijn ingesteld.** De rangrollen, de lidrol en de gastrol. Een lid
-  dat daarnaast `@Eventteam` heeft, houdt die — ook bij een promotie, een degradatie of het
+- **Alleen de rollen die hier zijn ingesteld.** De rangrollen, de clanrollen en de gastrol. Een
+  lid dat daarnaast `@Eventteam` heeft, houdt die — ook bij een promotie, een degradatie of het
   verlaten van de clan.
 - **Alleen gekoppelde leden.** Wie geen naam heeft opgegeven blijft buiten schot. In het
   voorbeeld zie je wel welke clanleden nog geen koppeling hebben.
 - **Niets zonder dat het kan.** Een rol boven de rol van de bot, of een lid dat boven hem
   staat: dat staat in het voorbeeld als waarschuwing, in plaats van dat het halverwege misgaat.
+- **Niets bij een halve ledenlijst.** Lukt het ophalen van één van de gekozen clans niet, dan
+  stopt de hele ronde met een melding. Anders zou die clan er even uitzien als leeg, en raakt
+  iedereen daaruit zijn rol kwijt.
 
 ### Waar de gegevens vandaan komen
 
-Twee openbare eindpunten van Jagex, zonder sleutel en zonder account:
+De openbare API van WiseOldMan, zonder account:
 
 | Waarvoor | Adres |
 | --- | --- |
-| Ledenlijst met ieders clanrang | `secure.runescape.com/m=clan-hiscores/members_lite.ws?clanName=...` |
-| In welke clan zit deze speler | `services.runescape.com/m=website-data/playerDetails.ws?names=[...]` |
+| Clan zoeken op naam | `api.wiseoldman.net/v2/groups?name=...` |
+| Ledenlijst met ieders rang | `api.wiseoldman.net/v2/groups/<id>` |
+| In welke clans zit deze speler | `api.wiseoldman.net/v2/players/<naam>/groups` |
 
-Dit is RuneScape 3. Old School RuneScape heeft geen clan-API; daar is dit dus niet op te
-gebruiken.
+Het nummer van je clan staat in de URL op de site: `wiseoldman.net/groups/139` → 139. Zoeken in
+het dashboard doet dat voor je.
 
-De ledenlijst wordt vijf minuten onthouden, zodat het openen van een scherm niet elke keer
-een verzoek is. **Ledenlijst ophalen** en `/clan sync` halen hem altijd vers op. Jagex werkt
-die lijst zelf ongeveer eens per dag bij: wie vandaag lid is geworden, staat er morgen in.
-Ligt RuneScape eruit, dan zegt de bot dat en verandert hij niets — een lege ledenlijst zou
-anders betekenen dat iedereen zijn rol kwijtraakt.
+Ledenlijsten worden vijf minuten onthouden, zodat het openen van een scherm niet elke keer een
+verzoek is. **Vernieuwen** en `/clan sync` halen ze altijd vers op. Zonder API-sleutel laat
+WiseOldMan twintig verzoeken per minuut toe; loop je daar tegenaan, dan zegt de bot dat met
+zoveel woorden. Een sleutel (te krijgen in hun Discord) zet je in `WOM_API_KEY`.
 
 ### Vanzelf bijwerken
 
-Promoties gebeuren in het spel, en daar komt geen Discord-melding van. Staat **Elk uur vanzelf
+Rangen veranderen in het spel, en daar komt geen Discord-melding van. Staat **Elk uur vanzelf
 bijwerken** aan, dan loopt de bot dat interval langs alle servers waar dat aanstaat. Het
 interval zet je met `CLAN_SYNC_MINUTEN` (0 = nooit). Zowel `npm start` als `npm run dashboard`
 doet dit; draai je ze allebei tegelijk, zet het dan in één van de twee uit.
@@ -576,9 +596,9 @@ doet dit; draai je ze allebei tegelijk, zet het dan in één van de twee uit.
 ### Opslag
 
 Eén JSON-bestand per server in `CLAN_DIR` (standaard `./clan`, of `clan/` op een aangekoppeld
-volume). Daarin staan de instellingen en de koppelingen. Te openen, te kopiëren en met de hand
-te repareren. Staat er onzin in, dan stopt de bot met een melding in plaats van het als leeg te
-lezen — anders zou de eerstvolgende synchronisatie iedereen zijn rol afnemen.
+volume). Daarin staan de gekozen clans, de rolkoppelingen en de leden. Te openen, te kopiëren en
+met de hand te repareren. Staat er onzin in, dan stopt de bot met een melding in plaats van het
+als leeg te lezen — anders zou de eerstvolgende synchronisatie iedereen zijn rol afnemen.
 
 ### Rechten
 
@@ -617,9 +637,9 @@ src/
   botPermissions.ts     de enige lijst met rechten die de bot vraagt
   commands/setup.ts     /setup met list, preview, apply, export
   commands/clan.ts      /clan: koppelen, bijwerken en opzoeken van clanrangen
-  clan/runescape.ts     de twee eindpunten van Jagex, met cache
+  clan/wiseoldman.ts    de WiseOldMan-API: clans zoeken, ledenlijst, met cache
   clan/rangen.ts        clanrang + instellingen -> welke rol, als plan
-  clan/opslag.ts        instellingen en koppelingen per server, op schijf
+  clan/opslag.ts        gekozen clans en koppelingen per server, op schijf
   clan/synchroniseren.ts  plan maken, uitvoeren en elk uur vanzelf bijwerken
   events/guildCreate.ts zelfcontrole en welkomstbericht bij het joinen
   dashboard.ts          start de bot met het lokale dashboard ernaast
@@ -628,7 +648,7 @@ src/
   dashboard/app.js      dashboardlogica in de browser
   dashboard/editor.js   de klik-editor voor rollen, kanalen en permissies
   dashboard/ui.js       iconen, meldingen, dialogen en het thema
-  dashboard/clan.js     het clanscherm: clan, rangen, leden en bijwerken
+  dashboard/clan.js     het clanscherm: clans kiezen, rangen, leden en bijwerken
 assets/logo.png         avatar en applicatie-icoon
   types.ts              zod-schema en validatie van templates
   templates.ts          templates inlezen uit de map

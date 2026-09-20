@@ -8,8 +8,7 @@ import {
 } from 'discord.js';
 import { config } from '../config.js';
 import { serverToegestaan } from '../toegestaan.js';
-import { geldigeNaam, haalSpeler, normaliseerNaam, RuneScapeFout } from '../clan/runescape.js';
-import { CLAN_RANGEN } from '../clan/rangen.js';
+import { geldigeNaam, haalSpelerClans, netteRang, normaliseerNaam, WomFout } from '../clan/wiseoldman.js';
 import {
   alGekoppeldAan,
   koppel,
@@ -21,10 +20,10 @@ import { synchroniseerServer } from '../clan/synchroniseren.js';
 import { logger } from '../util/logger.js';
 
 /**
- * De clankant van de bot in Discord zelf. Een lid geeft zijn RuneScape-naam op,
- * de bot kijkt bij Jagex in welke clan hij zit en met welke rang, en zet daar de
- * bijbehorende rol op. Alles wat daarvoor ingesteld moet worden — welke clan,
- * welke rol bij welke rang — gebeurt in het dashboard onder "Clan".
+ * De clankant van de bot in Discord zelf. Een lid geeft zijn OSRS-naam op, de
+ * bot kijkt bij WiseOldMan of die naam in een van de gekozen clans staat en met
+ * welke rang, en zet daar de bijbehorende rol op. Welke clans meetellen en welke
+ * rol bij welke rang hoort stel je in het dashboard in, onder "Clan".
  *
  * Bewust een eigen commando naast /setup: dit gaat niet over het inrichten van
  * een server maar over wie er in zit, en die twee horen niet door elkaar te
@@ -32,23 +31,23 @@ import { logger } from '../util/logger.js';
  */
 export const data = new SlashCommandBuilder()
   .setName('clan')
-  .setDescription('Koppel je RuneScape-naam en krijg de rol die bij je clanrang hoort')
+  .setDescription('Koppel je OSRS-naam en krijg de rol die bij je clanrang hoort')
   .setDMPermission(false)
   .addSubcommand((sub) =>
     sub
       .setName('koppel')
-      .setDescription('Geef je RuneScape-naam op en krijg je clanrol')
+      .setDescription('Geef je OSRS-naam op en krijg je clanrol')
       .addStringOption((option) =>
-        option.setName('rsn').setDescription('Je RuneScape-naam').setRequired(true).setMaxLength(12),
+        option.setName('rsn').setDescription('Je OSRS-naam').setRequired(true).setMaxLength(12),
       ),
   )
   .addSubcommand((sub) => sub.setName('mij').setDescription('Werk je eigen clanrol nu bij'))
-  .addSubcommand((sub) => sub.setName('ontkoppel').setDescription('Haal je RuneScape-naam hier weg'))
-  .addSubcommand((sub) => sub.setName('status').setDescription('Wat er voor deze server is ingesteld'))
+  .addSubcommand((sub) => sub.setName('ontkoppel').setDescription('Haal je OSRS-naam hier weg'))
+  .addSubcommand((sub) => sub.setName('status').setDescription('Welke clans hier meetellen'))
   .addSubcommand((sub) =>
     sub
       .setName('wie')
-      .setDescription('Beheer: welke RuneScape-naam hoort bij dit lid')
+      .setDescription('Beheer: welke OSRS-naam hoort bij dit lid')
       .addUserOption((option) => option.setName('lid').setDescription('Welk lid').setRequired(true)),
   )
   .addSubcommand((sub) =>
@@ -106,7 +105,7 @@ async function handleKoppel(interaction: ChatInputCommandInteraction): Promise<v
 
   if (!geldigeNaam(rsn)) {
     await interaction.reply({
-      content: `"${rsn}" kan geen RuneScape-naam zijn: maximaal 12 tekens, alleen letters, cijfers, spaties en streepjes.`,
+      content: `"${rsn}" kan geen OSRS-naam zijn: maximaal 12 tekens, alleen letters, cijfers, spaties en streepjes.`,
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -126,33 +125,16 @@ async function handleKoppel(interaction: ChatInputCommandInteraction): Promise<v
     return;
   }
 
-  // De naam eerst opzoeken: een typefout hoort eruit te komen voordat hij
-  // opgeslagen wordt en elke synchronisatie hem opnieuw langsloopt.
-  let gevonden: Awaited<ReturnType<typeof haalSpeler>> = null;
-  try {
-    gevonden = await haalSpeler(rsn);
-    if (!gevonden) {
-      await interaction.editReply(`RuneScape kent geen speler "${rsn}". Staat de naam er precies zo?`);
-      return;
-    }
-  } catch (error) {
-    // Jagex plat betekent niet dat de koppeling niet mag; hij wordt alleen niet
-    // meteen gecontroleerd.
-    if (!(error instanceof RuneScapeFout)) throw error;
-    logger.warn(`Spelerlookup mislukte voor "${rsn}"`, error);
-  }
+  await koppel(config.clanDir, guild.id, interaction.user.id, rsn, 'zelf');
 
-  const naam = gevonden?.naam ?? rsn;
-  await koppel(config.clanDir, guild.id, interaction.user.id, naam, 'zelf');
-
-  if (!dossier.instellingen.clan) {
+  if (dossier.instellingen.clans.length === 0) {
     await interaction.editReply(
-      `Genoteerd: **${naam}**. Er is voor deze server nog geen clan ingesteld, dus er is nog geen rol aan te geven.`,
+      `Genoteerd: **${rsn}**. Er is voor deze server nog geen clan gekozen, dus er is nog geen rol aan te geven.`,
     );
     return;
   }
 
-  await interaction.editReply(await werkBij(guild, interaction.user.id, naam, gevonden?.clan ?? null));
+  await interaction.editReply(await werkBij(guild, interaction.user.id, rsn));
 }
 
 async function handleMij(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -163,16 +145,16 @@ async function handleMij(interaction: ChatInputCommandInteraction): Promise<void
   const eigen = dossier.koppelingen[interaction.user.id];
 
   if (!eigen) {
-    await interaction.editReply('Je hebt nog geen RuneScape-naam gekoppeld. Doe `/clan koppel rsn:jouwnaam`.');
+    await interaction.editReply('Je hebt nog geen OSRS-naam gekoppeld. Doe `/clan koppel rsn:jouwnaam`.');
     return;
   }
 
-  if (!dossier.instellingen.clan) {
-    await interaction.editReply('Er is voor deze server nog geen clan ingesteld.');
+  if (dossier.instellingen.clans.length === 0) {
+    await interaction.editReply('Er is voor deze server nog geen clan gekozen.');
     return;
   }
 
-  await interaction.editReply(await werkBij(guild, interaction.user.id, eigen.rsn, null));
+  await interaction.editReply(await werkBij(guild, interaction.user.id, eigen.rsn));
 }
 
 async function handleOntkoppel(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -181,7 +163,7 @@ async function handleOntkoppel(interaction: ChatInputCommandInteraction): Promis
 
   const dossier = await leesDossier(config.clanDir, guild.id);
   if (!dossier.koppelingen[interaction.user.id]) {
-    await interaction.editReply('Er stond hier geen RuneScape-naam van jou.');
+    await interaction.editReply('Er stond hier geen OSRS-naam van jou.');
     return;
   }
 
@@ -191,9 +173,7 @@ async function handleOntkoppel(interaction: ChatInputCommandInteraction): Promis
   await ontkoppel(config.clanDir, guild.id, interaction.user.id);
 
   await interaction.editReply(
-    afgenomen > 0
-      ? `Koppeling weg, en ${afgenomen} clanrol(len) afgenomen.`
-      : 'Koppeling weg.',
+    afgenomen > 0 ? `Koppeling weg, en ${afgenomen} clanrol(len) afgenomen.` : 'Koppeling weg.',
   );
 }
 
@@ -202,23 +182,25 @@ async function handleStatus(interaction: ChatInputCommandInteraction): Promise<v
   const dossier = await leesDossier(config.clanDir, guild.id);
   const eigen = dossier.koppelingen[interaction.user.id];
 
-  const gekoppeldeRangen = CLAN_RANGEN.filter((rang) => dossier.instellingen.rangRollen[rang]);
+  const clans = dossier.instellingen.clans;
 
   const embed = new EmbedBuilder()
     .setTitle('Clanrangen')
-    .setColor(dossier.instellingen.clan ? 0x5865f2 : 0x949ba4)
+    .setColor(clans.length > 0 ? 0x5865f2 : 0x949ba4)
     .addFields(
-      { name: 'Clan', value: dossier.instellingen.clan || 'nog niet ingesteld', inline: true },
+      {
+        name: 'Clans die hier meetellen',
+        value:
+          clans.length > 0
+            ? clans
+                .map((clan) => `• ${clan.naam || `clan ${clan.groupId}`} — wiseoldman.net/groups/${clan.groupId}`)
+                .join('\n')
+            : 'nog geen',
+      },
       { name: 'Gekoppelde leden', value: String(Object.keys(dossier.koppelingen).length), inline: true },
       {
-        name: 'Rangen met een rol',
-        value: gekoppeldeRangen.length > 0 ? gekoppeldeRangen.join(', ') : 'nog geen',
-      },
-      {
         name: 'Jij',
-        value: eigen
-          ? `${eigen.rsn}${eigen.rang ? ` — ${eigen.rang}` : ''}`
-          : 'nog niet gekoppeld (`/clan koppel`)',
+        value: eigen ? beschrijfKoppeling(eigen.rsn, eigen.gezien) : 'nog niet gekoppeld (`/clan koppel`)',
       },
     );
 
@@ -236,11 +218,10 @@ async function handleWie(interaction: ChatInputCommandInteraction): Promise<void
 
   await interaction.reply({
     content: koppeling
-      ? `<@${lid.id}> is **${koppeling.rsn}**` +
-        (koppeling.rang ? ` — ${koppeling.rang}` : ' — rang nog onbekend') +
+      ? `<@${lid.id}> is ${beschrijfKoppeling(koppeling.rsn, koppeling.gezien)}` +
         (koppeling.gezienOp ? ` (gezien op ${koppeling.gezienOp.slice(0, 10)})` : '') +
         `. Gekoppeld door ${koppeling.door}.`
-      : `<@${lid.id}> heeft hier geen RuneScape-naam gekoppeld.`,
+      : `<@${lid.id}> heeft hier geen OSRS-naam gekoppeld.`,
     flags: MessageFlags.Ephemeral,
   });
 }
@@ -256,67 +237,104 @@ async function handleSync(interaction: ChatInputCommandInteraction): Promise<voi
     });
 
     const regels = [
-      `**${uitkomst.ledenlijst.clan}** — ${uitkomst.ledenlijst.leden.length} clanleden opgehaald.`,
+      uitkomst.groepen
+        .map((groep) => `**${groep.naam}** — ${groep.leden.length} leden opgehaald.`)
+        .join('\n'),
       `${uitkomst.aangepast} lid/leden bijgewerkt, ${uitkomst.plan.ongewijzigd} stonden al goed.`,
     ];
 
     if (uitkomst.mislukt > 0) regels.push(`${uitkomst.mislukt} mislukt.`);
-    if (uitkomst.plan.ongekoppeld.length > 0) {
-      regels.push(`${uitkomst.plan.ongekoppeld.length} clanleden hebben hier nog geen Discord-koppeling.`);
-    }
+
+    const zonder = uitkomst.plan.ongekoppeld.reduce((som, regel) => som + regel.leden.length, 0);
+    if (zonder > 0) regels.push(`${zonder} clanleden hebben hier nog geen Discord-koppeling.`);
+
     for (const fout of uitkomst.fouten.slice(0, 5)) regels.push(`• ${fout}`);
     for (const waarschuwing of uitkomst.plan.waarschuwingen.slice(0, 5)) regels.push(`⚠ ${waarschuwing}`);
 
     await interaction.editReply(regels.join('\n'));
   } catch (error) {
     await interaction.editReply(
-      error instanceof RuneScapeFout || error instanceof Error
-        ? `Dat lukte niet: ${error.message}`
-        : 'Dat lukte niet.',
+      error instanceof Error ? `Dat lukte niet: ${error.message}` : 'Dat lukte niet.',
     );
   }
 }
 
 // --- gedeeld ---------------------------------------------------------------
 
+/** "Tess — Corporal in Mijn Clan", of gewoon de naam als er nog niets gezien is. */
+function beschrijfKoppeling(rsn: string, gezien: Array<{ clan: string; rang: string }>): string {
+  if (gezien.length === 0) return `**${rsn}** — clan nog onbekend`;
+  return `**${rsn}** — ${gezien.map((plek) => `${netteRang(plek.rang)} in ${plek.clan}`).join(', ')}`;
+}
+
 /** Eén lid bijwerken en er een leesbare zin over teruggeven. */
-async function werkBij(guild: Guild, discordId: string, rsn: string, clanVolgensJagex: string | null): Promise<string> {
+async function werkBij(guild: Guild, discordId: string, rsn: string): Promise<string> {
+  let uitkomst;
   try {
-    const uitkomst = await synchroniseerServer(config.clanDir, guild, {
+    uitkomst = await synchroniseerServer(config.clanDir, guild, {
       alleen: [discordId],
       reden: 'Clanrol bijgewerkt via /clan',
     });
-
-    const wissel = uitkomst.plan.wissels[0];
-    const ingesteld = (await leesDossier(config.clanDir, guild.id)).instellingen.clan;
-
-    if (!wissel) {
-      // Niets te doen kan twee dingen betekenen, en het verschil is precies wat
-      // iemand wil weten.
-      const staatErin = uitkomst.ledenlijst.leden.some(
-        (lid) => normaliseerNaam(lid.naam) === normaliseerNaam(rsn),
-      );
-      return staatErin
-        ? `**${rsn}** staat in ${ingesteld} — je rollen klopten al.`
-        : buitenDeClan(rsn, ingesteld, clanVolgensJagex);
-    }
-
-    if (!wissel.inClan) return buitenDeClan(rsn, ingesteld, clanVolgensJagex);
-
-    const regels = [`**${rsn}** staat in ${ingesteld} als **${wissel.rang}**.`, wissel.reden];
-    if (uitkomst.mislukt > 0) regels.push(`Let op: ${uitkomst.fouten[0] ?? 'aanpassen mislukte'}`);
-    return regels.join('\n');
   } catch (error) {
-    if (error instanceof RuneScapeFout) return `Genoteerd, maar RuneScape antwoordde niet: ${error.message}`;
+    if (error instanceof WomFout) return `Genoteerd, maar WiseOldMan antwoordde niet: ${error.message}`;
     throw error;
   }
+
+  const gezocht = normaliseerNaam(rsn);
+  const staatIn = uitkomst.groepen.filter((groep) =>
+    groep.leden.some((lid) => normaliseerNaam(lid.naam) === gezocht),
+  );
+
+  if (staatIn.length === 0) return await buitenDeClans(rsn, uitkomst.groepen.map((groep) => groep.naam));
+
+  const wissel = uitkomst.plan.wissels[0];
+
+  // "Tess staat in Mijn Clan als Captain." — eerst waar je staat, dan pas wat
+  // dat voor je rollen betekent.
+  const plekken = wissel
+    ? wissel.gevonden.map((plek) => `**${plek.clan}** als **${netteRang(plek.rang)}**`)
+    : staatIn.map((groep) => `**${groep.naam}**`);
+
+  const regels = [`**${rsn}** staat in ${plekken.join(' en ')}.`];
+
+  if (!wissel) regels.push('Je rollen klopten al.');
+  else regels.push(wissel.wijziging.charAt(0).toUpperCase() + wissel.wijziging.slice(1) + '.');
+
+  if (uitkomst.mislukt > 0) regels.push(`Let op: ${uitkomst.fouten[0] ?? 'aanpassen mislukte'}`);
+
+  return regels.join('\n');
 }
 
-function buitenDeClan(rsn: string, clan: string, clanVolgensJagex: string | null): string {
-  if (clanVolgensJagex && normaliseerNaam(clanVolgensJagex) !== normaliseerNaam(clan)) {
-    return `**${rsn}** zit in clan **${clanVolgensJagex}**, niet in ${clan}.`;
+/**
+ * Wie niet gevonden is wil vooral weten waarom. WiseOldMan weet in welke clans
+ * iemand wél zit; dat scheelt het verschil tussen "je naam staat verkeerd" en
+ * "je zit in een clan die hier niet meetelt".
+ */
+async function buitenDeClans(rsn: string, gekozen: string[]): Promise<string> {
+  const waar = gekozen.length === 1 ? gekozen[0] : `een van deze clans: ${gekozen.join(', ')}`;
+
+  let elders: Awaited<ReturnType<typeof haalSpelerClans>> = [];
+  try {
+    elders = await haalSpelerClans(rsn);
+  } catch (error) {
+    // Niet kunnen kijken is geen reden om helemaal niets te zeggen.
+    if (!(error instanceof WomFout)) throw error;
+    logger.warn(`Clans opzoeken mislukte voor "${rsn}"`, error);
   }
-  return `**${rsn}** staat niet in de ledenlijst van ${clan}. Net lid geworden? Jagex werkt die lijst eens per dag bij.`;
+
+  const buiten = elders.filter((clan) => !gekozen.some((naam) => normaliseerNaam(naam) === normaliseerNaam(clan.naam)));
+
+  if (buiten.length > 0) {
+    return (
+      `**${rsn}** staat niet in ${waar}, maar wel in ` +
+      `${buiten.map((clan) => `**${clan.naam}**`).join(', ')}. Die telt hier niet mee.`
+    );
+  }
+
+  return (
+    `**${rsn}** staat niet in ${waar}. Klopt je naam precies? ` +
+    'Is dat zo, dan staat hij nog niet in de ledenlijst op WiseOldMan — die wordt door de clan zelf bijgehouden.'
+  );
 }
 
 /**
@@ -325,8 +343,7 @@ function buitenDeClan(rsn: string, clan: string, clanVolgensJagex: string | null
  */
 async function neemRollenAf(guild: Guild, dossier: ClanDossier, discordId: string): Promise<number> {
   const beheerd = [
-    ...Object.values(dossier.instellingen.rangRollen),
-    dossier.instellingen.lidRol,
+    ...dossier.instellingen.clans.flatMap((clan) => [...Object.values(clan.rangRollen), clan.lidRol]),
     dossier.instellingen.gastRol,
   ].filter((id): id is string => Boolean(id));
 
@@ -334,7 +351,7 @@ async function neemRollenAf(guild: Guild, dossier: ClanDossier, discordId: strin
 
   try {
     const lid = await guild.members.fetch(discordId);
-    const eraf = beheerd.filter((id) => lid.roles.cache.has(id));
+    const eraf = [...new Set(beheerd)].filter((id) => lid.roles.cache.has(id));
     if (eraf.length === 0) return 0;
 
     await lid.roles.remove(eraf, 'Clankoppeling verwijderd via /clan ontkoppel');

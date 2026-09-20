@@ -1,69 +1,44 @@
 import { z } from 'zod';
-import { normaliseerNaam, type ClanLid } from './runescape.js';
+import { netteRang, normaliseerNaam, type WomLid } from './wiseoldman.js';
 
 /**
  * Van clanrang naar Discord-rol. Dit bestand rekent het uit en raakt niets aan:
- * er gaat een ledenlijst en een stel koppelingen in, en er komt een lijstje
- * wijzigingen uit. Precies zoals de rest van deze bot eerst een plan maakt en
- * dat pas daarna uitvoert — je wilt kunnen zien wie welke rol krijgt voordat
- * driehonderd mensen een melding krijgen.
+ * erin gaan de ledenlijsten van de gekozen clans en de koppelingen, eruit komt
+ * een lijstje wijzigingen. Precies zoals de rest van deze bot eerst een plan
+ * maakt en dat pas daarna uitvoert — je wilt kunnen zien wie welke rol krijgt
+ * voordat driehonderd mensen een melding krijgen.
+ *
+ * Twee dingen zijn met opzet anders dan je misschien verwacht:
+ *
+ * 1. Er is geen vaste lijst rangen. In OSRS bepaalt elke clan zelf welke rangen
+ *    hij gebruikt, en WiseOldMan geeft ze terug zoals ze daar staan. De rangen
+ *    die je in het dashboard ziet komen dus uit de ledenlijst van jouw clan.
+ * 2. Er is geen volgorde tussen rangen. WiseOldMan zegt nergens dat een Captain
+ *    boven een Corporal staat. Elke rang krijgt daarom zijn eigen rol, en wie
+ *    een rang heeft waar niets aan gekoppeld is krijgt alleen de clanrol.
  */
 
-/**
- * De rangen van een RuneScape 3-clan, van hoog naar laag. Dit zijn de namen
- * die Jagex zelf teruggeeft in de ledenlijst; ze staan hier in volgorde zodat
- * het dashboard ze in de juiste volgorde kan tonen en "hoogste rang wint" iets
- * betekent.
- */
-export const CLAN_RANGEN = [
-  'Owner',
-  'Deputy Owner',
-  'Overseer',
-  'Coordinator',
-  'Organiser',
-  'Admin',
-  'General',
-  'Captain',
-  'Lieutenant',
-  'Sergeant',
-  'Corporal',
-  'Recruit',
-] as const;
-
-export type ClanRang = (typeof CLAN_RANGEN)[number];
-
-/** Hoe hoog een rang staat; hoger getal is hoger in de clan. Onbekend = -1. */
-export function rangHoogte(rang: string): number {
-  const index = CLAN_RANGEN.findIndex((bekend) => bekend.toLowerCase() === rang.trim().toLowerCase());
-  return index === -1 ? -1 : CLAN_RANGEN.length - index;
-}
-
-/**
- * Een rol-id is bij Discord een snowflake: alleen cijfers. Strenger dan "geen
- * rare tekens" is het hier niet, want de demo draait op verzonnen ids als "r1"
- * en dat scherm moet gewoon te bedienen zijn.
- */
 const rolId = z.string().regex(/^[A-Za-z0-9_-]{1,32}$/, 'Dat is geen rol-id.');
 
-export const clanInstellingenSchema = z.object({
-  /** De clan waar deze server bij hoort. Leeg = nog niets ingesteld. */
-  clan: z.string().trim().max(64).default(''),
-  /** Per clanrang de rol die daarbij hoort. Rangen zonder rol worden overgeslagen. */
-  rangRollen: z
-    .record(z.string(), rolId)
-    .default({})
-    .superRefine((rollen, ctx) => {
-      for (const rang of Object.keys(rollen)) {
-        if (rangHoogte(rang) === -1) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Onbekende clanrang: "${rang}"` });
-        }
-      }
-    }),
-  /** Rol voor iedereen die in de clan zit, ongeacht rang. Bijvoorbeeld @Clanlid. */
+export const clanSchema = z.object({
+  /** Het nummer van de group bij WiseOldMan: wiseoldman.net/groups/<dit> */
+  groupId: z.number().int().positive(),
+  /** De naam zoals hij bij WiseOldMan staat; alleen om te tonen. */
+  naam: z.string().trim().max(64).default(''),
+  /** Rol voor iedereen in deze clan, ongeacht rang. */
   lidRol: rolId.nullable().default(null),
-  /** Rol voor gekoppelde leden die (nog) niet in de clan zitten. Bijvoorbeeld @Gast. */
+  /** Per rang van deze clan de rol die daarbij hoort. */
+  rangRollen: z.record(z.string(), rolId).default({}),
+});
+
+export type ClanKeuze = z.infer<typeof clanSchema>;
+
+export const clanInstellingenSchema = z.object({
+  /** De clans die meetellen. Alleen deze; de rest van WiseOldMan doet niet mee. */
+  clans: z.array(clanSchema).max(10).default([]),
+  /** Rol voor gekoppelde leden die in geen van de gekozen clans zitten. */
   gastRol: rolId.nullable().default(null),
-  /** Bijnaam in Discord gelijktrekken met de RuneScape-naam. */
+  /** Bijnaam in Discord gelijktrekken met de OSRS-naam. */
   bijnaam: z.boolean().default(false),
   /** Rollen die deze koppeling beheert weer afnemen zodra ze niet meer kloppen. */
   opruimen: z.boolean().default(true),
@@ -77,7 +52,13 @@ export const LEGE_INSTELLINGEN: ClanInstellingen = clanInstellingenSchema.parse(
 
 export function parseClanInstellingen(waarde: unknown): ClanInstellingen {
   const uitkomst = clanInstellingenSchema.safeParse(waarde);
-  if (uitkomst.success) return uitkomst.data;
+  if (uitkomst.success) {
+    const nummers = uitkomst.data.clans.map((clan) => clan.groupId);
+    if (new Set(nummers).size !== nummers.length) {
+      throw new Error('Dezelfde clan staat er twee keer in.');
+    }
+    return uitkomst.data;
+  }
   throw new Error(uitkomst.error.issues.map((issue) => issue.message).join('; '));
 }
 
@@ -102,10 +83,24 @@ export interface RolInfo {
   beheerbaar: boolean;
 }
 
-/** Wie in Discord hoort bij welke RuneScape-naam. */
+/** Wie in Discord hoort bij welke OSRS-naam. */
 export interface Koppeling {
   discordId: string;
   rsn: string;
+}
+
+/** Een opgehaalde ledenlijst van één gekozen clan. */
+export interface Ledenlijst {
+  groupId: number;
+  naam: string;
+  leden: WomLid[];
+}
+
+/** Waar iemand gevonden is: in welke clan, met welke rang. */
+export interface Gevonden {
+  groupId: number;
+  clan: string;
+  rang: string;
 }
 
 export interface Rangwissel {
@@ -113,17 +108,19 @@ export interface Rangwissel {
   rsn: string;
   /** De naam zoals Discord hem toont, om het plan leesbaar te houden. */
   weergavenaam: string;
-  /** Zit deze speler in de ingestelde clan? */
-  inClan: boolean;
-  /** De clanrang, of null als hij niet in de clan zit. */
-  rang: string | null;
+  /** In welke van de gekozen clans deze speler staat, met zijn rang daar. */
+  gevonden: Gevonden[];
   /** Rol-ids die erbij komen. */
   erbij: string[];
   /** Rol-ids die eraf gaan. */
   eraf: string[];
   /** Nieuwe bijnaam, of null als die blijft zoals hij is. */
   bijnaamNaar: string | null;
-  /** Eén regel over wat er met deze persoon gebeurt. */
+  /** Waar deze persoon staat: "Captain in Mijn Clan", of dat hij nergens staat. */
+  staat: string;
+  /** Wat er verandert: "krijgt @Captain, verliest @Gast". */
+  wijziging: string;
+  /** Die twee achter elkaar, voor een lijst waar één regel per persoon past. */
   reden: string;
   /** Waarom dit (deels) niet lukt. Leeg als er niets in de weg staat. */
   problemen: string[];
@@ -132,7 +129,8 @@ export interface Rangwissel {
 export interface ClanPlanInvoer {
   instellingen: ClanInstellingen;
   koppelingen: Koppeling[];
-  clanLeden: ClanLid[];
+  /** Per gekozen clan de ledenlijst van WiseOldMan. */
+  ledenlijsten: Ledenlijst[];
   /** De leden van de Discord-server, op id. Wie ontbreekt is de server uit. */
   leden: Map<string, DiscordLid>;
   /** De rollen van de server, op id. */
@@ -144,8 +142,8 @@ export interface ClanPlan {
   wissels: Rangwissel[];
   /** Gekoppelde leden waar niets aan hoeft te veranderen. */
   ongewijzigd: number;
-  /** Clanleden zonder Discord-koppeling: die missen hun rol dus nog. */
-  ongekoppeld: ClanLid[];
+  /** Per clan de leden zonder Discord-koppeling: die missen hun rol dus nog. */
+  ongekoppeld: Array<{ groupId: number; clan: string; leden: string[] }>;
   /** Koppelingen van mensen die niet (meer) in de Discord-server zitten. */
   vertrokken: Koppeling[];
   /** Wat er scheef staat aan de instellingen zelf. */
@@ -153,28 +151,45 @@ export interface ClanPlan {
 }
 
 /**
- * Het plan. Per gekoppeld lid: welke rol hoort erbij, welke rollen mogen eraf.
+ * Het plan. Per gekoppeld lid: in welke gekozen clans hij staat, welke rollen
+ * daarbij horen, en welke daarvan hij nog niet of juist te veel heeft.
+ *
+ * Staat iemand in twee gekozen clans, dan krijgt hij van allebei de rollen. Dat
+ * is de enige regel die zich laat uitleggen zonder voorrangslijstje: elke clan
+ * die je hier kiest telt op zichzelf.
  *
  * Eraf gaan alleen rollen die deze koppeling zelf beheert — de rangrollen, de
- * lidrol en de gastrol. Alle andere rollen blijft hij af. Iemand die naast
+ * clanrollen en de gastrol. Alle andere rollen blijft hij af. Iemand die naast
  * @Corporal ook @Eventteam heeft, is niet ineens zijn eventrol kwijt omdat hij
  * in de clan promoveerde.
  */
 export function planClanRangen(invoer: ClanPlanInvoer): ClanPlan {
-  const { instellingen, koppelingen, clanLeden, leden, rollen } = invoer;
+  const { instellingen, koppelingen, ledenlijsten, leden, rollen } = invoer;
 
-  const opNaam = new Map(clanLeden.map((lid) => [normaliseerNaam(lid.naam), lid]));
-  const gebruikt = new Set<string>();
+  // Per clan: de leden op genormaliseerde naam, plus wie we gezien hebben.
+  const perClan = instellingen.clans.map((clan) => {
+    const lijst = ledenlijsten.find((kandidaat) => kandidaat.groupId === clan.groupId);
+    return {
+      clan,
+      naam: lijst?.naam || clan.naam || `clan ${clan.groupId}`,
+      opNaam: new Map((lijst?.leden ?? []).map((lid) => [normaliseerNaam(lid.naam), lid])),
+      gebruikt: new Set<string>(),
+      gevonden: Boolean(lijst),
+    };
+  });
 
   const beheerdeRollen = [
-    ...Object.values(instellingen.rangRollen),
-    instellingen.lidRol,
+    ...instellingen.clans.flatMap((clan) => [...Object.values(clan.rangRollen), clan.lidRol]),
     instellingen.gastRol,
   ].filter((id): id is string => Boolean(id));
 
   const waarschuwingen: string[] = [];
-  if (!instellingen.clan) waarschuwingen.push('Er is nog geen clan ingesteld.');
-  if (beheerdeRollen.length === 0) waarschuwingen.push('Er is nog geen enkele rang aan een rol gekoppeld.');
+  if (instellingen.clans.length === 0) waarschuwingen.push('Er is nog geen clan gekozen.');
+  if (beheerdeRollen.length === 0) waarschuwingen.push('Er is nog geen enkele rol aan een clan of rang gekoppeld.');
+
+  for (const regel of perClan) {
+    if (!regel.gevonden) waarschuwingen.push(`De ledenlijst van "${regel.naam}" is niet opgehaald.`);
+  }
 
   for (const id of new Set(beheerdeRollen)) {
     const rol = rollen.get(id);
@@ -196,27 +211,33 @@ export function planClanRangen(invoer: ClanPlanInvoer): ClanPlan {
       continue;
     }
 
-    const clanLid = opNaam.get(normaliseerNaam(koppeling.rsn));
-    if (clanLid) gebruikt.add(normaliseerNaam(clanLid.naam));
-
+    const gezocht = normaliseerNaam(koppeling.rsn);
     const gewenst = new Set<string>();
-    if (clanLid) {
-      const rangRol = instellingen.rangRollen[pasendeRang(clanLid.rang, instellingen)];
+    const gevonden: Gevonden[] = [];
+    let naam = koppeling.rsn;
+
+    for (const regel of perClan) {
+      const clanLid = regel.opNaam.get(gezocht);
+      if (!clanLid) continue;
+
+      regel.gebruikt.add(gezocht);
+      gevonden.push({ groupId: regel.clan.groupId, clan: regel.naam, rang: clanLid.rang });
+      // De schrijfwijze van WiseOldMan wint van wat iemand zelf intypte.
+      naam = clanLid.naam;
+
+      if (regel.clan.lidRol) gewenst.add(regel.clan.lidRol);
+      const rangRol = regel.clan.rangRollen[clanLid.rang];
       if (rangRol) gewenst.add(rangRol);
-      if (instellingen.lidRol) gewenst.add(instellingen.lidRol);
-    } else if (instellingen.gastRol) {
-      gewenst.add(instellingen.gastRol);
     }
+
+    if (gevonden.length === 0 && instellingen.gastRol) gewenst.add(instellingen.gastRol);
 
     const huidig = new Set(lid.rollen);
     const erbij = [...gewenst].filter((id) => !huidig.has(id));
     const eraf = instellingen.opruimen
-      ? beheerdeRollen.filter((id) => huidig.has(id) && !gewenst.has(id))
+      ? [...new Set(beheerdeRollen)].filter((id) => huidig.has(id) && !gewenst.has(id))
       : [];
 
-    // De naam uit de ledenlijst wint van wat iemand zelf intypte: Jagex weet
-    // beter hoe de hoofdletters staan dan de haast van een nieuw lid.
-    const naam = clanLid?.naam ?? koppeling.rsn;
     const bijnaamNaar = instellingen.bijnaam && lid.bijnaam !== naam ? naam : null;
 
     if (erbij.length === 0 && eraf.length === 0 && bijnaamNaar === null) {
@@ -238,12 +259,11 @@ export function planClanRangen(invoer: ClanPlanInvoer): ClanPlan {
       discordId: lid.id,
       rsn: naam,
       weergavenaam: lid.bijnaam || lid.naam,
-      inClan: Boolean(clanLid),
-      rang: clanLid?.rang ?? null,
+      gevonden,
       erbij: [...new Set(erbij)],
-      eraf: [...new Set(eraf)],
+      eraf,
       bijnaamNaar,
-      reden: beschrijf(clanLid?.rang ?? null, erbij, eraf, bijnaamNaar, rollen),
+      ...beschrijf(gevonden, erbij, eraf, bijnaamNaar, rollen),
       problemen: [...new Set(problemen)],
     });
   }
@@ -251,57 +271,58 @@ export function planClanRangen(invoer: ClanPlanInvoer): ClanPlan {
   return {
     wissels,
     ongewijzigd,
-    ongekoppeld: clanLeden.filter((lid) => !gebruikt.has(normaliseerNaam(lid.naam))),
+    ongekoppeld: perClan
+      .filter((regel) => regel.gevonden)
+      .map((regel) => ({
+        groupId: regel.clan.groupId,
+        clan: regel.naam,
+        leden: [...regel.opNaam.values()]
+          .filter((lid) => !regel.gebruikt.has(normaliseerNaam(lid.naam)))
+          .map((lid) => lid.naam),
+      }))
+      .filter((regel) => regel.leden.length > 0),
     vertrokken,
     waarschuwingen: [...new Set(waarschuwingen)],
   };
 }
 
-/**
- * De rang waarvan de rol gepakt wordt. Staat er voor de eigen rang geen rol
- * ingesteld, dan zakt hij door naar de eerstvolgende lagere rang die er wél een
- * heeft. Een clan die alleen @Lid en @Leiding uitdeelt hoeft zo niet alle twaalf
- * rangen in te vullen, en een Corporal blijft niet zonder rol staan.
- */
-function pasendeRang(rang: string, instellingen: ClanInstellingen): string {
-  const eigen = CLAN_RANGEN.find((bekend) => bekend.toLowerCase() === rang.trim().toLowerCase());
-  if (!eigen) return rang;
-
-  const vanaf = CLAN_RANGEN.indexOf(eigen);
-  for (const kandidaat of CLAN_RANGEN.slice(vanaf)) {
-    if (instellingen.rangRollen[kandidaat]) return kandidaat;
-  }
-  return eigen;
-}
-
 function beschrijf(
-  rang: string | null,
+  gevonden: Gevonden[],
   erbij: string[],
   eraf: string[],
   bijnaamNaar: string | null,
   rollen: Map<string, RolInfo>,
-): string {
-  const naam = (id: string) => rollen.get(id)?.naam ?? id;
+): { staat: string; wijziging: string; reden: string } {
+  const naam = (id: string) => `@${rollen.get(id)?.naam ?? id}`;
   const delen: string[] = [];
 
-  if (erbij.length > 0) delen.push(`krijgt ${erbij.map(naam).map((n) => `@${n}`).join(', ')}`);
-  if (eraf.length > 0) delen.push(`verliest ${eraf.map(naam).map((n) => `@${n}`).join(', ')}`);
+  if (erbij.length > 0) delen.push(`krijgt ${erbij.map(naam).join(', ')}`);
+  if (eraf.length > 0) delen.push(`verliest ${eraf.map(naam).join(', ')}`);
   if (bijnaamNaar) delen.push(`bijnaam wordt "${bijnaamNaar}"`);
 
-  const staat = rang ? `${rang} in de clan` : 'niet in de clan';
-  return `${staat} — ${delen.join(', ')}`;
+  const staat =
+    gevonden.length > 0
+      ? gevonden.map((plek) => `${netteRang(plek.rang)} in ${plek.clan}`).join(' en ')
+      : 'in geen van de gekozen clans';
+
+  const wijziging = delen.join(', ');
+  return { staat, wijziging, reden: `${staat} — ${wijziging}` };
 }
 
 /**
  * Een eerste invulling op basis van de rolnamen die er al staan: een rol die
- * "Corporal" heet hoort bij de rang Corporal. Scheelt bij een clanserver die al
- * jaren draait twaalf keuzes uit een dropdown.
+ * "Deputy owner" of "deputy_owner" heet hoort bij die rang. Scheelt bij een
+ * clanserver die al jaren draait een hoop keuzes uit een dropdown.
  */
-export function raadRangRollen(rollen: RolInfo[]): Record<string, string> {
+export function raadRangRollen(rollen: RolInfo[], rangen: string[]): Record<string, string> {
   const gevonden: Record<string, string> = {};
 
-  for (const rang of CLAN_RANGEN) {
-    const rol = rollen.find((kandidaat) => normaliseerNaam(kandidaat.naam) === normaliseerNaam(rang));
+  for (const rang of rangen) {
+    const rol = rollen.find(
+      (kandidaat) =>
+        normaliseerNaam(kandidaat.naam) === normaliseerNaam(rang) ||
+        normaliseerNaam(kandidaat.naam) === normaliseerNaam(netteRang(rang)),
+    );
     if (rol) gevonden[rang] = rol.id;
   }
 

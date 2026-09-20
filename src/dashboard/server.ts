@@ -38,7 +38,13 @@ import { diffTemplates, summarizeDiff } from '../diff.js';
 import { simulate, simulatableRoles } from '../simulate.js';
 import { compare } from '../compare.js';
 import { parseTemplate, type ServerTemplate } from '../types.js';
-import { CLAN_RANGEN, parseClanInstellingen, raadRangRollen, type DiscordLid } from '../clan/rangen.js';
+import {
+  parseClanInstellingen,
+  raadRangRollen,
+  type ClanKeuze,
+  type DiscordLid,
+  type RolInfo,
+} from '../clan/rangen.js';
 import {
   alGekoppeldAan,
   koppel,
@@ -50,7 +56,7 @@ import {
   type ClanDossier,
 } from '../clan/opslag.js';
 import { bouwClanPlan, rolInfoVan, verzamelLeden, voerClanPlanUit } from '../clan/synchroniseren.js';
-import { haalLedenlijst, type Ledenlijst } from '../clan/runescape.js';
+import { geldigeNaam, haalGroep, netteRang, zoekGroepen, type WomGroep } from '../clan/wiseoldman.js';
 import { logger } from '../util/logger.js';
 
 /**
@@ -634,9 +640,9 @@ async function handle(
 
 
   // --- Clanrangen ----------------------------------------------------------
-  // De tweede tak van deze bot: welke clan hoort bij deze server, welke rol bij
-  // welke clanrang, en wie is wie. Alles hangt aan een server, dus alles gaat
-  // door dezelfde poort als de rest.
+  // De tweede tak van deze bot: welke OSRS-clans meetellen, welke rol bij welke
+  // rang hoort, en wie is wie. Alles hangt aan een server, dus alles gaat door
+  // dezelfde poort als de rest.
   if (resource === 'clan' && id !== undefined) {
     const nee = weigering(id);
     if (nee) return send(response, 403, { error: nee });
@@ -654,11 +660,11 @@ async function handle(
         guildName: guild.name,
         instellingen: dossier.instellingen,
         laatsteSync: dossier.laatsteSync,
-        rangen: CLAN_RANGEN,
         rollen,
-        // Een clanserver heeft die rollen vaak al staan. Dan hoeft niemand
-        // twaalf keer hetzelfde uit een lijstje te kiezen.
-        voorstel: raadRangRollen(rollen),
+        // Per gekozen clan: de rangen die daar in gebruik zijn. Die lijst komt
+        // uit de ledenlijst zelf — een OSRS-clan bepaalt zijn eigen rangen, dus
+        // een vaste lijst zou voor de helft niet kloppen.
+        clans: await Promise.all(dossier.instellingen.clans.map((clan) => beschrijfClan(clan, rollen))),
         koppelingen: await beschrijfKoppelingen(guild, dossier),
         magRollen: me.permissions.has(PermissionFlagsBits.ManageRoles),
         magBijnamen: me.permissions.has(PermissionFlagsBits.ManageNicknames),
@@ -677,24 +683,68 @@ async function handle(
       }
     }
 
-    // De ledenlijst bij Jagex ophalen, los van alle Discord-rollen. Handig om
-    // eerst te kijken of de clannaam klopt voordat je er rollen aan hangt.
-    if (method === 'POST' && sub === 'leden') {
-      const body = await readJson<{ clan?: string; vers?: boolean }>(request);
-      const clan = (body.clan ?? dossier.instellingen.clan).trim();
-      if (!clan) return send(response, 400, { error: 'Vul eerst een clannaam in.' });
+    // Een clan zoeken op naam, zodat niemand een groepsnummer hoeft op te zoeken.
+    if (method === 'POST' && sub === 'zoek') {
+      const body = await readJson<{ naam?: string }>(request);
+      try {
+        return send(response, 200, { gevonden: await zoekGroepen(body.naam ?? '') });
+      } catch (error) {
+        return send(response, 400, { error: message(error) });
+      }
+    }
+
+    // Een clan laten meetellen. We halen hem meteen op: zo weten we zeker dat
+    // het nummer bestaat, en staat de naam er goed in.
+    if (method === 'POST' && sub === 'toevoegen') {
+      const body = await readJson<{ groupId?: number }>(request);
+      const groupId = Number(body.groupId);
+      if (!Number.isInteger(groupId) || groupId <= 0) {
+        return send(response, 400, { error: 'Kies een clan uit de zoeklijst.' });
+      }
+      if (dossier.instellingen.clans.some((clan) => clan.groupId === groupId)) {
+        return send(response, 400, { error: 'Die clan telt al mee.' });
+      }
 
       try {
-        const lijst = await haalLedenlijst(clan, { vers: body.vers === true });
-        return send(response, 200, {
-          ...lijst,
-          // Zonder deze telling moet de pagina zelf gaan groeperen; dit is
-          // precies wat je wilt zien: hoeveel man zit er op elke rang.
-          perRang: CLAN_RANGEN.map((rang) => ({
-            rang,
-            aantal: lijst.leden.filter((lid) => lid.rang === rang).length,
-          })).filter((regel) => regel.aantal > 0),
+        const groep = await haalGroep(groupId);
+        const instellingen = parseClanInstellingen({
+          ...dossier.instellingen,
+          clans: [...dossier.instellingen.clans, { groupId, naam: groep.naam, lidRol: null, rangRollen: {} }],
         });
+
+        await zetInstellingen(config.clanDir, id, instellingen);
+        return send(response, 200, {
+          instellingen,
+          clans: await Promise.all(instellingen.clans.map((clan) => beschrijfClan(clan, rollen))),
+        });
+      } catch (error) {
+        return send(response, 400, { error: message(error) });
+      }
+    }
+
+    if (method === 'POST' && sub === 'verwijderen') {
+      const body = await readJson<{ groupId?: number }>(request);
+      const instellingen = parseClanInstellingen({
+        ...dossier.instellingen,
+        clans: dossier.instellingen.clans.filter((clan) => clan.groupId !== Number(body.groupId)),
+      });
+
+      await zetInstellingen(config.clanDir, id, instellingen);
+      return send(response, 200, {
+        instellingen,
+        clans: await Promise.all(instellingen.clans.map((clan) => beschrijfClan(clan, rollen))),
+      });
+    }
+
+    // De ledenlijst opnieuw ophalen, los van alle Discord-rollen.
+    if (method === 'POST' && sub === 'leden') {
+      const body = await readJson<{ groupId?: number }>(request);
+      const clan = dossier.instellingen.clans.find((kandidaat) => kandidaat.groupId === Number(body.groupId));
+      if (!clan) return send(response, 400, { error: 'Die clan telt hier niet mee.' });
+
+      try {
+        await haalGroep(clan.groupId, { vers: true });
+        return send(response, 200, { clan: await beschrijfClan(clan, rollen) });
       } catch (error) {
         return send(response, 400, { error: message(error) });
       }
@@ -710,16 +760,16 @@ async function handle(
         return send(response, 400, { error: message(error) });
       }
 
-      const { plan, ledenlijst } = uitkomst;
+      const { plan, groepen } = uitkomst;
 
       if (sub === 'plan') {
-        return send(response, 200, { plan, ledenlijst: samenvatting(ledenlijst) });
+        return send(response, 200, { plan, groepen: groepen.map(samenvatting) });
       }
 
       if (config.demo) {
         return send(response, 200, {
           plan,
-          ledenlijst: samenvatting(ledenlijst),
+          groepen: groepen.map(samenvatting),
           aangepast: 0,
           mislukt: 0,
           fouten: [],
@@ -737,10 +787,10 @@ async function handle(
       await noteerRangen(
         config.clanDir,
         id,
-        plan.wissels.map((wissel) => ({ discordId: wissel.discordId, rang: wissel.rang, rsn: wissel.rsn })),
+        plan.wissels.map((w) => ({ discordId: w.discordId, gevonden: w.gevonden, rsn: w.rsn })),
       );
 
-      return send(response, 200, { plan, ledenlijst: samenvatting(ledenlijst), ...resultaat });
+      return send(response, 200, { plan, groepen: groepen.map(samenvatting), ...resultaat });
     }
 
     if (method === 'POST' && sub === 'koppel') {
@@ -749,7 +799,7 @@ async function handle(
       const rsn = (body.rsn ?? '').trim();
 
       if (!/^\d{1,25}$/.test(discordId)) return send(response, 400, { error: 'Dat is geen Discord-gebruikers-id: alleen cijfers.' });
-      if (!rsn) return send(response, 400, { error: 'Vul een RuneScape-naam in.' });
+      if (!geldigeNaam(rsn)) return send(response, 400, { error: `"${rsn}" kan geen OSRS-naam zijn.` });
 
       const bezet = alGekoppeldAan(dossier, rsn, discordId);
       if (bezet) return send(response, 400, { error: `"${rsn}" staat al gekoppeld aan ${bezet}.` });
@@ -767,12 +817,14 @@ async function handle(
       return send(response, 200, { koppelingen: await beschrijfKoppelingen(guild, bijgewerkt) });
     }
 
-    // Rollen aanmaken voor rangen die er nog geen hebben. Een clanserver die
-    // hier binnenkomt heeft zelden alle twaalf rollen al klaarstaan, en met de
-    // hand twaalf rollen aanmaken is precies het werk dat deze bot afneemt.
+    // Rollen aanmaken voor rangen die er nog geen hebben. Met de hand acht
+    // rollen aanmaken is precies het werk dat deze bot afneemt.
     if (method === 'POST' && sub === 'rollen') {
-      const body = await readJson<{ rangen?: string[] }>(request);
-      const gevraagd = (body.rangen ?? []).filter((rang) => CLAN_RANGEN.includes(rang as (typeof CLAN_RANGEN)[number]));
+      const body = await readJson<{ groupId?: number; rangen?: string[] }>(request);
+      const clan = dossier.instellingen.clans.find((kandidaat) => kandidaat.groupId === Number(body.groupId));
+      if (!clan) return send(response, 400, { error: 'Die clan telt hier niet mee.' });
+
+      const gevraagd = (body.rangen ?? []).map((rang) => String(rang).trim()).filter(Boolean).slice(0, 30);
       if (gevraagd.length === 0) return send(response, 400, { error: 'Kies minstens één rang.' });
 
       if (config.demo) {
@@ -782,24 +834,31 @@ async function handle(
         return send(response, 400, { error: 'De bot mist het recht "Rollen beheren".' });
       }
 
-      const rangRollen = { ...dossier.instellingen.rangRollen };
+      const rangRollen = { ...clan.rangRollen };
       const gemaakt: Array<{ rang: string; id: string }> = [];
       const fouten: string[] = [];
 
       for (const rang of gevraagd) {
+        const naam = netteRang(rang);
         // Staat er al een rol met die naam, dan pakken we die in plaats van er
         // een tweede naast te zetten.
-        const bestaand = guild.roles.cache.find((rol) => rol.name.toLowerCase() === rang.toLowerCase());
+        const bestaand = guild.roles.cache.find((rol) => rol.name.toLowerCase() === naam.toLowerCase());
         try {
-          const rol = bestaand ?? (await guild.roles.create({ name: rang, reason: 'Clanrang-rol via het dashboard' }));
+          const rol = bestaand ?? (await guild.roles.create({ name: naam, reason: 'Clanrang-rol via het dashboard' }));
           rangRollen[rang] = rol.id;
           if (!bestaand) gemaakt.push({ rang, id: rol.id });
         } catch (error) {
-          fouten.push(`${rang}: ${message(error)}`);
+          fouten.push(`${naam}: ${message(error)}`);
         }
       }
 
-      const instellingen = parseClanInstellingen({ ...dossier.instellingen, rangRollen });
+      const instellingen = parseClanInstellingen({
+        ...dossier.instellingen,
+        clans: dossier.instellingen.clans.map((kandidaat) =>
+          kandidaat.groupId === clan.groupId ? { ...kandidaat, rangRollen } : kandidaat,
+        ),
+      });
+
       await zetInstellingen(config.clanDir, id, instellingen);
       return send(response, 200, { gemaakt, fouten, instellingen });
     }
@@ -823,7 +882,7 @@ async function handle(
 
 /**
  * De koppelingen met erbij hoe iemand in Discord heet. Lukt dat ophalen niet
- * (geen bot verbonden, of het lid is weg), dan blijft de RuneScape-naam staan —
+ * (geen bot verbonden, of het lid is weg), dan blijft de OSRS-naam staan —
  * een lijst zonder namen is nog altijd beter dan een lege lijst.
  */
 async function beschrijfKoppelingen(guild: Guild, dossier: ClanDossier) {
@@ -841,7 +900,8 @@ async function beschrijfKoppelingen(guild: Guild, dossier: ClanDossier) {
     return {
       discordId: koppeling.discordId,
       rsn: koppeling.rsn,
-      rang: gegevens?.rang ?? null,
+      // Waar dit lid voor het laatst gezien is, met de rang netjes geschreven.
+      gezien: (gegevens?.gezien ?? []).map((plek) => ({ ...plek, rangNaam: netteRang(plek.rang) })),
       gezienOp: gegevens?.gezienOp ?? null,
       door: gegevens?.door ?? '',
       weergavenaam: lid ? lid.bijnaam || lid.naam : null,
@@ -851,8 +911,38 @@ async function beschrijfKoppelingen(guild: Guild, dossier: ClanDossier) {
 }
 
 /** De ledenlijst zonder de honderden regels zelf — die hoeft de pagina niet. */
-function samenvatting(lijst: Ledenlijst) {
-  return { clan: lijst.clan, aantal: lijst.leden.length, opgehaaldOp: lijst.opgehaaldOp, uitCache: lijst.uitCache };
+function samenvatting(groep: WomGroep) {
+  return { groupId: groep.id, naam: groep.naam, aantal: groep.leden.length, opgehaaldOp: groep.opgehaaldOp };
+}
+
+/**
+ * Eén gekozen clan zoals het scherm hem wil hebben: de rangen die er in gebruik
+ * zijn met hoeveel leden erop staan, en een voorzet voor de rollen. Lukt het
+ * ophalen niet, dan komt dat als `fout` terug in plaats van dat het hele scherm
+ * leeg blijft.
+ */
+async function beschrijfClan(clan: ClanKeuze, rollen: RolInfo[]) {
+  const basis = { ...clan, aantal: 0, rangen: [] as Array<{ rang: string; naam: string; aantal: number }>, voorstel: {}, fout: null as string | null };
+
+  try {
+    const groep = await haalGroep(clan.groupId);
+    const telling = new Map<string, number>();
+    for (const lid of groep.leden) telling.set(lid.rang, (telling.get(lid.rang) ?? 0) + 1);
+
+    const rangen = [...telling.entries()]
+      .map(([rang, aantal]) => ({ rang, naam: netteRang(rang), aantal }))
+      .sort((a, b) => b.aantal - a.aantal || a.naam.localeCompare(b.naam));
+
+    return {
+      ...basis,
+      naam: groep.naam || clan.naam,
+      aantal: groep.leden.length,
+      rangen,
+      voorstel: raadRangRollen(rollen, rangen.map((regel) => regel.rang)),
+    };
+  } catch (error) {
+    return { ...basis, fout: message(error) };
+  }
 }
 
 

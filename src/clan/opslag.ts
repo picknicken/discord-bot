@@ -1,11 +1,11 @@
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { LEGE_INSTELLINGEN, parseClanInstellingen, type ClanInstellingen } from './rangen.js';
-import { normaliseerNaam } from './runescape.js';
+import { LEGE_INSTELLINGEN, parseClanInstellingen, type ClanInstellingen, type Gevonden } from './rangen.js';
+import { normaliseerNaam } from './wiseoldman.js';
 
 /**
- * Wat er per server bewaard moet blijven: welke clan het is, welke rol bij
- * welke rang hoort, en wie welke RuneScape-naam heeft opgegeven.
+ * Wat er per server bewaard moet blijven: welke clans meetellen, welke rol bij
+ * welke rang hoort, en wie welke OSRS-naam heeft opgegeven.
  *
  * Eén JSON-bestand per server. Geen database: dit is een bot die op één plek
  * draait, het gaat om honderden regels en niet om miljoenen, en een bestand kun
@@ -14,14 +14,17 @@ import { normaliseerNaam } from './runescape.js';
  */
 
 export interface Gekoppeld {
-  /** De RuneScape-naam, zoals Jagex hem schrijft zodra we hem daar gezien hebben. */
+  /** De OSRS-naam, zoals WiseOldMan hem schrijft zodra we hem daar gezien hebben. */
   rsn: string;
   gekoppeldOp: string;
   /** Wie de koppeling maakte: het lid zelf, of een beheerder via het dashboard. */
   door: string;
-  /** De laatst geziene clanrang, zodat het dashboard iets kan tonen zonder Jagex te bellen. */
-  rang: string | null;
-  /** Wanneer die rang voor het laatst klopte. */
+  /**
+   * Waar dit lid voor het laatst gezien is: per gekozen clan zijn rang daar.
+   * Staat hier zodat het dashboard iets kan tonen zonder WiseOldMan te bellen.
+   */
+  gezien: Gevonden[];
+  /** Wanneer dat voor het laatst klopte. */
   gezienOp: string | null;
 }
 
@@ -35,7 +38,7 @@ export interface ClanDossier {
 
 const leegDossier = (guildId: string): ClanDossier => ({
   guildId,
-  instellingen: { ...LEGE_INSTELLINGEN, rangRollen: {} },
+  instellingen: { ...LEGE_INSTELLINGEN, clans: [] },
   koppelingen: {},
   laatsteSync: null,
 });
@@ -159,7 +162,7 @@ export async function koppel(
       rsn: rsn.trim(),
       gekoppeldOp: new Date().toISOString(),
       door,
-      rang: null,
+      gezien: [],
       gezienOp: null,
     };
   });
@@ -175,11 +178,11 @@ export async function ontkoppel(dir: string, guildId: string, discordId: string)
   return uitkomst;
 }
 
-/** Na een synchronisatie: bewaar per lid wat we net bij Jagex zagen staan. */
+/** Na een synchronisatie: bewaar per lid wat we net bij WiseOldMan zagen staan. */
 export async function noteerRangen(
   dir: string,
   guildId: string,
-  gezien: Array<{ discordId: string; rang: string | null; rsn?: string }>,
+  gezien: Array<{ discordId: string; gevonden: Gevonden[]; rsn?: string }>,
   opties: { volledig?: boolean } = {},
 ): Promise<void> {
   await wijzigDossier(dir, guildId, (huidig) => {
@@ -187,7 +190,7 @@ export async function noteerRangen(
     for (const regel of gezien) {
       const koppeling = huidig.koppelingen[regel.discordId];
       if (!koppeling) continue;
-      koppeling.rang = regel.rang;
+      koppeling.gezien = regel.gevonden;
       koppeling.gezienOp = nu;
       if (regel.rsn) koppeling.rsn = regel.rsn;
     }
@@ -205,7 +208,7 @@ export function koppelingenVan(dossier: ClanDossier): Array<{ discordId: string;
   }));
 }
 
-/** Zit deze RuneScape-naam al aan iemand anders vast? */
+/** Zit deze OSRS-naam al aan iemand anders vast? */
 export function alGekoppeldAan(dossier: ClanDossier, rsn: string, behalve: string): string | null {
   const gezocht = normaliseerNaam(rsn);
   for (const [discordId, gegevens] of Object.entries(dossier.koppelingen)) {

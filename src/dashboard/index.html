@@ -262,7 +262,28 @@
   .empty .icon { width: 22px; height: 22px; margin-bottom: 8px; opacity: .6; }
 
   /* ---------- clanrangen ---------- */
-  /* Twaalf rangen met een rol ernaast: een raster leest hier prettiger dan een
+  /* De uitleg bovenaan het clanscherm. Wie hier voor het eerst komt ziet anders
+     drie panelen met dropdowns en moet zelf raden waar het begint. */
+  .uitleg {
+    display: flex; gap: 11px; align-items: flex-start; margin-bottom: 14px; padding: 12px 14px;
+    background: var(--accent-bg); border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+    border-radius: var(--r-2); font-size: 12.5px;
+  }
+  .uitleg .icon { color: var(--accent); margin-top: 1px; }
+  .uitleg ol { margin: 6px 0 6px; padding-left: 18px; }
+  .uitleg li { margin-bottom: 3px; }
+  .uitleg code { font-family: var(--mono); font-size: 11.5px; background: var(--surface-3); padding: 1px 5px; border-radius: var(--r-1); }
+
+  /* Elke meetellende clan een eigen blok: de rangen eronder horen bij die clan
+     en niet bij de server als geheel. */
+  .clanblok { border: 1px solid var(--border); border-radius: var(--r-2); padding: 12px; margin-bottom: 12px; background: var(--surface-2); }
+  .clankop { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 10px; }
+  .clankop strong { display: block; font-size: 13.5px; }
+  .clankop small { display: block; font-size: 11.5px; }
+  .zoekblok { border-top: 1px solid var(--border); padding-top: 12px; }
+  .zoeklijst { margin-top: 8px; }
+
+  /* Rangen met een rol ernaast: een raster leest hier prettiger dan een
      rij losse velden, want je kijkt van boven naar beneden of er gaten in zitten. */
   .rangen { display: grid; grid-template-columns: minmax(120px, 160px) minmax(0, 1fr) auto; gap: 6px 10px; align-items: center; }
   .rangen .rang { font-size: 12.5px; color: var(--text-2); }
@@ -736,7 +757,7 @@
   <button data-scherm="templates"><svg class="icon"><use href="#i-folder"/></svg>Templates<span class="telling" id="telTemplates"></span></button>
   <button data-scherm="servers"><svg class="icon"><use href="#i-shield"/></svg>Servers<span class="telling" id="telServers"></span></button>
   <button data-scherm="uitrollen"><svg class="icon"><use href="#i-zap"/></svg>Uitrollen</button>
-  <div class="kop">RuneScape</div>
+  <div class="kop">OSRS</div>
   <button data-scherm="clan"><svg class="icon"><use href="#i-crown"/></svg>Clan<span class="telling" id="telClan"></span></button>
   <div class="kop">Terugkijken</div>
   <button data-scherm="geschiedenis"><svg class="icon"><use href="#i-history"/></svg>Geschiedenis</button>
@@ -791,7 +812,7 @@
   <div class="viewkop">
     <div class="grow">
       <h2>Clan</h2>
-      <p>Wie in welke RuneScape-clan zit, en welke Discord-rol daarbij hoort.</p>
+      <p>Wie in welke OSRS-clan zit volgens WiseOldMan, en welke Discord-rol daarbij hoort.</p>
     </div>
     <select id="clanServer" title="Voor welke server"></select>
   </div>

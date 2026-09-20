@@ -1,20 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import type { ClanLid } from '../src/clan/runescape.js';
 import {
-  CLAN_RANGEN,
   clanInstellingenSchema,
   parseClanInstellingen,
   planClanRangen,
   raadRangRollen,
-  rangHoogte,
   type ClanInstellingen,
   type DiscordLid,
+  type Ledenlijst,
   type RolInfo,
 } from '../src/clan/rangen.js';
 
 /**
- * Het rekenwerk achter de clanrollen. Geen Discord, geen internet: erin gaat
- * een ledenlijst, eruit komt wie welke rol krijgt.
+ * Het rekenwerk achter de clanrollen. Geen Discord, geen internet: erin gaan de
+ * ledenlijsten van de gekozen clans, eruit komt wie welke rol krijgt.
  */
 
 const rol = (id: string, naam: string, beheerbaar = true): RolInfo => ({ id, naam, beheerbaar });
@@ -24,10 +22,10 @@ const ROLLEN = new Map(
     rol('r-owner', 'Owner'),
     rol('r-captain', 'Captain'),
     rol('r-corporal', 'Corporal'),
-    rol('r-recruit', 'Recruit'),
     rol('r-lid', 'Clanlid'),
     rol('r-gast', 'Gast'),
     rol('r-event', 'Eventteam'),
+    rol('r-tweede', 'Tweede clan'),
   ].map((info) => [info.id, info]),
 );
 
@@ -40,48 +38,67 @@ const lid = (id: string, rollen: string[], extra: Partial<DiscordLid> = {}): Dis
   ...extra,
 });
 
-const clanLid = (naam: string, rang: string): ClanLid => ({ naam, rang, totalXp: 1, kills: 0 });
+/** Eén clan met drie leden; genoeg om alle gevallen mee te bouwen. */
+const LIJST: Ledenlijst = {
+  groupId: 139,
+  naam: 'Mijn Clan',
+  leden: [
+    { naam: 'Tess', rang: 'captain' },
+    { naam: 'Noa', rang: 'member' },
+    { naam: 'Sparc Mac', rang: 'owner' },
+  ],
+};
 
 const instellingen = (extra: Partial<ClanInstellingen> = {}): ClanInstellingen =>
   parseClanInstellingen({
-    clan: 'Bloody Mayhem',
-    rangRollen: { Owner: 'r-owner', Captain: 'r-captain', Corporal: 'r-corporal', Recruit: 'r-recruit' },
+    clans: [
+      {
+        groupId: 139,
+        naam: 'Mijn Clan',
+        lidRol: null,
+        rangRollen: { owner: 'r-owner', captain: 'r-captain' },
+      },
+    ],
     ...extra,
   });
 
 const plan = (opties: {
   instellingen?: ClanInstellingen;
   koppelingen: Array<{ discordId: string; rsn: string }>;
-  clanLeden?: ClanLid[];
+  ledenlijsten?: Ledenlijst[];
   leden: DiscordLid[];
 }) =>
   planClanRangen({
     instellingen: opties.instellingen ?? instellingen(),
     koppelingen: opties.koppelingen,
-    clanLeden: opties.clanLeden ?? [clanLid('Tess', 'Captain'), clanLid('Noa', 'Recruit')],
+    ledenlijsten: opties.ledenlijsten ?? [LIJST],
     leden: new Map(opties.leden.map((each) => [each.id, each])),
     rollen: ROLLEN,
   });
 
-describe('rangen kennen hun volgorde', () => {
-  it('zet Owner boven Recruit en kent onbekende rangen niet', () => {
-    expect(rangHoogte('Owner')).toBeGreaterThan(rangHoogte('Recruit'));
-    expect(rangHoogte('owner')).toBe(rangHoogte('Owner'));
-    expect(rangHoogte('Zeemeermin')).toBe(-1);
-  });
-
-  it('heeft alle twaalf rangen van een RuneScape-clan', () => {
-    expect(CLAN_RANGEN).toHaveLength(12);
-  });
-});
-
 describe('instellingen nakijken', () => {
   it('vult standaardwaarden aan', () => {
-    expect(clanInstellingenSchema.parse({})).toMatchObject({ clan: '', opruimen: true, automatisch: false });
+    expect(clanInstellingenSchema.parse({})).toMatchObject({ clans: [], opruimen: true, automatisch: false });
   });
 
-  it('weigert een rang die niet bestaat', () => {
-    expect(() => parseClanInstellingen({ rangRollen: { Zeemeermin: 'r-lid' } })).toThrow(/Zeemeermin/);
+  it('weigert dezelfde clan twee keer', () => {
+    expect(() =>
+      parseClanInstellingen({ clans: [{ groupId: 139 }, { groupId: 139 }] }),
+    ).toThrow(/twee keer/);
+  });
+
+  it('weigert een clan-nummer dat geen nummer is', () => {
+    expect(() => parseClanInstellingen({ clans: [{ groupId: 'honderd' }] })).toThrow();
+  });
+
+  it('laat elke rang toe die WiseOldMan gebruikt', () => {
+    // Elke OSRS-clan bepaalt zelf zijn rangen; een vaste lijst zou
+    // voor de helft van de clans niet kloppen.
+    const uitkomst = parseClanInstellingen({
+      clans: [{ groupId: 1, rangRollen: { short_green_guy: 'r-lid', gnome_child: 'r-gast' } }],
+    });
+
+    expect(uitkomst.clans[0]?.rangRollen).toEqual({ short_green_guy: 'r-lid', gnome_child: 'r-gast' });
   });
 });
 
@@ -90,17 +107,18 @@ describe('het plan', () => {
     const uitkomst = plan({ koppelingen: [{ discordId: '1', rsn: 'Tess' }], leden: [lid('1', [])] });
 
     expect(uitkomst.wissels).toHaveLength(1);
-    expect(uitkomst.wissels[0]).toMatchObject({ rang: 'Captain', inClan: true, erbij: ['r-captain'], eraf: [] });
+    expect(uitkomst.wissels[0]).toMatchObject({ erbij: ['r-captain'], eraf: [] });
+    expect(uitkomst.wissels[0]?.gevonden).toEqual([{ groupId: 139, clan: 'Mijn Clan', rang: 'captain' }]);
   });
 
   it('neemt de oude rangrol af bij een promotie', () => {
     const uitkomst = plan({
-      koppelingen: [{ discordId: '1', rsn: 'Tess' }],
-      leden: [lid('1', ['r-corporal'])],
+      koppelingen: [{ discordId: '1', rsn: 'Sparc Mac' }],
+      leden: [lid('1', ['r-captain'])],
     });
 
-    expect(uitkomst.wissels[0]?.erbij).toEqual(['r-captain']);
-    expect(uitkomst.wissels[0]?.eraf).toEqual(['r-corporal']);
+    expect(uitkomst.wissels[0]?.erbij).toEqual(['r-owner']);
+    expect(uitkomst.wissels[0]?.eraf).toEqual(['r-captain']);
   });
 
   it('laat rollen met rust die niets met de clan te maken hebben', () => {
@@ -115,59 +133,63 @@ describe('het plan', () => {
   it('laat alles staan als opruimen uitstaat', () => {
     const uitkomst = plan({
       instellingen: instellingen({ opruimen: false }),
-      koppelingen: [{ discordId: '1', rsn: 'Tess' }],
-      leden: [lid('1', ['r-corporal'])],
+      koppelingen: [{ discordId: '1', rsn: 'Sparc Mac' }],
+      leden: [lid('1', ['r-captain'])],
     });
 
     expect(uitkomst.wissels[0]?.eraf).toEqual([]);
   });
 
-  it('zakt naar een lagere rang als de eigen rang geen rol heeft', () => {
-    // Alleen @Clanlid voor Recruit en @Captain hoger: een Corporal hoort dan de
-    // rol van Recruit te krijgen en niet zonder rol te blijven staan.
+  it('geeft de clanrol aan iedereen in de clan, ook zonder rangrol', () => {
+    // Noa is "member", en daar hangt geen rol aan. De clanrol hoort hij wel te
+    // krijgen: hij staat immers gewoon in de ledenlijst.
     const uitkomst = plan({
-      instellingen: instellingen({ rangRollen: { Captain: 'r-captain', Recruit: 'r-recruit' } }),
-      clanLeden: [clanLid('Bram', 'Corporal')],
-      koppelingen: [{ discordId: '1', rsn: 'Bram' }],
+      instellingen: parseClanInstellingen({
+        clans: [{ groupId: 139, naam: 'Mijn Clan', lidRol: 'r-lid', rangRollen: { captain: 'r-captain' } }],
+      }),
+      koppelingen: [{ discordId: '1', rsn: 'Noa' }],
       leden: [lid('1', [])],
     });
 
-    expect(uitkomst.wissels[0]).toMatchObject({ rang: 'Corporal', erbij: ['r-recruit'] });
+    expect(uitkomst.wissels[0]?.erbij).toEqual(['r-lid']);
   });
 
-  it('geeft iedereen in de clan ook de lidrol', () => {
+  it('zet wie in geen enkele gekozen clan zit op de gastrol', () => {
     const uitkomst = plan({
-      instellingen: instellingen({ lidRol: 'r-lid' }),
+      instellingen: instellingen({ gastRol: 'r-gast' }),
+      koppelingen: [{ discordId: '1', rsn: 'Weg Hier' }],
+      leden: [lid('1', ['r-captain'])],
+    });
+
+    expect(uitkomst.wissels[0]?.gevonden).toEqual([]);
+    expect(uitkomst.wissels[0]?.erbij).toEqual(['r-gast']);
+    expect(uitkomst.wissels[0]?.eraf).toEqual(['r-captain']);
+  });
+
+  it('geeft bij twee gekozen clans de rollen van allebei', () => {
+    const tweede: Ledenlijst = { groupId: 200, naam: 'Tweede Clan', leden: [{ naam: 'Tess', rang: 'member' }] };
+
+    const uitkomst = plan({
+      instellingen: parseClanInstellingen({
+        clans: [
+          { groupId: 139, naam: 'Mijn Clan', rangRollen: { captain: 'r-captain' } },
+          { groupId: 200, naam: 'Tweede Clan', lidRol: 'r-tweede' },
+        ],
+      }),
+      ledenlijsten: [LIJST, tweede],
       koppelingen: [{ discordId: '1', rsn: 'Tess' }],
       leden: [lid('1', [])],
     });
 
-    expect(uitkomst.wissels[0]?.erbij).toEqual(['r-captain', 'r-lid']);
-  });
-
-  it('zet wie de clan uit is op de gastrol', () => {
-    const uitkomst = plan({
-      instellingen: instellingen({ lidRol: 'r-lid', gastRol: 'r-gast' }),
-      koppelingen: [{ discordId: '1', rsn: 'Weg Hier' }],
-      leden: [lid('1', ['r-captain', 'r-lid'])],
-    });
-
-    expect(uitkomst.wissels[0]).toMatchObject({ inClan: false, rang: null, erbij: ['r-gast'] });
-    expect(uitkomst.wissels[0]?.eraf).toEqual(['r-captain', 'r-lid']);
+    expect(uitkomst.wissels[0]?.erbij).toEqual(['r-captain', 'r-tweede']);
+    expect(uitkomst.wissels[0]?.gevonden.map((plek) => plek.clan)).toEqual(['Mijn Clan', 'Tweede Clan']);
   });
 
   it('vindt een lid ondanks underscores en hoofdletters', () => {
-    const uitkomst = plan({ koppelingen: [{ discordId: '1', rsn: 'tess' }], leden: [lid('1', [])] });
-    expect(uitkomst.wissels[0]?.inClan).toBe(true);
-  });
+    const uitkomst = plan({ koppelingen: [{ discordId: '1', rsn: 'sparc_mac' }], leden: [lid('1', [])] });
 
-  it('neemt de schrijfwijze van Jagex over', () => {
-    const uitkomst = plan({
-      clanLeden: [clanLid('Sparc Mac', 'Owner')],
-      koppelingen: [{ discordId: '1', rsn: 'sparc_mac' }],
-      leden: [lid('1', [])],
-    });
-
+    expect(uitkomst.wissels[0]?.gevonden).toHaveLength(1);
+    // En neemt de schrijfwijze van WiseOldMan over.
     expect(uitkomst.wissels[0]?.rsn).toBe('Sparc Mac');
   });
 
@@ -193,15 +215,26 @@ describe('het plan', () => {
     expect(aan.wissels[0]?.bijnaamNaar).toBe('Tess');
   });
 
-  it('zet clanleden zonder koppeling apart', () => {
+  it('zet per clan de leden zonder koppeling apart', () => {
     const uitkomst = plan({ koppelingen: [{ discordId: '1', rsn: 'Tess' }], leden: [lid('1', [])] });
-    expect(uitkomst.ongekoppeld.map((each) => each.naam)).toEqual(['Noa']);
+
+    expect(uitkomst.ongekoppeld).toEqual([
+      { groupId: 139, clan: 'Mijn Clan', leden: ['Noa', 'Sparc Mac'] },
+    ]);
   });
 
   it('zet koppelingen van vertrokken leden apart', () => {
     const uitkomst = plan({ koppelingen: [{ discordId: '9', rsn: 'Tess' }], leden: [] });
+
     expect(uitkomst.vertrokken).toEqual([{ discordId: '9', rsn: 'Tess' }]);
     expect(uitkomst.wissels).toHaveLength(0);
+  });
+
+  it('waarschuwt als een ledenlijst ontbreekt in plaats van iedereen leeg te halen', () => {
+    const uitkomst = plan({ ledenlijsten: [], koppelingen: [{ discordId: '1', rsn: 'Tess' }], leden: [lid('1', [])] });
+
+    expect(uitkomst.waarschuwingen.join(' ')).toMatch(/niet opgehaald/);
+    expect(uitkomst.ongekoppeld).toEqual([]);
   });
 
   it('waarschuwt over een rol die boven de bot staat', () => {
@@ -211,7 +244,7 @@ describe('het plan', () => {
     const uitkomst = planClanRangen({
       instellingen: instellingen(),
       koppelingen: [{ discordId: '1', rsn: 'Tess' }],
-      clanLeden: [clanLid('Tess', 'Captain')],
+      ledenlijsten: [LIJST],
       leden: new Map([['1', lid('1', [])]]),
       rollen,
     });
@@ -230,19 +263,31 @@ describe('het plan', () => {
   });
 
   it('zegt het als er nog niets is ingesteld', () => {
+    const uitkomst = plan({ instellingen: parseClanInstellingen({}), koppelingen: [], leden: [] });
+    expect(uitkomst.waarschuwingen).toHaveLength(2);
+  });
+
+  it('schrijft in gewone taal op wat er gebeurt', () => {
     const uitkomst = plan({
-      instellingen: parseClanInstellingen({}),
-      koppelingen: [],
-      leden: [],
+      instellingen: instellingen({ gastRol: 'r-gast' }),
+      koppelingen: [{ discordId: '1', rsn: 'Tess' }],
+      leden: [lid('1', ['r-gast'])],
     });
 
-    expect(uitkomst.waarschuwingen).toHaveLength(2);
+    expect(uitkomst.wissels[0]?.reden).toBe(
+      'Captain in Mijn Clan — krijgt @Captain, verliest @Gast',
+    );
   });
 });
 
 describe('rollen raden op naam', () => {
   it('koppelt rollen die net zo heten als de rang', () => {
-    const geraden = raadRangRollen([...ROLLEN.values()]);
-    expect(geraden).toEqual({ Owner: 'r-owner', Captain: 'r-captain', Corporal: 'r-corporal', Recruit: 'r-recruit' });
+    const geraden = raadRangRollen([...ROLLEN.values()], ['owner', 'captain', 'deputy_owner']);
+    expect(geraden).toEqual({ owner: 'r-owner', captain: 'r-captain' });
+  });
+
+  it('herkent ook de nette schrijfwijze', () => {
+    const geraden = raadRangRollen([rol('r-dep', 'Deputy owner')], ['deputy_owner']);
+    expect(geraden).toEqual({ deputy_owner: 'r-dep' });
   });
 });

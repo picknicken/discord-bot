@@ -6,7 +6,7 @@ import { logger } from './util/logger.js';
 
 /**
  * De commando's van deze bot. Twee takken: /setup richt een server in vanuit een
- * template, /clan hangt er de clanrangen uit RuneScape aan. Ze staan hier naast
+ * template, /clan hangt er de clanrangen uit OSRS aan. Ze staan hier naast
  * elkaar zodat het registreren, het afhandelen en het uitrollen naar Discord
  * allemaal uit dezelfde lijst lezen.
  */

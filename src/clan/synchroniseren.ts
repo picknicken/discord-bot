@@ -1,14 +1,14 @@
 import { PermissionFlagsBits, type Client, type Guild, type GuildMember } from 'discord.js';
 import { logger } from '../util/logger.js';
-import { haalLedenlijst, type Ledenlijst, type OphaalOpties } from './runescape.js';
+import { haalGroep, type OphaalOpties, type WomGroep } from './wiseoldman.js';
 import { planClanRangen, type ClanPlan, type DiscordLid, type RolInfo } from './rangen.js';
 import { koppelingenVan, leesDossier, lijstDossiers, noteerRangen, type ClanDossier } from './opslag.js';
 
 /**
- * Hier komen de drie delen bij elkaar: de ledenlijst van Jagex, de koppelingen
- * op schijf en de echte server in Discord. Eerst een plan, dan pas uitvoeren —
- * hetzelfde als bij het uitrollen van een template, en om dezelfde reden: je
- * wilt kunnen zien wie er een rol bij krijgt voordat het gebeurt.
+ * Hier komen de drie delen bij elkaar: de ledenlijsten van WiseOldMan, de
+ * koppelingen op schijf en de echte server in Discord. Eerst een plan, dan pas
+ * uitvoeren — hetzelfde als bij het uitrollen van een template, en om dezelfde
+ * reden: je wilt kunnen zien wie er een rol bij krijgt voordat het gebeurt.
  */
 
 export interface SyncOpties extends OphaalOpties {
@@ -18,7 +18,8 @@ export interface SyncOpties extends OphaalOpties {
 
 export interface ClanPlanResultaat {
   plan: ClanPlan;
-  ledenlijst: Ledenlijst;
+  /** De ledenlijst van elke gekozen clan, zoals hij net is opgehaald. */
+  groepen: WomGroep[];
 }
 
 export async function bouwClanPlan(
@@ -26,11 +27,18 @@ export async function bouwClanPlan(
   dossier: ClanDossier,
   opties: SyncOpties = {},
 ): Promise<ClanPlanResultaat> {
-  if (!dossier.instellingen.clan) {
-    throw new Error('Er is nog geen clan ingesteld voor deze server.');
+  const clans = dossier.instellingen.clans;
+  if (clans.length === 0) {
+    throw new Error('Er is nog geen clan gekozen voor deze server.');
   }
 
-  const ledenlijst = await haalLedenlijst(dossier.instellingen.clan, opties);
+  // Alles of niets. Lukt één ledenlijst niet, dan stoppen we hier: met een
+  // halve lijst lijkt iedereen uit die clan vertrokken, en met "opruimen" aan
+  // raken ze dan allemaal hun rol kwijt.
+  const groepen: WomGroep[] = [];
+  for (const clan of clans) {
+    groepen.push(await haalGroep(clan.groupId, opties));
+  }
 
   const koppelingen = koppelingenVan(dossier).filter(
     (koppeling) => !opties.alleen || opties.alleen.includes(koppeling.discordId),
@@ -44,12 +52,12 @@ export async function bouwClanPlan(
   const plan = planClanRangen({
     instellingen: dossier.instellingen,
     koppelingen,
-    clanLeden: ledenlijst.leden,
+    ledenlijsten: groepen.map((groep) => ({ groupId: groep.id, naam: groep.naam, leden: groep.leden })),
     leden,
     rollen: rolInfoVan(guild, await guild.members.fetchMe()),
   });
 
-  return { plan, ledenlijst };
+  return { plan, groepen };
 }
 
 export interface SyncResultaat {
@@ -110,22 +118,26 @@ export async function synchroniseerServer(
   opties: SyncOpties & { reden?: string } = {},
 ): Promise<ClanPlanResultaat & SyncResultaat> {
   const dossier = await leesDossier(clanDir, guild.id);
-  const { plan, ledenlijst } = await bouwClanPlan(guild, dossier, opties);
+  const { plan, groepen } = await bouwClanPlan(guild, dossier, opties);
 
   const resultaat = await voerClanPlanUit(
     guild,
     plan,
-    opties.reden ?? `Clanrangen bijgewerkt vanuit "${dossier.instellingen.clan}"`,
+    opties.reden ?? 'Clanrangen bijgewerkt vanuit WiseOldMan',
   );
 
   await noteerRangen(
     clanDir,
     guild.id,
-    plan.wissels.map((wissel) => ({ discordId: wissel.discordId, rang: wissel.rang, rsn: wissel.rsn })),
+    plan.wissels.map((wissel) => ({
+      discordId: wissel.discordId,
+      gevonden: wissel.gevonden,
+      rsn: wissel.rsn,
+    })),
     { volledig: opties.alleen === undefined },
   );
 
-  return { plan, ledenlijst, ...resultaat };
+  return { plan, groepen, ...resultaat };
 }
 
 // --- de server uitlezen ----------------------------------------------------
@@ -241,7 +253,7 @@ async function langsDeServers(client: Client<true>, clanDir: string): Promise<vo
   for (const guildId of await lijstDossiers(clanDir)) {
     try {
       const dossier = await leesDossier(clanDir, guildId);
-      if (!dossier.instellingen.automatisch || !dossier.instellingen.clan) continue;
+      if (!dossier.instellingen.automatisch || dossier.instellingen.clans.length === 0) continue;
 
       const guild = client.guilds.cache.get(guildId);
       if (!guild) continue;

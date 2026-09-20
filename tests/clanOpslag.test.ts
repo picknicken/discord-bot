@@ -29,16 +29,20 @@ describe('clandossier', () => {
 
   it('geeft een leeg dossier terug voor een server die er nog niet is', async () => {
     const dossier = await leesDossier(dir, '123456789');
-    expect(dossier.instellingen.clan).toBe('');
+    expect(dossier.instellingen.clans).toEqual([]);
     expect(dossier.koppelingen).toEqual({});
   });
 
   it('bewaart instellingen en leest ze terug', async () => {
-    await zetInstellingen(dir, '123456789', parseClanInstellingen({ clan: 'Bloody Mayhem', lidRol: '42' }));
-    expect((await leesDossier(dir, '123456789')).instellingen).toMatchObject({
-      clan: 'Bloody Mayhem',
-      lidRol: '42',
-    });
+    await zetInstellingen(
+      dir,
+      '123456789',
+      parseClanInstellingen({ clans: [{ groupId: 139, naam: 'Mijn Clan', lidRol: '42' }], gastRol: '43' }),
+    );
+
+    const instellingen = (await leesDossier(dir, '123456789')).instellingen;
+    expect(instellingen.clans[0]).toMatchObject({ groupId: 139, naam: 'Mijn Clan', lidRol: '42' });
+    expect(instellingen.gastRol).toBe('43');
   });
 
   it('koppelt en ontkoppelt een lid', async () => {
@@ -50,22 +54,29 @@ describe('clandossier', () => {
     expect(koppelingenVan(await leesDossier(dir, '123456789'))).toEqual([]);
   });
 
-  it('onthoudt de laatst geziene rang', async () => {
+  it('onthoudt waar een lid voor het laatst gezien is', async () => {
     await koppel(dir, '123456789', '1', 'Sparc Mac', 'zelf');
-    await noteerRangen(dir, '123456789', [{ discordId: '1', rang: 'Owner' }]);
+    await noteerRangen(dir, '123456789', [
+      { discordId: '1', gevonden: [{ groupId: 139, clan: 'Mijn Clan', rang: 'owner' }] },
+    ]);
 
     const dossier = await leesDossier(dir, '123456789');
-    expect(dossier.koppelingen['1']).toMatchObject({ rang: 'Owner' });
+    expect(dossier.koppelingen['1']?.gezien).toEqual([{ groupId: 139, clan: 'Mijn Clan', rang: 'owner' }]);
     expect(dossier.koppelingen['1']?.gezienOp).not.toBeNull();
     expect(dossier.laatsteSync).not.toBeNull();
   });
 
   it('zet de klok alleen bij een ronde langs iedereen', async () => {
     await koppel(dir, '123456789', '1', 'Sparc Mac', 'zelf');
-    await noteerRangen(dir, '123456789', [{ discordId: '1', rang: 'Owner' }], { volledig: false });
+    await noteerRangen(
+      dir,
+      '123456789',
+      [{ discordId: '1', gevonden: [{ groupId: 139, clan: 'Mijn Clan', rang: 'owner' }] }],
+      { volledig: false },
+    );
 
     const dossier = await leesDossier(dir, '123456789');
-    expect(dossier.koppelingen['1']?.rang).toBe('Owner');
+    expect(dossier.koppelingen['1']?.gezien).toHaveLength(1);
     // Eén lid dat zichzelf koppelt zegt niets over de rest van de server.
     expect(dossier.laatsteSync).toBeNull();
   });

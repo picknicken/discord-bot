@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -16,22 +16,43 @@ process.env.BACKUPS_DIR = path.join(werkmap, 'backups');
 process.env.CLAN_DIR = path.join(werkmap, 'clan');
 
 const { createDashboard } = await import('../src/dashboard/server.js');
-const { haalLedenlijst, leegClanCache } = await import('../src/clan/runescape.js');
+const { leegClanCache } = await import('../src/clan/wiseoldman.js');
 
 const GUILD_ID = '987654321';
+const GROUP_ID = 139;
 
-/** De ledenlijst die "Jagex" teruggeeft; komt via de cache binnen, niet via het net. */
-const CSV =
-  'Clanmate, Clan Rank, Total XP, Kills\n' +
-  'Sparc Mac, Owner, 1200000000, 42\n' +
-  'Tess, Captain, 640000000, 12\n';
+/** Wat "WiseOldMan" hier teruggeeft; er gaat geen verzoek het internet op. */
+const GROEP = {
+  id: GROUP_ID,
+  name: 'Mijn Clan',
+  clanChat: 'mijnclan',
+  memberships: [
+    { role: 'captain', player: { username: 'tess', displayName: 'Tess' } },
+    { role: 'owner', player: { username: 'sparc mac', displayName: 'Sparc Mac' } },
+  ],
+};
 
-const rol = (id: string, name: string, position: number, managed = false) => ({
-  id,
-  name,
-  position,
-  managed,
-});
+/**
+ * Alleen verzoeken naar WiseOldMan worden onderschept; die naar het dashboard
+ * zelf (waar deze test op klopt) gaan gewoon door.
+ */
+const echteFetch = globalThis.fetch;
+let womVerzoeken: string[] = [];
+
+vi.stubGlobal('fetch', (async (invoer: Parameters<typeof fetch>[0], opties?: Parameters<typeof fetch>[1]) => {
+  const url = String(invoer);
+  if (!url.startsWith('https://api.wiseoldman.net')) return echteFetch(invoer, opties);
+
+  womVerzoeken.push(url);
+  const antwoord = (waarde: unknown) =>
+    new Response(JSON.stringify(waarde), { headers: { 'content-type': 'application/json' } });
+
+  if (url.includes('/groups?')) return antwoord([{ id: GROUP_ID, name: 'Mijn Clan', memberCount: 2, clanChat: 'mijnclan' }]);
+  if (url.includes(`/groups/${GROUP_ID}`)) return antwoord(GROEP);
+  return new Response('{}', { status: 404 });
+}) as typeof fetch);
+
+const rol = (id: string, name: string, position: number, managed = false) => ({ id, name, position, managed });
 
 /** Onthoudt wat de bot met de rollen van dit lid zou doen. */
 const gedaan: Array<{ wat: string; rollen: string[] }> = [];
@@ -51,45 +72,45 @@ function stubMember(id: string, rollen: string[]) {
   };
 }
 
+// Dit lid heeft twee rollen die hij niet hoort te hebben: @Owner is aan een
+// rang gekoppeld en moet er dus af, @Corporal is dat niet en moet blijven.
 const leden = new Collection<string, ReturnType<typeof stubMember>>([
-  ['111111111', stubMember('111111111', ['role-corporal'])],
+  ['111111111', stubMember('111111111', ['role-owner', 'role-corporal'])],
 ]);
 
-function stubGuild() {
-  return {
-    id: GUILD_ID,
-    name: 'Clanserver',
-    memberCount: 40,
-    iconURL: () => null,
-    features: [] as string[],
-    roles: {
-      cache: new Collection([
-        [GUILD_ID, rol(GUILD_ID, '@everyone', 0)],
-        ['role-owner', rol('role-owner', 'Owner', 12)],
-        ['role-captain', rol('role-captain', 'Captain', 3)],
-        ['role-corporal', rol('role-corporal', 'Corporal', 2)],
-      ]),
+const guild = {
+  id: GUILD_ID,
+  name: 'Clanserver',
+  memberCount: 40,
+  iconURL: () => null,
+  features: [] as string[],
+  roles: {
+    cache: new Collection([
+      [GUILD_ID, rol(GUILD_ID, '@everyone', 0)],
+      ['role-owner', rol('role-owner', 'Owner', 5)],
+      // Staat boven de bot (die zit op 9): die kan hij dus niet uitdelen.
+      ['role-hoog', rol('role-hoog', 'Leiding', 12)],
+      ['role-captain', rol('role-captain', 'Captain', 3)],
+      ['role-corporal', rol('role-corporal', 'Corporal', 2)],
+    ]),
+  },
+  channels: { cache: new Collection() },
+  emojis: { cache: new Collection() },
+  members: {
+    fetchMe: async () => ({
+      permissions: new PermissionsBitField(PermissionFlagsBits.ManageRoles | PermissionFlagsBits.ManageGuild),
+      roles: { highest: { position: 9 } },
+    }),
+    fetch: async (wat: string | { user: string[] }) => {
+      if (typeof wat === 'string') {
+        const lid = leden.get(wat);
+        if (!lid) throw new Error('Unknown Member');
+        return lid;
+      }
+      return leden.filter((_, id) => wat.user.includes(id));
     },
-    channels: { cache: new Collection() },
-    emojis: { cache: new Collection() },
-    members: {
-      fetchMe: async () => ({
-        permissions: new PermissionsBitField(PermissionFlagsBits.ManageRoles | PermissionFlagsBits.ManageGuild),
-        roles: { highest: { position: 9 } },
-      }),
-      fetch: async (wat: string | { user: string[] }) => {
-        if (typeof wat === 'string') {
-          const lid = leden.get(wat);
-          if (!lid) throw new Error('Unknown Member');
-          return lid;
-        }
-        return leden.filter((_, id) => wat.user.includes(id));
-      },
-    },
-  };
-}
-
-const guild = stubGuild();
+  },
+};
 
 const client = {
   user: { username: 'Setup Bot', id: '123456789', displayAvatarURL: () => 'https://example.invalid/a.png' },
@@ -112,63 +133,92 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise((resolve) => server.close(resolve));
+  vi.unstubAllGlobals();
   rmSync(werkmap, { recursive: true, force: true });
 });
 
 beforeEach(() => {
   gedaan.length = 0;
+  womVerzoeken = [];
 });
 
 type Json = Record<string, any>;
 const json = async (response: Response): Promise<Json> => (await response.json()) as Json;
 
-const get = (pad: string) => fetch(base + pad);
+const get = (pad: string) => echteFetch(base + pad);
 const stuur = (pad: string, methode: string, body: unknown) =>
-  fetch(base + pad, { method: methode, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  echteFetch(base + pad, {
+    method: methode,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 
 describe('clan-api van het dashboard', () => {
-  it('geeft de rangen, de rollen en een leeg begin terug', async () => {
+  it('begint leeg, met de rollen van de server erbij', async () => {
     const data = await json(await get(`/api/clan/${GUILD_ID}`));
 
-    expect(data.rangen).toContain('Corporal');
-    expect(data.instellingen).toMatchObject({ clan: '', rangRollen: {} });
-    expect(data.rollen.map((each: Json) => each.naam)).toEqual(['Captain', 'Corporal', 'Owner']);
+    expect(data.instellingen.clans).toEqual([]);
+    expect(data.clans).toEqual([]);
+    expect(data.rollen.map((each: Json) => each.naam)).toEqual(['Captain', 'Corporal', 'Leiding', 'Owner']);
     expect(data.magRollen).toBe(true);
+    // Zonder gekozen clan hoeft er niets bij WiseOldMan opgehaald te worden.
+    expect(womVerzoeken).toEqual([]);
   });
 
   it('laat zien welke rol de bot niet kan uitdelen', async () => {
     const data = await json(await get(`/api/clan/${GUILD_ID}`));
-    // Owner staat op 12, de bot zelf op 9.
-    expect(data.rollen.find((each: Json) => each.naam === 'Owner').beheerbaar).toBe(false);
+    // Leiding staat op 12, de bot zelf op 9.
+    expect(data.rollen.find((each: Json) => each.naam === 'Leiding').beheerbaar).toBe(false);
     expect(data.rollen.find((each: Json) => each.naam === 'Captain').beheerbaar).toBe(true);
+  });
+
+  it('zoekt clans op naam bij WiseOldMan', async () => {
+    const data = await json(await stuur(`/api/clan/${GUILD_ID}/zoek`, 'POST', { naam: 'mijn' }));
+
+    expect(data.gevonden[0]).toMatchObject({ id: GROUP_ID, naam: 'Mijn Clan', aantal: 2 });
+    expect(womVerzoeken[0]).toContain('/groups?name=mijn');
+  });
+
+  it('laat een clan meetellen en haalt zijn rangen op', async () => {
+    const data = await json(await stuur(`/api/clan/${GUILD_ID}/toevoegen`, 'POST', { groupId: GROUP_ID }));
+
+    expect(data.instellingen.clans).toHaveLength(1);
+    expect(data.clans[0]).toMatchObject({ groupId: GROUP_ID, naam: 'Mijn Clan', aantal: 2 });
+    // De rangen komen uit de ledenlijst zelf, niet uit een vaste lijst.
+    expect(data.clans[0].rangen.map((each: Json) => each.rang).sort()).toEqual(['captain', 'owner']);
+    expect(data.clans[0].rangen[0].naam).toMatch(/^[A-Z]/);
+  });
+
+  it('weigert dezelfde clan twee keer', async () => {
+    const antwoord = await stuur(`/api/clan/${GUILD_ID}/toevoegen`, 'POST', { groupId: GROUP_ID });
+    expect(antwoord.status).toBe(400);
+    expect((await json(antwoord)).error).toMatch(/telt al mee/);
   });
 
   it('stelt op naam een rol per rang voor', async () => {
     const data = await json(await get(`/api/clan/${GUILD_ID}`));
-    expect(data.voorstel).toMatchObject({ Captain: 'role-captain', Corporal: 'role-corporal' });
+    expect(data.clans[0].voorstel).toMatchObject({ captain: 'role-captain', owner: 'role-owner' });
   });
 
-  it('bewaart de instellingen', async () => {
+  it('bewaart per clan welke rol bij welke rang hoort', async () => {
     const opgeslagen = await json(
       await stuur(`/api/clan/${GUILD_ID}`, 'PUT', {
         instellingen: {
-          clan: 'Bloody Mayhem',
-          rangRollen: { Owner: 'role-owner', Captain: 'role-captain', Corporal: 'role-corporal' },
+          clans: [
+            {
+              groupId: GROUP_ID,
+              naam: 'Mijn Clan',
+              lidRol: null,
+              rangRollen: { captain: 'role-captain', owner: 'role-owner' },
+            },
+          ],
         },
       }),
     );
 
     expect(opgeslagen.saved).toBe(true);
-    expect((await json(await get(`/api/clan/${GUILD_ID}`))).instellingen.clan).toBe('Bloody Mayhem');
-  });
-
-  it('weigert een rang die niet bestaat', async () => {
-    const antwoord = await stuur(`/api/clan/${GUILD_ID}`, 'PUT', {
-      instellingen: { clan: 'Bloody Mayhem', rangRollen: { Zeemeermin: 'role-captain' } },
-    });
-
-    expect(antwoord.status).toBe(400);
-    expect((await json(antwoord)).error).toMatch(/Zeemeermin/);
+    const na = await json(await get(`/api/clan/${GUILD_ID}`));
+    expect(na.instellingen.clans[0].rangRollen).toEqual({ captain: 'role-captain', owner: 'role-owner' });
   });
 
   it('koppelt een lid en weigert dezelfde naam twee keer', async () => {
@@ -182,28 +232,26 @@ describe('clan-api van het dashboard', () => {
     expect(tweede.status).toBe(400);
   });
 
-  it('weigert een gebruikers-id dat geen id is', async () => {
-    const antwoord = await stuur(`/api/clan/${GUILD_ID}/koppel`, 'POST', { discordId: '../oeps', rsn: 'Noa' });
+  it('weigert een naam die geen OSRS-naam kan zijn', async () => {
+    const antwoord = await stuur(`/api/clan/${GUILD_ID}/koppel`, 'POST', {
+      discordId: '222222222',
+      rsn: 'veel te lange naam',
+    });
     expect(antwoord.status).toBe(400);
   });
 
   it('maakt een plan van wie welke rol krijgt', async () => {
-    leegClanCache();
-    // De ledenlijst komt uit de cache; de route zelf praat dus niet met Jagex.
-    await haalLedenlijst('Bloody Mayhem', {
-      fetcher: (async () => new Response(CSV)) as unknown as typeof fetch,
-    });
-
     const data = await json(await stuur(`/api/clan/${GUILD_ID}/plan`, 'POST', {}));
 
-    expect(data.ledenlijst).toMatchObject({ clan: 'Bloody Mayhem', aantal: 2 });
+    expect(data.groepen[0]).toMatchObject({ groupId: GROUP_ID, naam: 'Mijn Clan', aantal: 2 });
     expect(data.plan.wissels[0]).toMatchObject({
       rsn: 'Tess',
-      rang: 'Captain',
       erbij: ['role-captain'],
-      eraf: ['role-corporal'],
+      // @Owner hoort bij een rang en klopt niet meer; @Corporal is aan niets
+      // gekoppeld en blijft daarom staan.
+      eraf: ['role-owner'],
     });
-    expect(data.plan.ongekoppeld.map((each: Json) => each.naam)).toEqual(['Sparc Mac']);
+    expect(data.plan.ongekoppeld[0]).toMatchObject({ clan: 'Mijn Clan', leden: ['Sparc Mac'] });
     // Een plan verandert nog niets.
     expect(gedaan).toEqual([]);
   });
@@ -215,12 +263,12 @@ describe('clan-api van het dashboard', () => {
     expect(data.mislukt).toBe(0);
     expect(gedaan).toEqual([
       { wat: 'erbij', rollen: ['role-captain'] },
-      { wat: 'eraf', rollen: ['role-corporal'] },
+      { wat: 'eraf', rollen: ['role-owner'] },
     ]);
 
-    // En onthoudt wat er bij Jagex stond, zodat het scherm dat kan tonen.
+    // En onthoudt waar dit lid stond, zodat het scherm dat kan tonen.
     const na = await json(await get(`/api/clan/${GUILD_ID}`));
-    expect(na.koppelingen[0]).toMatchObject({ rsn: 'Tess', rang: 'Captain' });
+    expect(na.koppelingen[0].gezien[0]).toMatchObject({ clan: 'Mijn Clan', rang: 'captain', rangNaam: 'Captain' });
     expect(na.laatsteSync).not.toBeNull();
   });
 
@@ -229,12 +277,26 @@ describe('clan-api van het dashboard', () => {
     expect(data.koppelingen).toEqual([]);
   });
 
-  it('zegt het als er nog geen clan is ingesteld', async () => {
-    await stuur(`/api/clan/${GUILD_ID}`, 'PUT', { instellingen: {} });
+  it('haalt een clan weer weg', async () => {
+    const data = await json(await stuur(`/api/clan/${GUILD_ID}/verwijderen`, 'POST', { groupId: GROUP_ID }));
+    expect(data.instellingen.clans).toEqual([]);
+  });
 
+  it('zegt het als er nog geen clan gekozen is', async () => {
     const antwoord = await stuur(`/api/clan/${GUILD_ID}/plan`, 'POST', {});
     expect(antwoord.status).toBe(400);
     expect((await json(antwoord)).error).toMatch(/nog geen clan/);
+  });
+
+  it('laat het scherm niet vallen als WiseOldMan een clan niet kent', async () => {
+    leegClanCache();
+    await stuur(`/api/clan/${GUILD_ID}`, 'PUT', {
+      instellingen: { clans: [{ groupId: 999, naam: 'Weg', lidRol: null, rangRollen: {} }] },
+    });
+
+    const data = await json(await get(`/api/clan/${GUILD_ID}`));
+    expect(data.clans[0].fout).toMatch(/kent die clan of naam niet/);
+    expect(data.rollen).toHaveLength(4);
   });
 
   it('kent een server niet die er niet is', async () => {
