@@ -1,7 +1,7 @@
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Guild } from 'discord.js';
-import { exportGuild } from './exporter.js';
+import { exportGuildFresh } from './exporter.js';
 import { parseTemplate, type ServerTemplate } from './types.js';
 
 /**
@@ -25,7 +25,9 @@ const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
 export async function backupGuild(guild: Guild, dir: string, label = 'auto'): Promise<string> {
   await mkdir(dir, { recursive: true });
 
-  const template = exportGuild(guild, `Back-up van ${guild.name}`);
+  // Fresh: anders staat je AutoMod niet in de back-up, en dat merk je pas
+  // als je hem terugzet.
+  const template = await exportGuildFresh(guild, `Back-up van ${guild.name}`);
   const payload = {
     guildId: guild.id,
     guildName: guild.name,
@@ -75,12 +77,36 @@ export async function listBackups(dir: string): Promise<BackupEntry[]> {
 }
 
 export async function readBackup(dir: string, file: string): Promise<{ guildId: string; template: ServerTemplate }> {
+  return leesBackupTekst(await readBackupRaw(dir, file));
+}
+
+/**
+ * Het bestand zoals het op schijf staat, om te kunnen downloaden.
+ *
+ * Een back-up die je niet kunt ophalen is geen back-up: op een hostingpartij
+ * zonder volume staat hij op een schijf die bij de volgende deploy leeg is.
+ */
+export async function readBackupRaw(dir: string, file: string): Promise<string> {
   if (!/^[\w.-]+\.json$/.test(file)) throw new Error(`Ongeldige back-upnaam: "${file}"`);
+  return readFile(path.join(dir, file), 'utf8');
+}
 
-  const parsed = JSON.parse(await readFile(path.join(dir, file), 'utf8')) as {
-    guildId?: string;
-    template?: unknown;
+/** Een back-up uit tekst, bijvoorbeeld een bestand dat je weer naar binnen sleept. */
+export function leesBackupTekst(inhoud: string): { guildId: string; guildName: string; template: ServerTemplate } {
+  let parsed: { guildId?: string; guildName?: string; template?: unknown };
+  try {
+    parsed = JSON.parse(inhoud) as typeof parsed;
+  } catch {
+    throw new Error('Dit is geen leesbaar JSON-bestand.');
+  }
+
+  if (!parsed || typeof parsed !== 'object' || parsed.template === undefined) {
+    throw new Error('Dit lijkt geen back-up: er staat geen template in. Een template zelf hoort bij Templates.');
+  }
+
+  return {
+    guildId: parsed.guildId ?? '',
+    guildName: parsed.guildName ?? '(onbekend)',
+    template: parseTemplate(parsed.template),
   };
-
-  return { guildId: parsed.guildId ?? '', template: parseTemplate(parsed.template) };
 }

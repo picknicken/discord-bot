@@ -11,7 +11,7 @@ import {
 import { config } from '../config.js';
 import { missingPermissions } from '../botPermissions.js';
 import { applyPlan } from '../applier.js';
-import { exportGuild } from '../exporter.js';
+import { exportGuildFresh } from '../exporter.js';
 import { describeActions, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadAllTemplates, loadTemplateMet } from '../templates.js';
@@ -290,7 +290,7 @@ async function handleApply(interaction: ChatInputCommandInteraction, guild: Guil
 async function handleExport(interaction: ChatInputCommandInteraction, guild: Guild): Promise<void> {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const template = exportGuild(guild);
+  const template = await exportGuildFresh(guild);
   const json = JSON.stringify(template, null, 2);
   const file = new AttachmentBuilder(Buffer.from(json, 'utf8'), {
     name: `${guild.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.json`,

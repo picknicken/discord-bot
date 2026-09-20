@@ -6,7 +6,7 @@ import { PermissionFlagsBits, type Client, type Guild } from 'discord.js';
 import { config } from '../config.js';
 import { missingPermissions, rolesAboveBot } from '../botPermissions.js';
 import { applyPlan } from '../applier.js';
-import { exportGuild } from '../exporter.js';
+import { exportGuildFresh } from '../exporter.js';
 import { describeActions, planRegels, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadTemplateMet } from '../templates.js';
@@ -31,7 +31,7 @@ import {
   SessionStore,
   type Session,
 } from '../auth.js';
-import { backupGuild, listBackups, readBackup } from '../backup.js';
+import { backupGuild, leesBackupTekst, listBackups, readBackup, readBackupRaw } from '../backup.js';
 import { ALLES, applyReset, countReset, describeReset, planReset, type ResetScope } from '../reset.js';
 import { listVersions, readVersion, recordVersion } from '../history.js';
 import { diffTemplates, summarizeDiff } from '../diff.js';
@@ -286,11 +286,42 @@ async function handle(
       });
     }
 
-    if (method === 'POST' && id === 'restore') {
-      const body = await readJson<{ file?: string; guildId?: string }>(request);
-      if (!body.file) return send(response, 400, { error: 'Geef een back-up op.' });
+    // Downloaden. Zonder dit staat je momentopname op een schijf waar je niet
+    // bij kunt, en op een hostingpartij zonder volume is hij na de volgende
+    // deploy weg.
+    if (method === 'GET' && id !== undefined) {
+      let ruw: string;
+      try {
+        ruw = await readBackupRaw(config.backupsDir, id);
+      } catch {
+        return send(response, 404, { error: 'Back-up niet gevonden.' });
+      }
 
-      const backup = await readBackup(config.backupsDir, body.file);
+      const nee = weigering(leesBackupTekst(ruw).guildId);
+      if (nee) return send(response, 403, { error: nee });
+
+      response.writeHead(200, {
+        'content-type': 'application/json; charset=utf-8',
+        'content-disposition': `attachment; filename="${id}"`,
+      });
+      response.end(ruw);
+      return;
+    }
+
+    if (method === 'POST' && id === 'restore') {
+      const body = await readJson<{ file?: string; inhoud?: string; guildId?: string }>(request);
+      if (!body.file && !body.inhoud) return send(response, 400, { error: 'Geef een back-up op.' });
+
+      // Uit een bestand dat je zelf meestuurt, of uit een die hier al staat.
+      let backup;
+      try {
+        backup = body.inhoud
+          ? leesBackupTekst(body.inhoud)
+          : await readBackup(config.backupsDir, body.file as string);
+      } catch (error) {
+        return send(response, 400, { error: message(error) });
+      }
+
       const doelId = body.guildId || backup.guildId;
 
       // Twee keer kijken: de back-up zelf is een afdruk van een server, dus die
@@ -626,7 +657,7 @@ async function handle(
 
     const guild = client.guilds.cache.get(id);
     if (!guild) return send(response, 404, { error: 'Server niet gevonden' });
-    const template = exportGuild(guild);
+    const template = await exportGuildFresh(guild);
     return send(response, 200, { id: slug(guild.name), json: JSON.stringify(template, null, 2) });
   }
 
