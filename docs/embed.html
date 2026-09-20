@@ -637,17 +637,16 @@
   .wizard button.nu { color: var(--text); border-color: var(--accent); font-weight: 600; }
   .wizard button.nu .bol { background: var(--accent); color: var(--accent-fg); }
 
-  /* navigatiebalk onderin, alleen op smalle schermen */
+  /*
+   * Navigatiebalk onderin, zodra de zijbalk wegvalt. Die grens (1180px) staat
+   * hierboven bij .sidebar; liepen ze niet gelijk, dan was er op een tablet
+   * even helemaal geen navigatie. De rest van de smalle-scherm-regels blijft
+   * op 900px staan: dat zijn telefoondingen, geen tabletdingen.
+   */
   .mobilenav { display: none; }
-  @media (max-width: 900px) {
-    body { padding-bottom: 0; }
-    .grid { grid-template-columns: minmax(0, 1fr); padding: 10px 12px 84px; }
-    .grid > section { display: none; }
-    .grid > section.actief { display: block; }
-    .wizard { padding: 10px 12px 0; }
-
+  @media (max-width: 1180px) {
     .mobilenav {
-      display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px;
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px;
       position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
       background: color-mix(in srgb, var(--surface) 92%, transparent);
       backdrop-filter: saturate(1.6) blur(10px);
@@ -661,6 +660,14 @@
     }
     .mobilenav button[aria-current="true"] { color: var(--accent); background: var(--accent-wash, var(--surface-2)); }
     .mobilenav .icon { width: 19px; height: 19px; }
+  }
+
+  @media (max-width: 900px) {
+    body { padding-bottom: 0; }
+    .grid { grid-template-columns: minmax(0, 1fr); padding: 10px 12px 84px; }
+    .grid > section { display: none; }
+    .grid > section.actief { display: block; }
+    .wizard { padding: 10px 12px 0; }
 
     /* lijst en detail wisselen elkaar af in plaats van naast elkaar te staan */
     .editor.detail .tree { display: none; }
@@ -966,6 +973,7 @@
   <button data-scherm="templates"><svg class="icon"><use href="#i-folder"/></svg><span>Templates</span></button>
   <button data-scherm="servers"><svg class="icon"><use href="#i-shield"/></svg><span>Servers</span></button>
   <button data-scherm="uitrollen"><svg class="icon"><use href="#i-zap"/></svg><span>Uitrollen</span></button>
+  <button data-scherm="clan"><svg class="icon"><use href="#i-crown"/></svg><span>Clan</span></button>
 </nav>
 
 <div class="toasts" id="toasts"></div>
@@ -2554,7 +2562,7 @@ function zoekblok() {
   return (
     '<div class="zoekblok">' +
     '<div class="row">' +
-    '<input type="text" id="clanZoek" placeholder="Clan zoeken op naam bij WiseOldMan" style="flex:1;min-width:200px">' +
+    '<input type="text" id="clanZoek" placeholder="Clan zoeken op naam" style="flex:1;min-width:200px">' +
     '<button id="clanZoekKnop" class="btn-sm">' + icon('eye', 'sm') + 'Zoeken</button>' +
     '</div>' + resultaten + '</div>'
   );

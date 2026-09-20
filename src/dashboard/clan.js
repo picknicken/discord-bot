@@ -212,7 +212,7 @@ function zoekblok() {
   return (
     '<div class="zoekblok">' +
     '<div class="row">' +
-    '<input type="text" id="clanZoek" placeholder="Clan zoeken op naam bij WiseOldMan" style="flex:1;min-width:200px">' +
+    '<input type="text" id="clanZoek" placeholder="Clan zoeken op naam" style="flex:1;min-width:200px">' +
     '<button id="clanZoekKnop" class="btn-sm">' + icon('eye', 'sm') + 'Zoeken</button>' +
     '</div>' + resultaten + '</div>'
   );
