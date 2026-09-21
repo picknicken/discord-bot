@@ -312,6 +312,8 @@ function tree() {
         '<span class="grow truncate">' + esc(role.name) + '</span>' +
         '<span class="tools">' +
         moveButtons('role', index, template.roles.length) +
+        '<button class="btn-icon" data-dup="role" data-index="' + index + '" title="Dupliceren">' +
+        icon('copy', 'sm') + '</button>' +
         '<button class="btn-icon" data-del="role" data-index="' + index + '" title="Verwijderen">' +
         icon('trash', 'sm') + '</button>' +
         '</span></li>'
@@ -345,6 +347,8 @@ function tree() {
             '<span class="grow truncate">' + esc(channel.name) + '</span>' +
             '<span class="tools">' +
             moveButtons('channel', channelIndex, category.channels.length, categoryIndex) +
+            '<button class="btn-icon" data-dup="channel" data-category="' + categoryIndex + '" data-index="' +
+            channelIndex + '" title="Dupliceren">' + icon('copy', 'sm') + '</button>' +
             '<button class="btn-icon" data-del="channel" data-category="' + categoryIndex + '" data-index="' +
             channelIndex + '" title="Verwijderen">' + icon('trash', 'sm') + '</button>' +
             '</span></li>'
@@ -360,7 +364,7 @@ function tree() {
         moveButtons('category', categoryIndex, template.categories.length) +
         '<button class="btn-icon" data-add="channel" data-category="' + categoryIndex +
         '" title="Kanaal toevoegen">' + icon('plus', 'sm') + '</button>' +
-        '<button class="btn-icon" data-dup="' + categoryIndex + '" title="Categorie dupliceren">' +
+        '<button class="btn-icon" data-dup="category" data-index="' + categoryIndex + '" title="Categorie dupliceren">' +
         icon('copy', 'sm') + '</button>' +
         '<button class="btn-icon" data-del="category" data-index="' + categoryIndex + '" title="Verwijderen">' +
         icon('trash', 'sm') + '</button>' +
@@ -378,6 +382,8 @@ function tree() {
         '<li class="node' + (active ? ' on' : '') + '" data-pick="channel" data-category="" data-index="' +
         index + '">' + icon(CHANNEL_ICONS[channel.type] || 'hash', 'sm') + '<span class="grow truncate">' +
         esc(channel.name) + '</span><span class="tools">' +
+        '<button class="btn-icon" data-dup="channel" data-category="" data-index="' + index +
+        '" title="Dupliceren">' + icon('copy', 'sm') + '</button>' +
         '<button class="btn-icon" data-del="channel" data-category="" data-index="' + index +
         '" title="Verwijderen">' + icon('trash', 'sm') + '</button>' +
         '</span></li>'
@@ -516,6 +522,7 @@ function roleProps(role) {
     rolWaarschuwing(role) +
     field('Naam', text('name', role.name)) +
     field('Kleur', '<input type="color" data-edit="color" value="' + esc(role.color || '#99aab5') + '">') +
+    kleurKeuze(role.color) +
     '<div class="row">' +
     checkbox('hoist', role.hoist, 'Apart tonen in de ledenlijst') +
     checkbox('mentionable', role.mentionable, 'Iedereen mag deze rol pingen') +
@@ -559,6 +566,34 @@ const KEUZES = {
     ['3600', '1 uur'],
   ],
 };
+
+/**
+ * De kleuren die Discord zelf aanbiedt.
+ *
+ * Een kleurenkiezer geeft je zestien miljoen kleuren, waarvan er precies één de
+ * kleur is die iedereen van Discord kent. Deze rij staat ernaast; de kiezer
+ * blijft voor als je iets eigens wil.
+ */
+const DISCORD_KLEUREN = [
+  '#1abc9c', '#2ecc71', '#3498db', '#9b59b6', '#e91e63',
+  '#f1c40f', '#e67e22', '#e74c3c', '#95a5a6', '#607d8b',
+  '#11806a', '#1f8b4c', '#206694', '#71368a', '#ad1457',
+  '#c27c0e', '#a84300', '#992d22', '#979c9f', '#546e7a',
+  '#99aab5',
+];
+
+function kleurKeuze(huidig) {
+  const nu = (huidig || '').toLowerCase();
+  return (
+    '<div class="kleuren">' +
+    DISCORD_KLEUREN.map(
+      (kleur) =>
+        '<button class="kleur' + (kleur === nu ? ' on' : '') + '" data-kleur="' + kleur +
+        '" style="background:' + kleur + '" title="' + kleur + '" aria-label="Kleur ' + kleur + '"></button>',
+    ).join('') +
+    '</div>'
+  );
+}
 
 function keuzeveld(naam, waarde) {
   return (
@@ -868,14 +903,41 @@ function bind(container) {
     draw(container);
   });
 
+  /**
+   * Dupliceren.
+   *
+   * Vijf rollen die op elkaar lijken maak je niet door twintig vinkjes opnieuw
+   * te zetten. De kopie komt er meteen onder te staan en is meteen geselecteerd,
+   * zodat je alleen nog de naam hoeft te veranderen.
+   */
   on('data-dup', (data) => {
     const template = ctx.template;
-    const origineel = template.categories[Number(data.dup)];
-    const kopie = structuredClone(origineel);
-    kopie.name = kopie.name + ' kopie';
+    const index = Number(data.index);
 
-    template.categories.splice(Number(data.dup) + 1, 0, kopie);
-    selection = { type: 'category', index: Number(data.dup) + 1 };
+    if (data.dup === 'role') {
+      const kopie = structuredClone(template.roles[index]);
+      kopie.name = kopie.name + ' kopie';
+      // De sleutel is waar de rechten in kanalen naar verwijzen; twee rollen met
+      // dezelfde sleutel zou betekenen dat je de verkeerde aanpast.
+      kopie.key = uniqueKey(slug(kopie.name));
+      template.roles.splice(index + 1, 0, kopie);
+      selection = { type: 'role', index: index + 1 };
+    } else if (data.dup === 'category') {
+      const kopie = structuredClone(template.categories[index]);
+      kopie.name = kopie.name + ' kopie';
+      template.categories.splice(index + 1, 0, kopie);
+      selection = { type: 'category', index: index + 1 };
+    } else {
+      const inCategorie = data.category !== '';
+      const lijst = inCategorie
+        ? template.categories[Number(data.category)].channels
+        : template.uncategorizedChannels;
+      const kopie = structuredClone(lijst[index]);
+      kopie.name = kanaalNaamVrij(kopie.name + '-kopie', lijst);
+      lijst.splice(index + 1, 0, kopie);
+      selection = { type: 'channel', category: inCategorie ? Number(data.category) : null, index: index + 1 };
+    }
+
     changed();
   });
 
@@ -1022,6 +1084,11 @@ function bind(container) {
     };
   }
 
+  on('data-kleur', (data) => {
+    ctx.template.roles[selection.index].color = data.kleur;
+    changed();
+  });
+
   for (const input of container.querySelectorAll('[data-perm]')) {
     input.onchange = () => {
       const role = ctx.template.roles[selection.index];
@@ -1061,6 +1128,22 @@ function newChannel() {
   };
 }
 
+const slug = (naam) => naam.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'rol';
+
+/**
+ * Een kanaalnaam die nog niet in dezelfde categorie voorkomt.
+ *
+ * Twee kanalen met dezelfde naam is precies waar de uitroller over struikelt:
+ * hij zoekt op naam en kan er dan maar een bedoelen.
+ */
+function kanaalNaamVrij(naam, lijst) {
+  const namen = new Set(lijst.map((kanaal) => kanaal.name.toLowerCase()));
+  let kandidaat = naam;
+  let nummer = 2;
+  while (namen.has(kandidaat.toLowerCase())) kandidaat = naam + '-' + nummer++;
+  return kandidaat;
+}
+
 function uniqueKey(base) {
   const keys = new Set(ctx.template.roles.map((role) => role.key));
   let key = base;
@@ -1071,7 +1154,7 @@ function uniqueKey(base) {
 
 /** De key volgt de naam, zolang dat geen botsing geeft. */
 function syncRoleKey(role) {
-  const wanted = role.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'rol';
+  const wanted = slug(role.name);
   if (wanted === role.key) return;
   if (ctx.template.roles.some((other) => other !== role && other.key === wanted)) return;
 

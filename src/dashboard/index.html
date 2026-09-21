@@ -410,6 +410,15 @@
   }
   #planResult.verouderd .planblok, #planResult.verouderd .planvoet { opacity: .45; }
 
+  /* De kleuren die Discord zelf aanbiedt, naast de vrije kiezer. */
+  .kleuren { display: flex; flex-wrap: wrap; gap: 5px; margin: -4px 0 12px; }
+  .kleur {
+    width: 20px; height: 20px; border-radius: 6px; border: 1px solid var(--border);
+    padding: 0; cursor: pointer;
+  }
+  .kleur:hover { transform: scale(1.12); }
+  .kleur.on { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
+
   /* ---------- voorbeeld ---------- */
   /* Op een breed scherm staat het voorbeeld ernaast; daaronder eronder. */
   .voorbeeld { grid-column: 1 / -1; }
