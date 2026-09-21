@@ -1,10 +1,17 @@
 import { toBitfield } from './permissions.js';
-import type { GuildSnapshot, SnapshotChannel, SnapshotOverwrite } from './snapshot.js';
+import type {
+  GuildSnapshot,
+  SnapshotAutomod,
+  SnapshotChannel,
+  SnapshotOnboarding,
+  SnapshotOverwrite,
+} from './snapshot.js';
 import type {
   AutomodSpec,
   CategorySpec,
   ChannelSpec,
   EmojiSpec,
+  OnboardingSpec,
   Overwrite,
   RoleSpec,
   ServerTemplate,
@@ -240,13 +247,141 @@ function planEmojis(snapshot: GuildSnapshot, template: ServerTemplate): PlanActi
     .map((emoji) => ({ kind: 'create-emoji', emoji }));
 }
 
+/**
+ * Dezelfde verzameling, ongeacht volgorde en hoofdletters.
+ *
+ * AutoMod trekt zich van geen van beide iets aan: "Spam" en "spam" blokkeren
+ * hetzelfde. Een regel herschrijven omdat de woorden in een andere volgorde
+ * staan levert dus niets op, behalve een regel in elke preview.
+ */
+function zelfdeVerzameling(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const links = [...a].map(normalize).sort();
+  const rechts = [...b].map(normalize).sort();
+  return links.every((waarde, index) => waarde === rechts[index]);
+}
+
+/** Kanaalnaam -> het id op de server, voor kanalen die er al zijn. */
+function kanaalIdsVanServer(snapshot: GuildSnapshot): Map<string, string> {
+  return new Map(snapshot.channels.map((channel) => [normalize(channel.name), channel.id]));
+}
+
+/**
+ * De ids bij een lijstje namen of sleutels, of null als er eentje ontbreekt.
+ *
+ * Ontbreken betekent: die rol of dat kanaal wordt in deze ronde nog aangemaakt.
+ * Dan valt er niets te vergelijken en moet het dus gezet worden - hem overslaan
+ * omdat de ids die we wel kennen toevallig kloppen, laat juist het nieuwe stuk liggen.
+ */
+function alleIds(namen: readonly string[], ids: ReadonlyMap<string, string>): string[] | null {
+  const gevonden: string[] = [];
+  for (const naam of namen) {
+    const id = ids.get(naam) ?? ids.get(normalize(naam));
+    if (!id) return null;
+    gevonden.push(id);
+  }
+  return gevonden;
+}
+
+/**
+ * Staat deze AutoMod-regel er al precies zo op?
+ *
+ * Vergeleken wordt alles wat de applier ook stuurt - niet minder, want dan zou
+ * een echte wijziging stilletjes overgeslagen worden.
+ */
+function automodGelijk(
+  rule: AutomodSpec,
+  bestaand: SnapshotAutomod,
+  rolIds: ReadonlyMap<string, string>,
+  kanalen: ReadonlyMap<string, string>,
+): boolean {
+  if (bestaand.name !== rule.name) return false;
+  if (bestaand.enabled !== rule.enabled) return false;
+  if (bestaand.trigger !== rule.trigger) return false;
+
+  if (rule.trigger === 'keyword') {
+    if (!zelfdeVerzameling(bestaand.keywords, rule.keywords)) return false;
+    if (!zelfdeVerzameling(bestaand.regexPatterns, rule.regexPatterns)) return false;
+    if (!zelfdeVerzameling(bestaand.allowList, rule.allowList)) return false;
+  } else if (rule.trigger === 'keyword_preset') {
+    if (!zelfdeVerzameling(bestaand.presets, rule.presets)) return false;
+    if (!zelfdeVerzameling(bestaand.allowList, rule.allowList)) return false;
+  } else if (rule.trigger === 'mention_spam') {
+    if (bestaand.mentionLimit !== (rule.mentionLimit ?? 5)) return false;
+  }
+
+  // De applier zet precies één actie neer en gooit de rest weg.
+  const [actie, ...verder] = bestaand.acties;
+  if (!actie || verder.length > 0) return false;
+  if (actie.soort !== rule.action) return false;
+  if (rule.action === 'block' && (actie.customMessage ?? '') !== (rule.customMessage ?? '')) return false;
+  if (rule.action === 'timeout' && actie.timeoutSeconds !== (rule.timeoutSeconds ?? 300)) return false;
+  if (rule.action === 'alert') {
+    const id = rule.alertChannel ? kanalen.get(normalize(rule.alertChannel)) : undefined;
+    if (!id || actie.channelId !== id) return false;
+  }
+
+  const gewensteRollen = alleIds(rule.exemptRoles, rolIds);
+  return gewensteRollen !== null && zelfdeVerzameling(bestaand.exemptRoleIds, gewensteRollen);
+}
+
 function planAutomod(snapshot: GuildSnapshot, template: ServerTemplate, options: PlanOptions): PlanAction[] {
   const existing = new Map(snapshot.automod.map((rule) => [normalize(rule.name), rule]));
+  const rolIds = rolIdsVanTemplate(snapshot, template);
+  const kanalen = kanaalIdsVanServer(snapshot);
 
   return template.automod.flatMap<PlanAction>((rule) => {
     const match = existing.get(normalize(rule.name));
     if (!match) return [{ kind: 'create-automod', rule }];
-    return options.update ? [{ kind: 'update-automod', ruleId: match.id, rule }] : [];
+    if (!options.update) return [];
+    if (automodGelijk(rule, match, rolIds, kanalen)) return [];
+    return [{ kind: 'update-automod', ruleId: match.id, rule }];
+  });
+}
+
+/**
+ * Staat de onboarding er al zo op?
+ *
+ * De volgorde van de vragen telt mee - die zien leden ook zo - maar de rollen
+ * en kanalen binnen een keuze niet: dat is een verzameling, geen lijstje.
+ */
+function onboardingGelijk(
+  spec: OnboardingSpec,
+  bestaand: SnapshotOnboarding,
+  rolIds: ReadonlyMap<string, string>,
+  kanalen: ReadonlyMap<string, string>,
+): boolean {
+  const zelfdeKanalen = (nu: readonly string[], namen: readonly string[]) => {
+    const ids = alleIds(namen, kanalen);
+    return ids !== null && zelfdeVerzameling(nu, ids);
+  };
+  const zelfdeRollen = (nu: readonly string[], keys: readonly string[]) => {
+    const ids = alleIds(keys, rolIds);
+    return ids !== null && zelfdeVerzameling(nu, ids);
+  };
+
+  if (bestaand.enabled !== spec.enabled) return false;
+  if (bestaand.mode !== spec.mode) return false;
+  if (!zelfdeKanalen(bestaand.defaultChannelIds, spec.defaultChannels)) return false;
+  if (bestaand.prompts.length !== spec.prompts.length) return false;
+
+  return spec.prompts.every((vraag, index) => {
+    const nu = bestaand.prompts[index];
+    if (!nu) return false;
+    if (nu.title !== vraag.title || nu.singleSelect !== vraag.singleSelect || nu.required !== vraag.required) {
+      return false;
+    }
+    if (nu.options.length !== vraag.options.length) return false;
+
+    return vraag.options.every((keuze, plek) => {
+      const optie = nu.options[plek];
+      if (!optie) return false;
+      if (optie.title !== keuze.title) return false;
+      if ((optie.description ?? '') !== (keuze.description ?? '')) return false;
+      if ((optie.emoji ?? '') !== (keuze.emoji ?? '')) return false;
+      if (!zelfdeRollen(optie.roleIds, keuze.roles)) return false;
+      return zelfdeKanalen(optie.channelIds, keuze.channels);
+    });
   });
 }
 
@@ -286,10 +421,62 @@ function channelsOutOfOrder(snapshot: GuildSnapshot, template: ServerTemplate): 
   return false;
 }
 
-function planGuildSettings(template: ServerTemplate): PlanAction[] {
-  const changes = Object.entries(template.guild)
-    .filter(([, value]) => value !== undefined)
-    .map(([key]) => key);
+/**
+ * Welke serverinstellingen wijken af van wat de template wil?
+ *
+ * Eerst stond hier simpelweg alles wat de template noemt. Dat betekende bij elke
+ * uitrol een regel "serverinstellingen" in de preview, en erger: community-modus
+ * werd elke keer opnieuw gezet, terwijl Discord daar juist zuinig mee wil zijn.
+ */
+function planGuildSettings(snapshot: GuildSnapshot, template: ServerTemplate): PlanAction[] {
+  const gewenst = template.guild;
+  const nu = snapshot.settings;
+  const kanalen = kanaalIdsVanServer(snapshot);
+  const changes: string[] = [];
+
+  const anders = (sleutel: string, waarde: string | number | undefined, huidig: string | number) => {
+    if (waarde !== undefined && waarde !== huidig) changes.push(sleutel);
+  };
+
+  /** Een kanaal dat nog niet bestaat wordt straks aangemaakt: dan moet de verwijzing dus alsnog gezet. */
+  const kanaalAnders = (sleutel: string, naam: string | undefined, huidig: string | null) => {
+    if (naam === undefined) return;
+    if (kanalen.get(normalize(naam)) !== (huidig ?? undefined)) changes.push(sleutel);
+  };
+
+  // Op een community-server dwingt Discord het inhoudsfilter en een minimale
+  // verificatie af, en stuurt de applier die dus ook mee als de template erover
+  // zwijgt. Vergelijken doen we met diezelfde waarden, anders blijft het verschil.
+  const community = gewenst.community === true || nu.community;
+  const verificatie = community
+    ? gewenst.verificationLevel === undefined || gewenst.verificationLevel === 'none'
+      ? 'low'
+      : gewenst.verificationLevel
+    : gewenst.verificationLevel;
+
+  anders('verificationLevel', verificatie, nu.verificationLevel);
+  anders('explicitContentFilter', community ? 'all_members' : gewenst.explicitContentFilter, nu.explicitContentFilter);
+  anders('defaultMessageNotifications', gewenst.defaultMessageNotifications, nu.defaultMessageNotifications);
+  anders('afkTimeoutSeconds', gewenst.afkTimeoutSeconds, nu.afkTimeoutSeconds);
+  anders('description', gewenst.description, nu.description ?? '');
+
+  kanaalAnders('systemChannel', gewenst.systemChannel, nu.systemChannelId);
+  kanaalAnders('afkChannel', gewenst.afkChannel, nu.afkChannelId);
+
+  // Een regels- en updateskanaal bestaan alleen op een community-server; op een
+  // gewone server weigert Discord ze en slaat de applier ze over.
+  if (community) {
+    kanaalAnders('rulesChannel', gewenst.rulesChannel, nu.rulesChannelId);
+    kanaalAnders('updatesChannel', gewenst.updatesChannel, nu.updatesChannelId);
+  }
+
+  if (gewenst.community === true && !nu.community) changes.push('community');
+
+  // Een pad of URL valt niet te vergelijken met wat Discord ervan gemaakt heeft,
+  // dus die gaan altijd mee. Staat er niets in de template, dan blijft het zoals het is.
+  if (gewenst.icon !== undefined) changes.push('icon');
+  if (gewenst.banner !== undefined) changes.push('banner');
+
   return changes.length > 0 ? [{ kind: 'guild-settings', changes }] : [];
 }
 
@@ -345,11 +532,21 @@ export function planSetup(snapshot: GuildSnapshot, template: ServerTemplate, opt
     actions.push({ kind: 'order-roles', count: template.roles.length });
   }
 
+  // Zonder opgehaalde onboarding valt er niets te vergelijken; dan zetten we hem
+  // gewoon, zoals het altijd ging.
   if (template.onboarding) {
-    actions.push({ kind: 'onboarding', prompts: template.onboarding.prompts.length });
+    const gelijk =
+      snapshot.onboarding !== null &&
+      onboardingGelijk(
+        template.onboarding,
+        snapshot.onboarding,
+        rolIdsVanTemplate(snapshot, template),
+        kanaalIdsVanServer(snapshot),
+      );
+    if (!gelijk) actions.push({ kind: 'onboarding', prompts: template.onboarding.prompts.length });
   }
 
-  actions.push(...planGuildSettings(template));
+  actions.push(...planGuildSettings(snapshot, template));
 
   const totalChannels = template.categories.reduce((sum, category) => sum + category.channels.length, 0) +
     template.uncategorizedChannels.length;

@@ -45,6 +45,16 @@ function stubGuild(botPermissions: bigint) {
     channels: { cache: new Collection() },
     emojis: { cache: new Collection() },
     autoModerationRules: { cache: new Collection(), fetch: async () => new Collection() },
+    verificationLevel: 0,
+    explicitContentFilter: 0,
+    defaultMessageNotifications: 0,
+    afkTimeout: 300,
+    fetchOnboarding: async () => ({
+      enabled: false,
+      mode: 0,
+      defaultChannels: new Collection(),
+      prompts: new Collection(),
+    }),
     members: {
       fetchMe: async () => ({
         permissions: new PermissionsBitField(botPermissions),

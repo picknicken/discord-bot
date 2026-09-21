@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { countReset, describeReset, describeScope, explainDeleteFailure, planReset } from '../src/reset.js';
 import type { GuildSnapshot, SnapshotRole } from '../src/snapshot.js';
+import { snapshotAutomod, standaardInstellingen } from './helpers/snapshot.js';
 
 const role = (id: string, name: string, position: number, extra: Partial<SnapshotRole> = {}): SnapshotRole => ({
   id, name, color: 0, hoist: false, mentionable: false, permissions: 0n, position, rawPosition: position,
@@ -22,7 +23,9 @@ const snapshot: GuildSnapshot = {
     { id: 'ch1', name: 'algemeen', type: 'text', parentId: 'c1', topic: null, nsfw: false, slowmodeSeconds: 0, userLimit: null, position: 0, overwrites: [] },
   ],
   emojis: [],
-  automod: [{ id: 'a1', name: 'Spam' }],
+  automod: [snapshotAutomod('a1', 'Spam')],
+  settings: standaardInstellingen,
+  onboarding: null,
 };
 
 // De bot staat op 5: alles daaronder mag weg, alles daarboven niet.

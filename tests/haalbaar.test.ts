@@ -6,10 +6,12 @@ import { BEPERKTE_PERMISSIONS } from '../src/botPermissions.js';
 import { planSetup, type Plan } from '../src/planner.js';
 import { listTemplateIds, loadTemplate } from '../src/templates.js';
 import { parseTemplate } from '../src/types.js';
+import { standaardInstellingen } from './helpers/snapshot.js';
 import type { GuildSnapshot } from '../src/snapshot.js';
 
 const leeg: GuildSnapshot = {
   id: 'g1', name: 'Leeg', roles: [], categories: [], channels: [], emojis: [], automod: [],
+  settings: standaardInstellingen, onboarding: null,
 } as unknown as GuildSnapshot;
 
 const bot = (...permissions: bigint[]) => new PermissionsBitField(permissions);
