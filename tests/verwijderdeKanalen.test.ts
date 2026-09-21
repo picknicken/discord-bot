@@ -85,6 +85,9 @@ const plan: Plan = {
     { kind: 'guild-settings', changes: ['systemChannel'] },
   ],
   warnings: [],
+  // Leeg: dit plan gaat over een kanaal dat de planner niet uit de template
+  // kent, dus valt er niets voor te kiezen.
+  gekozenIds: { kanalen: {}, categorieen: {} },
 };
 
 describe('een verwijderd kanaal uit de naamlijst halen', () => {
