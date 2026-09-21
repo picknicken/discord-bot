@@ -18,6 +18,7 @@ import { exportGuildFresh } from '../exporter.js';
 import { recenteWijzigingen } from '../auditlog.js';
 import { driftVanServer } from '../drift.js';
 import { opruimlijst } from '../opruimen.js';
+import { templateCode, uitDiscordTemplate } from '../importeren.js';
 import { describeActions, planRegels, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadTemplateMet } from '../templates.js';
@@ -270,6 +271,36 @@ async function handle(
     // regels toevallig van servers van iemand anders waren.
     const eigen = (await readSetups(config.historyDir, 500)).filter((run) => magHier(run.guildId));
     return send(response, 200, { setups: eigen.slice(0, 25) });
+  }
+
+  /**
+   * Een discord.new-link als beginpunt.
+   *
+   * Discord heeft zijn eigen templates: een link waarmee je een kopie van een
+   * server maakt. Die kun je hier niet bewerken en niet uitrollen op een server
+   * die al bestaat - maar als startpunt is het prima.
+   */
+  if (method === 'POST' && resource === 'importeren') {
+    const body = await readJson<{ link?: string; id?: string }>(request);
+    const code = templateCode(body.link ?? '');
+    if (!code) return send(response, 400, { error: 'Dat lijkt geen discord.new-link.' });
+
+    try {
+      const bron = await client.fetchGuildTemplate(code);
+      const naam = slug(body.id ?? bron.name) || 'geimporteerd';
+      const template = uitDiscordTemplate(bron.serializedGuild, bron.name);
+
+      const bestaat = await readFile(templatePath(naam), 'utf8').catch(() => null);
+      if (bestaat) return send(response, 409, { error: `Er is al een template "${naam}".` });
+
+      await writeTemplate(naam, template);
+      logger.info(`Dashboard importeerde discord.new/${code} als "${naam}"`);
+      return send(response, 200, { id: naam, json: JSON.stringify(template, null, 2) });
+    } catch (error) {
+      // Een code die niet bestaat geeft een 404 van Discord; dat is geen
+      // serverfout van ons, maar een verkeerde link.
+      return send(response, 400, { error: `Kon deze template niet ophalen: ${message(error)}` });
+    }
   }
 
   // --- Templates ----------------------------------------------------------

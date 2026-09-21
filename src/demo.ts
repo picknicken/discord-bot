@@ -41,6 +41,25 @@ const client = {
     displayAvatarURL: () => '/logo.png',
   },
   guilds: { cache: demoGuilds() },
+  // Een nagemaakte discord.new-template, zodat ook dat scherm zonder Discord
+  // werkt. Elke code levert dezelfde op.
+  fetchGuildTemplate: async (code: string) => ({
+    code,
+    name: 'Voorbeeld van Discord',
+    serializedGuild: {
+      name: 'Voorbeeld van Discord',
+      verification_level: 1,
+      roles: [
+        { id: 0, name: '@everyone', permissions: '104324673' },
+        { id: 1, name: 'Moderator', color: 0xed4245, hoist: true, permissions: '8192' },
+      ],
+      channels: [
+        { id: 10, type: 4, name: 'Algemeen', permission_overwrites: [] },
+        { id: 11, type: 0, name: 'welkom', parent_id: 10, topic: 'Begin hier' },
+        { id: 12, type: 2, name: 'Praatkanaal', parent_id: 10 },
+      ],
+    },
+  }),
 } as unknown as Client<true>;
 
 createDashboard(client).listen(config.dashboardPort, '127.0.0.1', () => {
