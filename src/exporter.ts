@@ -1,7 +1,5 @@
 import {
   AutoModerationActionType,
-  AutoModerationRuleKeywordPresetType,
-  AutoModerationRuleTriggerType,
   ChannelType,
   type AnyThreadChannel,
   type AutoModerationRule,
@@ -9,7 +7,7 @@ import {
   type GuildBasedChannel,
 } from 'discord.js';
 import { toNames } from './permissions.js';
-import { mapChannelType } from './snapshot.js';
+import { mapChannelType, PRESET_NAMEN, TRIGGER_NAMEN } from './snapshot.js';
 import type { AutomodSpec, CategorySpec, ChannelSpec, Overwrite, RoleSpec, ServerTemplate } from './types.js';
 
 const slug = (value: string) =>
@@ -150,19 +148,6 @@ export async function exportGuildFresh(guild: Guild, templateName = guild.name):
   await guild.autoModerationRules.fetch().catch(() => null);
   return exportGuild(guild, templateName);
 }
-
-const TRIGGER_NAMEN = {
-  [AutoModerationRuleTriggerType.Keyword]: 'keyword',
-  [AutoModerationRuleTriggerType.KeywordPreset]: 'keyword_preset',
-  [AutoModerationRuleTriggerType.Spam]: 'spam',
-  [AutoModerationRuleTriggerType.MentionSpam]: 'mention_spam',
-} as const;
-
-const PRESET_NAMEN = {
-  [AutoModerationRuleKeywordPresetType.Profanity]: 'profanity',
-  [AutoModerationRuleKeywordPresetType.SexualContent]: 'sexual_content',
-  [AutoModerationRuleKeywordPresetType.Slurs]: 'slurs',
-} as const;
 
 /** Een AutoMod-regel van Discord terug naar de vorm die in een template past. */
 export function automodUitServer(

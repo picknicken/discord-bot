@@ -6,6 +6,7 @@ import {
   PermissionsBitField,
   type Guild,
 } from 'discord.js';
+import { standaardInstellingen } from './helpers/snapshot.js';
 import { describe, expect, it } from 'vitest';
 import { applyPlan } from '../src/applier.js';
 import { planSetup } from '../src/planner.js';
@@ -86,6 +87,7 @@ function nepServer(
 
 const leeg: GuildSnapshot = {
   id: 'g1', name: 'Nepserver', roles: [], categories: [], channels: [], emojis: [], automod: [],
+  settings: standaardInstellingen, onboarding: null,
 } as unknown as GuildSnapshot;
 
 const template = parseTemplate({

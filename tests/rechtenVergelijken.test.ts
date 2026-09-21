@@ -3,6 +3,7 @@ import { planSetup } from '../src/planner.js';
 import { toBitfield } from '../src/permissions.js';
 import { parseTemplate } from '../src/types.js';
 import type { GuildSnapshot } from '../src/snapshot.js';
+import { standaardInstellingen } from './helpers/snapshot.js';
 
 /**
  * Twee keer dezelfde template uitrollen hoort de tweede keer niets te doen.
@@ -62,6 +63,8 @@ const ingericht = (extra: { kanaalOverwrites?: unknown[]; categorieOverwrites?: 
     ],
     emojis: [],
     automod: [],
+    settings: standaardInstellingen,
+    onboarding: null,
   }) as unknown as GuildSnapshot;
 
 const acties = (snapshot: GuildSnapshot) =>

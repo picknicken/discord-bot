@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { compare } from '../src/compare.js';
 import type { GuildSnapshot, SnapshotChannel, SnapshotRole } from '../src/snapshot.js';
 import { parseTemplate } from '../src/types.js';
+import { standaardInstellingen } from './helpers/snapshot.js';
 
 const role = (id: string, name: string, extra: Partial<SnapshotRole> = {}): SnapshotRole => ({
   id, name, color: 0, hoist: false, mentionable: false, permissions: 0n, position: 1, rawPosition: 1,
@@ -21,6 +22,8 @@ const snapshot = (overrides: Partial<GuildSnapshot> = {}): GuildSnapshot => ({
   channels: [],
   emojis: [],
   automod: [],
+  settings: standaardInstellingen,
+  onboarding: null,
   ...overrides,
 });
 

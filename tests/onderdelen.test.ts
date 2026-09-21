@@ -4,9 +4,11 @@ import { planSetup } from '../src/planner.js';
 import type { Plan } from '../src/planner.js';
 import { parseTemplate } from '../src/types.js';
 import type { GuildSnapshot } from '../src/snapshot.js';
+import { standaardInstellingen } from './helpers/snapshot.js';
 
 const leeg: GuildSnapshot = {
   id: 'g1', name: 'Leeg', roles: [], categories: [], channels: [], emojis: [], automod: [],
+  settings: standaardInstellingen, onboarding: null,
 } as unknown as GuildSnapshot;
 
 const template = parseTemplate({

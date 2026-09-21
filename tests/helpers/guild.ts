@@ -1,4 +1,13 @@
-import { Collection, PermissionFlagsBits, PermissionsBitField, type Client } from 'discord.js';
+import {
+  Collection,
+  GuildDefaultMessageNotifications,
+  GuildExplicitContentFilter,
+  GuildOnboardingMode,
+  GuildVerificationLevel,
+  PermissionFlagsBits,
+  PermissionsBitField,
+  type Client,
+} from 'discord.js';
 
 /**
  * Een namaak-server: precies zoveel als het dashboard ervan gebruikt. Genoeg om
@@ -31,6 +40,16 @@ export function stubGuild(id: string, naam: string) {
     channels: { cache: new Collection() },
     emojis: { cache: new Collection() },
     autoModerationRules: { cache: new Collection(), fetch: async () => new Collection() },
+    verificationLevel: GuildVerificationLevel.None,
+    explicitContentFilter: GuildExplicitContentFilter.Disabled,
+    defaultMessageNotifications: GuildDefaultMessageNotifications.AllMessages,
+    afkTimeout: 300,
+    fetchOnboarding: async () => ({
+      enabled: false,
+      mode: GuildOnboardingMode.OnboardingDefault,
+      defaultChannels: new Collection(),
+      prompts: new Collection(),
+    }),
     members: {
       fetchMe: async () => ({
         permissions: new PermissionsBitField(

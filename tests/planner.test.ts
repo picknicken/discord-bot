@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { planSetup, summarizePlan } from '../src/planner.js';
 import type { GuildSnapshot } from '../src/snapshot.js';
+import { standaardInstellingen } from './helpers/snapshot.js';
 import { parseTemplate } from '../src/types.js';
 import { toBitfield } from '../src/permissions.js';
 
@@ -25,6 +26,8 @@ const emptyGuild: GuildSnapshot = {
   channels: [],
   emojis: [],
   automod: [],
+  settings: standaardInstellingen,
+  onboarding: null,
 };
 
 const template = parseTemplate({

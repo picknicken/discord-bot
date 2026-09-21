@@ -1,5 +1,19 @@
-import { ChannelType, OverwriteType, type Guild, type GuildBasedChannel } from 'discord.js';
-import type { ChannelSpec } from './types.js';
+import {
+  AutoModerationActionType,
+  AutoModerationRuleKeywordPresetType,
+  AutoModerationRuleTriggerType,
+  ChannelType,
+  GuildDefaultMessageNotifications,
+  GuildExplicitContentFilter,
+  GuildOnboardingMode,
+  GuildVerificationLevel,
+  OverwriteType,
+  type AutoModerationRule,
+  type Guild,
+  type GuildBasedChannel,
+  type GuildOnboarding,
+} from 'discord.js';
+import type { AutomodSpec, ChannelSpec, GuildSettingsSpec, OnboardingSpec } from './types.js';
 
 /**
  * Platte weergave van een bestaande server. De planner werkt hierop in plaats van op
@@ -13,7 +27,82 @@ export interface GuildSnapshot {
   channels: SnapshotChannel[];
   emojis: string[];
   /** Gevuld zodra de caller `guild.autoModerationRules.fetch()` heeft gedaan. */
-  automod: { id: string; name: string }[];
+  automod: SnapshotAutomod[];
+  /** De serverinstellingen zoals ze nu staan. */
+  settings: SnapshotSettings;
+  /** Gevuld zodra de caller de onboarding heeft opgehaald. */
+  onboarding: SnapshotOnboarding | null;
+}
+
+/**
+ * De serverinstellingen die een template kan zetten, zoals ze nu staan.
+ *
+ * Kanalen staan hier als id, niet als naam: namen kunnen dubbel voorkomen en
+ * veranderen, het id niet.
+ */
+export interface SnapshotSettings {
+  verificationLevel: NonNullable<GuildSettingsSpec['verificationLevel']>;
+  explicitContentFilter: NonNullable<GuildSettingsSpec['explicitContentFilter']>;
+  defaultMessageNotifications: NonNullable<GuildSettingsSpec['defaultMessageNotifications']>;
+  systemChannelId: string | null;
+  afkChannelId: string | null;
+  rulesChannelId: string | null;
+  updatesChannelId: string | null;
+  afkTimeoutSeconds: number;
+  description: string | null;
+  community: boolean;
+}
+
+/** Eén actie van een AutoMod-regel: wat er gebeurt als de regel afgaat. */
+export interface SnapshotAutomodActie {
+  soort: AutomodSpec['action'];
+  customMessage: string | null;
+  timeoutSeconds: number | null;
+  channelId: string | null;
+}
+
+/**
+ * Een AutoMod-regel zoals hij nu op de server staat.
+ *
+ * Alleen de naam bewaren was niet genoeg: dan wist de planner wel dat de regel
+ * bestond, maar niet of hij nog klopte, en werd hij bij elke uitrol opnieuw
+ * geschreven.
+ */
+export interface SnapshotAutomod {
+  id: string;
+  name: string;
+  enabled: boolean;
+  /** null bij een triggertype dat een template niet kent. */
+  trigger: AutomodSpec['trigger'] | null;
+  keywords: string[];
+  regexPatterns: string[];
+  allowList: string[];
+  presets: AutomodSpec['presets'];
+  mentionLimit: number | null;
+  acties: SnapshotAutomodActie[];
+  exemptRoleIds: string[];
+}
+
+export interface SnapshotOnboardingOptie {
+  title: string;
+  description: string | null;
+  emoji: string | null;
+  roleIds: string[];
+  channelIds: string[];
+}
+
+export interface SnapshotOnboardingVraag {
+  title: string;
+  singleSelect: boolean;
+  required: boolean;
+  options: SnapshotOnboardingOptie[];
+}
+
+export interface SnapshotOnboarding {
+  enabled: boolean;
+  mode: NonNullable<OnboardingSpec['mode']>;
+  defaultChannelIds: string[];
+  prompts: SnapshotOnboardingVraag[];
 }
 
 export interface SnapshotRole {
@@ -75,6 +164,47 @@ export interface SnapshotChannel {
   overwrites: SnapshotOverwrite[];
 }
 
+/**
+ * Discord-waarden terug naar de woorden die in een template staan.
+ *
+ * Andersom staat het in de applier; deze kant is nodig om te kunnen zien of een
+ * instelling al goed staat.
+ */
+const VERIFICATIE = {
+  [GuildVerificationLevel.None]: 'none',
+  [GuildVerificationLevel.Low]: 'low',
+  [GuildVerificationLevel.Medium]: 'medium',
+  [GuildVerificationLevel.High]: 'high',
+  [GuildVerificationLevel.VeryHigh]: 'very_high',
+} as const satisfies Record<GuildVerificationLevel, NonNullable<GuildSettingsSpec['verificationLevel']>>;
+
+const INHOUDSFILTER = {
+  [GuildExplicitContentFilter.Disabled]: 'disabled',
+  [GuildExplicitContentFilter.MembersWithoutRoles]: 'members_without_roles',
+  [GuildExplicitContentFilter.AllMembers]: 'all_members',
+} as const satisfies Record<GuildExplicitContentFilter, NonNullable<GuildSettingsSpec['explicitContentFilter']>>;
+
+const MELDINGEN = {
+  [GuildDefaultMessageNotifications.AllMessages]: 'all_messages',
+  [GuildDefaultMessageNotifications.OnlyMentions]: 'only_mentions',
+} as const satisfies Record<
+  GuildDefaultMessageNotifications,
+  NonNullable<GuildSettingsSpec['defaultMessageNotifications']>
+>;
+
+export const TRIGGER_NAMEN = {
+  [AutoModerationRuleTriggerType.Keyword]: 'keyword',
+  [AutoModerationRuleTriggerType.KeywordPreset]: 'keyword_preset',
+  [AutoModerationRuleTriggerType.Spam]: 'spam',
+  [AutoModerationRuleTriggerType.MentionSpam]: 'mention_spam',
+} as const;
+
+export const PRESET_NAMEN = {
+  [AutoModerationRuleKeywordPresetType.Profanity]: 'profanity',
+  [AutoModerationRuleKeywordPresetType.SexualContent]: 'sexual_content',
+  [AutoModerationRuleKeywordPresetType.Slurs]: 'slurs',
+} as const;
+
 const CHANNEL_TYPE_MAP: Partial<Record<ChannelType, ChannelSpec['type']>> = {
   [ChannelType.GuildText]: 'text',
   [ChannelType.GuildVoice]: 'voice',
@@ -100,7 +230,86 @@ function leesOverwrites(channel: GuildBasedChannel): SnapshotOverwrite[] {
     }));
 }
 
-export function snapshotGuild(guild: Guild): GuildSnapshot {
+function leesInstellingen(guild: Guild): SnapshotSettings {
+  return {
+    verificationLevel: VERIFICATIE[guild.verificationLevel],
+    explicitContentFilter: INHOUDSFILTER[guild.explicitContentFilter],
+    defaultMessageNotifications: MELDINGEN[guild.defaultMessageNotifications],
+    systemChannelId: guild.systemChannelId,
+    afkChannelId: guild.afkChannelId,
+    rulesChannelId: guild.rulesChannelId,
+    updatesChannelId: guild.publicUpdatesChannelId,
+    afkTimeoutSeconds: guild.afkTimeout,
+    description: guild.description,
+    community: guild.features.includes('COMMUNITY'),
+  };
+}
+
+/** Eén AutoMod-actie van Discord in de vorm waarin wij hem vergelijken. */
+function leesAutomodActie(actie: AutoModerationRule['actions'][number]): SnapshotAutomodActie | null {
+  if (actie.type === AutoModerationActionType.BlockMessage) {
+    return {
+      soort: 'block',
+      customMessage: actie.metadata.customMessage ?? null,
+      timeoutSeconds: null,
+      channelId: null,
+    };
+  }
+  if (actie.type === AutoModerationActionType.SendAlertMessage) {
+    return { soort: 'alert', customMessage: null, timeoutSeconds: null, channelId: actie.metadata.channelId ?? null };
+  }
+  if (actie.type === AutoModerationActionType.Timeout) {
+    return {
+      soort: 'timeout',
+      customMessage: null,
+      timeoutSeconds: actie.metadata.durationSeconds ?? null,
+      channelId: null,
+    };
+  }
+  return null;
+}
+
+function leesAutomod(rule: AutoModerationRule): SnapshotAutomod {
+  return {
+    id: rule.id,
+    name: rule.name,
+    enabled: rule.enabled,
+    trigger: TRIGGER_NAMEN[rule.triggerType as keyof typeof TRIGGER_NAMEN] ?? null,
+    keywords: [...(rule.triggerMetadata.keywordFilter ?? [])],
+    regexPatterns: [...(rule.triggerMetadata.regexPatterns ?? [])],
+    allowList: [...(rule.triggerMetadata.allowList ?? [])],
+    presets: [...(rule.triggerMetadata.presets ?? [])]
+      .map((preset) => PRESET_NAMEN[preset as keyof typeof PRESET_NAMEN])
+      .filter((preset): preset is (typeof PRESET_NAMEN)[keyof typeof PRESET_NAMEN] => Boolean(preset)),
+    mentionLimit: rule.triggerMetadata.mentionTotalLimit ?? null,
+    acties: rule.actions
+      .map(leesAutomodActie)
+      .filter((actie): actie is SnapshotAutomodActie => actie !== null),
+    exemptRoleIds: [...rule.exemptRoles.keys()],
+  };
+}
+
+function leesOnboarding(onboarding: GuildOnboarding): SnapshotOnboarding {
+  return {
+    enabled: onboarding.enabled,
+    mode: onboarding.mode === GuildOnboardingMode.OnboardingAdvanced ? 'advanced' : 'default',
+    defaultChannelIds: [...onboarding.defaultChannels.keys()],
+    prompts: [...onboarding.prompts.values()].map((prompt) => ({
+      title: prompt.title,
+      singleSelect: prompt.singleSelect,
+      required: prompt.required,
+      options: [...prompt.options.values()].map((option) => ({
+        title: option.title,
+        description: option.description,
+        emoji: option.emoji?.name ?? null,
+        roleIds: [...option.roles.keys()],
+        channelIds: [...option.channels.keys()],
+      })),
+    })),
+  };
+}
+
+export function snapshotGuild(guild: Guild, onboarding: GuildOnboarding | null = null): GuildSnapshot {
   const roles: SnapshotRole[] = guild.roles.cache.map((role) => ({
     id: role.id,
     name: role.name,
@@ -151,15 +360,19 @@ export function snapshotGuild(guild: Guild): GuildSnapshot {
     categories: categories.sort((a, b) => a.position - b.position),
     channels: channels.sort((a, b) => a.position - b.position),
     emojis: guild.emojis.cache.map((emoji) => emoji.name ?? '').filter(Boolean),
-    automod: guild.autoModerationRules.cache.map((rule) => ({ id: rule.id, name: rule.name })),
+    automod: guild.autoModerationRules.cache.map(leesAutomod),
+    settings: leesInstellingen(guild),
+    onboarding: onboarding ? leesOnboarding(onboarding) : null,
   };
 }
 
 /**
- * Zelfde als `snapshotGuild`, maar haalt eerst de AutoMod-regels op: die staan niet
- * standaard in de cache, en zonder die stap zou de planner ze allemaal opnieuw aanmaken.
+ * Zelfde als `snapshotGuild`, maar haalt eerst de AutoMod-regels en de onboarding
+ * op: die staan niet standaard in de cache, en zonder die stap zou de planner ze
+ * allemaal opnieuw aanmaken.
  */
 export async function snapshotGuildFresh(guild: Guild): Promise<GuildSnapshot> {
   await guild.autoModerationRules.fetch().catch(() => null);
-  return snapshotGuild(guild);
+  const onboarding = await guild.fetchOnboarding().catch(() => null);
+  return snapshotGuild(guild, onboarding);
 }

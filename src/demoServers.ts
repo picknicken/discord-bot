@@ -1,4 +1,13 @@
-import { ChannelType, Collection, PermissionFlagsBits, PermissionsBitField } from 'discord.js';
+import {
+  ChannelType,
+  Collection,
+  GuildDefaultMessageNotifications,
+  GuildExplicitContentFilter,
+  GuildOnboardingMode,
+  GuildVerificationLevel,
+  PermissionFlagsBits,
+  PermissionsBitField,
+} from 'discord.js';
 
 /**
  * Nagemaakte servers voor de demo- en ontwikkelmodus.
@@ -120,6 +129,16 @@ export function demoServer({ id, naam, leden, scenario }: DemoOpties) {
     channels: { cache: channels },
     emojis: { cache: new Collection() },
     autoModerationRules: { cache: new Collection(), fetch: async () => new Collection() },
+    verificationLevel: GuildVerificationLevel.None,
+    explicitContentFilter: GuildExplicitContentFilter.Disabled,
+    defaultMessageNotifications: GuildDefaultMessageNotifications.AllMessages,
+    afkTimeout: 300,
+    fetchOnboarding: async () => ({
+      enabled: false,
+      mode: GuildOnboardingMode.OnboardingDefault,
+      defaultChannels: new Collection(),
+      prompts: new Collection(),
+    }),
     members: {
       fetchMe: async () => ({
         permissions: new PermissionsBitField(rechten),

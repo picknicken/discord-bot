@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { planRegels, planSetup } from '../src/planner.js';
 import { parseTemplate } from '../src/types.js';
 import type { GuildSnapshot } from '../src/snapshot.js';
+import { standaardInstellingen } from './helpers/snapshot.js';
 
 /**
  * De diff in het dashboard tekent zich uit deze regels. Een blok tekst laat je
@@ -16,6 +17,7 @@ const template = parseTemplate({
 
 const leeg = {
   id: 'g1', name: 'Server', roles: [], categories: [], channels: [], emojis: [], automod: [],
+  settings: standaardInstellingen, onboarding: null,
 } as unknown as GuildSnapshot;
 
 /** Een server met een kanaal dat niet in de template staat. */
