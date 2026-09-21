@@ -123,6 +123,33 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
     else if (!channel.isThread()) channelIds.set(normalize(channel.name), channel.id);
   }
 
+  /**
+   * Een weggegooid kanaal uit de naamlijst halen.
+   *
+   * Die lijst wordt bij het inloggen gevuld en daarna alleen aangevuld. Bleef een
+   * verwijderd kanaal erin staan, dan wees de naam nog naar een id dat niet meer
+   * bestaat en liep alles wat erna kwam daarop stuk: de onboarding kreeg "Unknown
+   * channel" terug en het systeemkanaal werd niet gezet.
+   *
+   * Staat er nog een kanaal met dezelfde naam - en dat is nu juist het geval als
+   * er een dubbele werd opgeruimd - dan wijst de naam daarna daarheen.
+   */
+  const vergeetKanaal = (id: string, isCategory: boolean) => {
+    const lijst = isCategory ? categoryIds : channelIds;
+    for (const [naam, bekend] of lijst) {
+      if (bekend !== id) continue;
+      const vervanger = [...guild.channels.cache.values()].find(
+        (kanaal) =>
+          kanaal.id !== id &&
+          normalize(kanaal.name) === naam &&
+          (kanaal.type === ChannelType.GuildCategory) === isCategory &&
+          !kanaal.isThread(),
+      );
+      if (vervanger) lijst.set(naam, vervanger.id);
+      else lijst.delete(naam);
+    }
+  };
+
   const buildOverwrites = (
     overwrites: Overwrite[],
     bestaand?: ReadonlyMap<string, { allow: bigint; deny: bigint }>,
@@ -337,6 +364,7 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
           const channel = await guild.channels.fetch(action.channelId);
           if (!channel) break;
           await channel.delete(`Server-setup (prune): template "${template.name}"`);
+          vergeetKanaal(action.channelId, action.isCategory);
           break;
         }
 
