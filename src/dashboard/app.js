@@ -1695,16 +1695,41 @@ async function apply(alleen = null, opnieuw = false) {
 
 async function restoreBackup(file) {
   const backup = state.backups.find((candidate) => candidate.file === file);
-  const confirmed = await ask({
-    title: 'Back-up terugzetten?',
-    body:
-      'Van "' + backup.guildName + '", ' + backup.createdAt.slice(0, 16).replace('T', ' ') + '.\n\n' +
-      'Dit vult aan en werkt bij. Verwijderde kanalen en hun berichten komen niet terug.',
-    confirmLabel: 'Terugzetten',
-  });
-  if (!confirmed) return;
 
-  await zetTerug({ file }, backup.guildName);
+  // Twee manieren, en het verschil is te groot om achter één knop te verstoppen.
+  const hoe = await kiesUit({
+    title: 'Back-up terugzetten',
+    body: 'Van "' + backup.guildName + '", ' + prettyStamp(backup.createdAt) + '.',
+    opties: [
+      {
+        waarde: 'aanvullen',
+        naam: 'Aanvullen en bijwerken',
+        uitleg: 'Zet terug wat in de back-up staat. Wat er sindsdien bij is gekomen blijft staan.',
+      },
+      {
+        waarde: 'volledig',
+        naam: 'Volledig terugzetten',
+        uitleg: 'Ook weghalen wat niet in de back-up stond. Daarna is de server weer zoals toen.',
+      },
+    ],
+  });
+  if (!hoe) return;
+
+  const volledig = hoe === 'volledig';
+  const akkoord = await ask({
+    title: volledig ? 'Volledig terugzetten?' : 'Back-up terugzetten?',
+    body: volledig
+      ? 'Kanalen en categorieën die er nu zijn maar niet in deze back-up staan, worden VERWIJDERD - ' +
+        'inclusief de berichten erin. Een back-up bewaart de structuur, niet wat erin gezegd is.\n\n' +
+        'Van de huidige stand wordt eerst een momentopname gemaakt.\n\nTyp ter bevestiging: ' + backup.guildName
+      : 'Dit vult aan en werkt bij. Verwijderde kanalen en hun berichten komen niet terug.',
+    confirmLabel: 'Terugzetten',
+    danger: volledig,
+    requireText: volledig ? backup.guildName : null,
+  });
+  if (!akkoord) return;
+
+  await zetTerug({ file, volledig }, backup.guildName);
 }
 
 /**
@@ -1769,12 +1794,16 @@ async function zetTerug(body, naam) {
     doel.innerHTML =
       '<div class="note ' + (result.failed ? 'warn' : 'ok') + '" style="margin-top:12px">' +
       escape(naam + ': ' + (result.note || result.applied + ' acties gelukt, ' + result.failed + ' mislukt')) +
+      (result.backup ? ' · momentopname vooraf gemaakt' : '') +
       '</div>' +
       (rest > 0
         ? '<div class="note warn" style="margin-top:8px">' + rest +
-          ' onderdeel(en) staan er nog die niet in deze back-up zaten. Terugzetten vult aan en ' +
-          'verwijdert niets, dus de server is niet identiek aan de back-up. Kijk in de tab ' +
-          'Server om te zien wat er afwijkt.</div>'
+          ' onderdeel(en) staan er nog die niet in deze back-up zaten. ' +
+          (body.volledig
+            ? 'Die konden niet weg - kijk in de tab Server wat het is.'
+            : 'Aanvullen verwijdert niets, dus de server is niet identiek aan de back-up. Kijk in de tab ' +
+              'Server om te zien wat er afwijkt.') +
+          '</div>'
         : '');
 
     toast(rest > 0 ? 'Teruggezet, maar niet identiek' : 'Back-up teruggezet', rest > 0 ? 'bad' : 'ok');
