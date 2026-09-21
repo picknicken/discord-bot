@@ -115,10 +115,21 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
   // hele opdracht te laten mislukken. Wat we niet mogen aanraken laten we staan.
   const magBits = grantableBits(me.permissions);
 
-  /** Namen -> echte kanaal-ids, bijgewerkt zodra er iets wordt aangemaakt. */
+  /**
+   * Namen -> echte kanaal-ids, bijgewerkt zodra er iets wordt aangemaakt.
+   *
+   * Wat dit plan weggooit doet niet mee. Staan er twee kanalen met dezelfde naam
+   * - de ene uit de template, de andere blijven liggen van een eerdere uitrol -
+   * dan zou de laatste in de lijst winnen, en dat is willekeurig. Dan wees het
+   * regelskanaal naar het kanaal dat net weg zou gaan.
+   */
+  const weg = new Set(
+    plan.actions.filter((actie) => actie.kind === 'delete-channel').map((actie) => actie.channelId),
+  );
   const categoryIds = new Map<string, string>();
   const channelIds = new Map<string, string>();
   for (const channel of guild.channels.cache.values()) {
+    if (weg.has(channel.id)) continue;
     if (channel.type === ChannelType.GuildCategory) categoryIds.set(normalize(channel.name), channel.id);
     else if (!channel.isThread()) channelIds.set(normalize(channel.name), channel.id);
   }

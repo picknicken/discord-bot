@@ -1,8 +1,10 @@
 import { ChannelType, Collection, PermissionFlagsBits, PermissionsBitField, type Guild } from 'discord.js';
 import { describe, expect, it } from 'vitest';
 import { applyPlan } from '../src/applier.js';
-import type { Plan } from '../src/planner.js';
+import { planSetup, type Plan } from '../src/planner.js';
 import { parseTemplate } from '../src/types.js';
+import type { GuildSnapshot } from '../src/snapshot.js';
+import { standaardInstellingen } from './helpers/snapshot.js';
 
 /**
  * Een dubbel kanaal opruimen en daarna de verwijzingen zetten, in één run.
@@ -84,5 +86,41 @@ describe('een verwijderd kanaal uit de naamlijst halen', () => {
     expect(result.errors).toEqual([]);
     expect(nep.edits.some((edit) => edit.systemChannel === 'blijft')).toBe(true);
     expect(nep.edits.some((edit) => edit.systemChannel === 'oud')).toBe(false);
+  });
+});
+
+describe('opruimen gaat als laatste', () => {
+  /**
+   * Discord weigert het regelskanaal van een community-server te verwijderen.
+   * Stond het opruimen vooraan, dan mislukte dat verwijderen en werd de
+   * verwijzing pas daarna verzet - dus was er altijd een tweede ronde nodig.
+   */
+  const snapshot: GuildSnapshot = {
+    id: 'g1',
+    name: 'Server',
+    roles: [],
+    categories: [],
+    channels: [
+      {
+        id: 'blijft', name: 'welkom', type: 'text', parentId: null, topic: null, nsfw: false,
+        slowmodeSeconds: 0, userLimit: null, position: 0, overwrites: [],
+      },
+      {
+        id: 'oud', name: 'oude-troep', type: 'text', parentId: null, topic: null, nsfw: false,
+        slowmodeSeconds: 0, userLimit: null, position: 1, overwrites: [],
+      },
+    ],
+    emojis: [],
+    automod: [],
+    settings: { ...standaardInstellingen },
+    onboarding: null,
+  };
+
+  it('zet de serverinstellingen voor het verwijderen', () => {
+    const soorten = planSetup(snapshot, template, { prune: true, update: true }).actions.map((actie) => actie.kind);
+
+    expect(soorten).toContain('delete-channel');
+    expect(soorten).toContain('guild-settings');
+    expect(soorten.indexOf('delete-channel')).toBeGreaterThan(soorten.indexOf('guild-settings'));
   });
 });
