@@ -46,13 +46,7 @@ import { diffTemplates, summarizeDiff } from '../diff.js';
 import { simulate, simulatableRoles } from '../simulate.js';
 import { compare } from '../compare.js';
 import { parseTemplate, type ServerTemplate } from '../types.js';
-import {
-  parseClanInstellingen,
-  raadRangRollen,
-  type ClanKeuze,
-  type DiscordLid,
-  type RolInfo,
-} from '../clan/rangen.js';
+import { parseClanInstellingen, type ClanKeuze, type DiscordLid } from '../clan/rangen.js';
 import {
   alGekoppeldAan,
   koppel,
@@ -672,7 +666,7 @@ async function handle(
         // Per gekozen clan: de rangen die daar in gebruik zijn. Die lijst komt
         // uit de ledenlijst zelf — een OSRS-clan bepaalt zijn eigen rangen, dus
         // een vaste lijst zou voor de helft niet kloppen.
-        clans: await Promise.all(dossier.instellingen.clans.map((clan) => beschrijfClan(clan, rollen))),
+        clans: await Promise.all(dossier.instellingen.clans.map(beschrijfClan)),
         koppelingen: await beschrijfKoppelingen(guild, dossier),
         // Kanalen waar het welkomstbericht in kan. Alleen tekstkanalen, en
         // alleen die waar de bot ook echt mag praten.
@@ -731,7 +725,7 @@ async function handle(
         await zetInstellingen(config.clanDir, id, instellingen);
         return send(response, 200, {
           instellingen,
-          clans: await Promise.all(instellingen.clans.map((clan) => beschrijfClan(clan, rollen))),
+          clans: await Promise.all(instellingen.clans.map(beschrijfClan)),
         });
       } catch (error) {
         return send(response, 400, { error: message(error) });
@@ -748,7 +742,7 @@ async function handle(
       await zetInstellingen(config.clanDir, id, instellingen);
       return send(response, 200, {
         instellingen,
-        clans: await Promise.all(instellingen.clans.map((clan) => beschrijfClan(clan, rollen))),
+        clans: await Promise.all(instellingen.clans.map(beschrijfClan)),
       });
     }
 
@@ -760,7 +754,7 @@ async function handle(
 
       try {
         await haalGroep(clan.groupId, { vers: true });
-        return send(response, 200, { clan: await beschrijfClan(clan, rollen) });
+        return send(response, 200, { clan: await beschrijfClan(clan) });
       } catch (error) {
         return send(response, 400, { error: message(error) });
       }
@@ -836,70 +830,39 @@ async function handle(
     // Rollen aanmaken: de rol voor de clan zelf, of de rangen die er nog geen
     // hebben. Met de hand acht rollen aanmaken is precies het werk dat deze bot
     // afneemt.
-    if (method === 'POST' && sub === 'rollen') {
-      const body = await readJson<{ groupId?: number; rangen?: string[]; lidrol?: boolean }>(request);
+    if (method === 'POST' && sub === 'rol') {
+      const body = await readJson<{ groupId?: number }>(request);
       const clan = dossier.instellingen.clans.find((kandidaat) => kandidaat.groupId === Number(body.groupId));
       if (!clan) return send(response, 400, { error: 'Die clan telt hier niet mee.' });
 
-      const gevraagd = (body.rangen ?? []).map((rang) => String(rang).trim()).filter(Boolean).slice(0, 30);
-      if (!body.lidrol && gevraagd.length === 0) {
-        return send(response, 400, { error: 'Kies minstens één rang.' });
-      }
-
       if (config.demo) {
-        return send(response, 200, { gemaakt: [], note: 'demo-modus — er zijn geen rollen aangemaakt' });
+        return send(response, 200, { note: 'demo-modus — er is geen rol aangemaakt' });
       }
       if (!me.permissions.has(PermissionFlagsBits.ManageRoles)) {
         return send(response, 400, { error: 'De bot mist het recht "Rollen beheren".' });
       }
 
-      /** Staat er al een rol met die naam, dan die; anders een nieuwe. */
-      const zorgVoorRol = async (naam: string) => {
-        const bestaand = guild.roles.cache.find((rol) => rol.name.toLowerCase() === naam.toLowerCase());
-        return {
-          rol: bestaand ?? (await guild.roles.create({ name: naam, reason: 'Clanrol via het dashboard' })),
-          bestond: Boolean(bestaand),
-        };
-      };
+      // De rol heet naar de clan. Staat er al een rol met die naam, dan pakken
+      // we die in plaats van er een tweede naast te zetten.
+      const naam = (clan.naam || `clan ${clan.groupId}`).slice(0, 100);
+      const bestaand = guild.roles.cache.find((rol) => rol.name.toLowerCase() === naam.toLowerCase());
 
-      const gemaakt: Array<{ rang: string; id: string }> = [];
-      const fouten: string[] = [];
-      let lidRol = clan.lidRol;
-      const rangRollen = { ...clan.rangRollen };
-
-      // De rol die clanleden van de rest onderscheidt: die heet gewoon naar de
-      // clan. Voor de meeste servers is dit het enige wat ze nodig hebben.
-      if (body.lidrol) {
-        const naam = (clan.naam || `clan ${clan.groupId}`).slice(0, 100);
-        try {
-          const { rol, bestond } = await zorgVoorRol(naam);
-          lidRol = rol.id;
-          if (!bestond) gemaakt.push({ rang: naam, id: rol.id });
-        } catch (error) {
-          return send(response, 400, { error: `"${naam}" aanmaken lukte niet: ${message(error)}` });
-        }
-      }
-
-      for (const rang of gevraagd) {
-        const naam = netteRang(rang);
-        try {
-          const { rol, bestond } = await zorgVoorRol(naam);
-          rangRollen[rang] = rol.id;
-          if (!bestond) gemaakt.push({ rang, id: rol.id });
-        } catch (error) {
-          fouten.push(`${naam}: ${message(error)}`);
-        }
+      let rol;
+      try {
+        rol = bestaand ?? (await guild.roles.create({ name: naam, reason: 'Clanrol via het dashboard' }));
+      } catch (error) {
+        return send(response, 400, { error: `"${naam}" aanmaken lukte niet: ${message(error)}` });
       }
 
       const instellingen = parseClanInstellingen({
         ...dossier.instellingen,
         clans: dossier.instellingen.clans.map((kandidaat) =>
-          kandidaat.groupId === clan.groupId ? { ...kandidaat, lidRol, rangRollen } : kandidaat,
+          kandidaat.groupId === clan.groupId ? { ...kandidaat, lidRol: rol.id } : kandidaat,
         ),
       });
 
       await zetInstellingen(config.clanDir, id, instellingen);
-      return send(response, 200, { gemaakt, fouten, instellingen });
+      return send(response, 200, { naam, bestond: Boolean(bestaand), instellingen });
     }
   }
 
@@ -972,29 +935,31 @@ function samenvatting(groep: WomGroep) {
 }
 
 /**
- * Eén gekozen clan zoals het scherm hem wil hebben: de rangen die er in gebruik
- * zijn met hoeveel leden erop staan, en een voorzet voor de rollen. Lukt het
- * ophalen niet, dan komt dat als `fout` terug in plaats van dat het hele scherm
- * leeg blijft.
+ * Eén gekozen clan zoals het scherm hem wil hebben. De rangen staan erbij als
+ * informatie — hoeveel leden er op elke rang staan — maar er valt niets aan te
+ * koppelen: een rang uitdelen blijft mensenwerk. Lukt het ophalen niet, dan komt
+ * dat als `fout` terug in plaats van dat het hele scherm leeg blijft.
  */
-async function beschrijfClan(clan: ClanKeuze, rollen: RolInfo[]) {
-  const basis = { ...clan, aantal: 0, rangen: [] as Array<{ rang: string; naam: string; aantal: number }>, voorstel: {}, fout: null as string | null };
+async function beschrijfClan(clan: ClanKeuze) {
+  const basis = {
+    ...clan,
+    aantal: 0,
+    rangen: [] as Array<{ rang: string; naam: string; aantal: number }>,
+    fout: null as string | null,
+  };
 
   try {
     const groep = await haalGroep(clan.groupId);
     const telling = new Map<string, number>();
     for (const lid of groep.leden) telling.set(lid.rang, (telling.get(lid.rang) ?? 0) + 1);
 
-    const rangen = [...telling.entries()]
-      .map(([rang, aantal]) => ({ rang, naam: netteRang(rang), aantal }))
-      .sort((a, b) => b.aantal - a.aantal || a.naam.localeCompare(b.naam));
-
     return {
       ...basis,
       naam: groep.naam || clan.naam,
       aantal: groep.leden.length,
-      rangen,
-      voorstel: raadRangRollen(rollen, rangen.map((regel) => regel.rang)),
+      rangen: [...telling.entries()]
+        .map(([rang, aantal]) => ({ rang, naam: netteRang(rang), aantal }))
+        .sort((a, b) => b.aantal - a.aantal || a.naam.localeCompare(b.naam)),
     };
   } catch (error) {
     return { ...basis, fout: message(error) };

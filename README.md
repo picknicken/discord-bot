@@ -508,11 +508,11 @@ is precies wat hier gebruikt wordt. Je clan moet er dus op staan en bijgehouden 
 doet de clan zelf, met de WiseOldMan-plugin in RuneLite of op de site.
 
 ```
-WiseOldMan (group "Mijn Clan")        Discord
-Sparc Mac — owner              ->   @Owner   + @Clanlid
-Tess      — captain            ->   @Captain + @Clanlid
-Noa       — member             ->              @Clanlid
-Milan     — (staat er niet in) ->   @Gast
+WiseOldMan (group "Dutch mayhem")      Discord
+Sparc Mac — owner              ->   @Dutch mayhem
+Tess      — captain            ->   @Dutch mayhem
+Noa       — member             ->   @Dutch mayhem
+Milan     — (staat er niet in) ->   (geen rol)
 ```
 
 ### Instellen
@@ -526,15 +526,10 @@ Daarna, in het dashboard → **Clan**. Per server:
 1. **Clans die meetellen** — zoek je clan op naam en klik **Laat meetellen**. Alleen de clans
    die je hier kiest doen mee; iemand die in een andere clan zit telt niet. Je kunt er meer
    dan één kiezen (handig voor een Discord met een hoofdclan en een tweede clan).
-2. **Eén rol voor clanleden** — bijvoorbeeld `@Dutch mayhem`. Die krijgt iedereen die in de
-   ledenlijst staat; wie er niet in staat krijgt niets. **Hier houdt het voor de meeste servers
-   op** — dit is precies het onderscheid tussen "zit in de clan" en "zit er niet in". Staat de
-   rol er nog niet, dan maakt **Aanmaken** hem in één tik, met de naam van de clan.
-3. **Per rang een aparte rol** (optioneel, ingeklapt) — wil je Owner en Corporal uit elkaar
-   houden, dan koppel je ze hier. De rangen komen uit de ledenlijst zelf: elke OSRS-clan
-   verzint zijn eigen rangen, dus een vaste lijst zou voor de helft niet kloppen. **Invullen op
-   rolnaam** pakt rollen die al zo heten; **Ontbrekende rollen aanmaken** maakt ze anders aan.
-   Laat je dit leeg, dan krijgt iedereen in de clan gewoon de rol uit stap 2.
+2. **Eén rol voor de clan** — bijvoorbeeld `@Dutch mayhem`. Die krijgt iedereen die in de
+   ledenlijst staat; wie er niet in staat krijgt niets. Dat is het hele onderscheid: zit in de
+   clan, of zit er niet in. Staat de rol er nog niet, dan maakt **Aanmaken** hem in één tik,
+   met de naam van de clan erop — bestaat er al een rol met die naam, dan pakt hij die.
 4. **Verder nog** — een rol voor gekoppelde leden die in géén van de gekozen clans zitten, de
    bijnaam in Discord gelijktrekken met de OSRS-naam, en of de bot elk uur vanzelf bijwerkt.
 5. **Rollen bijwerken** — eerst **Voorbeeld**: per lid één regel met wat hij krijgt en verliest.
@@ -563,8 +558,8 @@ Eén tik, naam invullen in het venstertje, klaar — geen commando's typen, wat 
 een groot verschil is. Het antwoord ziet alleen hij:
 
 ```
-Tess staat in Mijn Clan als Captain.
-Krijgt @Captain, @Clanlid.
+Tess staat in Dutch mayhem als Captain.
+Krijgt @Dutch mayhem.
 ```
 
 Voor wie er al was: `/clan knop` zet dezelfde knop vast in het kanaal waar je hem uitvoert. Die
@@ -593,9 +588,9 @@ vastzitten; de tweede poging wordt geweigerd in plaats van stilletjes overgenome
 
 ### Wat de bot niet aanraakt
 
-- **Alleen de rollen die hier zijn ingesteld.** De rangrollen, de clanrollen en de gastrol. Een
-  lid dat daarnaast `@Eventteam` heeft, houdt die — ook bij een promotie, een degradatie of het
-  verlaten van de clan.
+- **Alleen de rollen die hier zijn ingesteld.** De clanrollen en de gastrol, en verder niets.
+  Een lid dat daarnaast `@Eventteam` of `@Corporal` heeft, houdt die — ook bij een promotie, een
+  degradatie of het verlaten van de clan.
 - **Alleen gekoppelde leden.** Wie geen naam heeft opgegeven blijft buiten schot. In het
   voorbeeld zie je wel welke clanleden nog geen koppeling hebben.
 - **Niets zonder dat het kan.** Een rol boven de rol van de bot, of een lid dat boven hem

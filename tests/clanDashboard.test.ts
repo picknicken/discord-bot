@@ -199,30 +199,24 @@ describe('clan-api van het dashboard', () => {
     expect((await json(antwoord)).error).toMatch(/telt al mee/);
   });
 
-  it('stelt op naam een rol per rang voor', async () => {
+  it('toont de rangen als informatie, zonder er iets aan te koppelen', async () => {
     const data = await json(await get(`/api/clan/${GUILD_ID}`));
-    expect(data.clans[0].voorstel).toMatchObject({ captain: 'role-captain', owner: 'role-owner' });
+
+    expect(data.clans[0].rangen.map((regel: Json) => regel.naam).sort()).toEqual(['Captain', 'Owner']);
+    expect(data.clans[0]).not.toHaveProperty('voorstel');
+    expect(data.clans[0]).not.toHaveProperty('rangRollen');
   });
 
-  it('bewaart per clan welke rol bij welke rang hoort', async () => {
+  it('bewaart welke rol de clanleden krijgen', async () => {
     const opgeslagen = await json(
       await stuur(`/api/clan/${GUILD_ID}`, 'PUT', {
-        instellingen: {
-          clans: [
-            {
-              groupId: GROUP_ID,
-              naam: 'Mijn Clan',
-              lidRol: null,
-              rangRollen: { captain: 'role-captain', owner: 'role-owner' },
-            },
-          ],
-        },
+        instellingen: { clans: [{ groupId: GROUP_ID, naam: 'Mijn Clan', lidRol: 'role-captain' }] },
       }),
     );
 
     expect(opgeslagen.saved).toBe(true);
     const na = await json(await get(`/api/clan/${GUILD_ID}`));
-    expect(na.instellingen.clans[0].rangRollen).toEqual({ captain: 'role-captain', owner: 'role-owner' });
+    expect(na.instellingen.clans[0]).toEqual({ groupId: GROUP_ID, naam: 'Mijn Clan', lidRol: 'role-captain' });
   });
 
   it('koppelt een lid en weigert dezelfde naam twee keer', async () => {
@@ -251,9 +245,9 @@ describe('clan-api van het dashboard', () => {
     expect(data.plan.wissels[0]).toMatchObject({
       rsn: 'Tess',
       erbij: ['role-captain'],
-      // @Owner hoort bij een rang en klopt niet meer; @Corporal is aan niets
-      // gekoppeld en blijft daarom staan.
-      eraf: ['role-owner'],
+      // @Owner en @Corporal zijn aan niets gekoppeld — met de hand gegeven,
+      // dus daar blijft de bot vanaf.
+      eraf: [],
     });
     expect(data.plan.ongekoppeld[0]).toMatchObject({ clan: 'Mijn Clan', leden: ['Sparc Mac'] });
     // Een plan verandert nog niets.
@@ -265,10 +259,7 @@ describe('clan-api van het dashboard', () => {
 
     expect(data.aangepast).toBe(1);
     expect(data.mislukt).toBe(0);
-    expect(gedaan).toEqual([
-      { wat: 'erbij', rollen: ['role-captain'] },
-      { wat: 'eraf', rollen: ['role-owner'] },
-    ]);
+    expect(gedaan).toEqual([{ wat: 'erbij', rollen: ['role-captain'] }]);
 
     // En onthoudt waar dit lid stond, zodat het scherm dat kan tonen.
     const na = await json(await get(`/api/clan/${GUILD_ID}`));
@@ -295,7 +286,7 @@ describe('clan-api van het dashboard', () => {
   it('laat het scherm niet vallen als WiseOldMan een clan niet kent', async () => {
     leegClanCache();
     await stuur(`/api/clan/${GUILD_ID}`, 'PUT', {
-      instellingen: { clans: [{ groupId: 999, naam: 'Weg', lidRol: null, rangRollen: {} }] },
+      instellingen: { clans: [{ groupId: 999, naam: 'Weg', lidRol: null }] },
     });
 
     const data = await json(await get(`/api/clan/${GUILD_ID}`));
@@ -313,15 +304,31 @@ describe('clan-api van het dashboard', () => {
     };
 
     await stuur(`/api/clan/${GUILD_ID}/toevoegen`, 'POST', { groupId: GROUP_ID });
-    const data = await json(await stuur(`/api/clan/${GUILD_ID}/rollen`, 'POST', { groupId: GROUP_ID, lidrol: true }));
+    const data = await json(await stuur(`/api/clan/${GUILD_ID}/rol`, 'POST', { groupId: GROUP_ID }));
 
     // De rol heet naar de clan, en staat meteen ingevuld.
-    const opgeslagen = data.instellingen.clans.find((clan: Json) => clan.groupId === GROUP_ID);
     expect(gemaakt).toEqual(['Mijn Clan']);
-    expect(opgeslagen.lidRol).toBe('role-clan');
-    // De rangen blijven ongemoeid: die zijn optioneel.
-    expect(opgeslagen.rangRollen).toEqual({});
+    expect(data).toMatchObject({ naam: 'Mijn Clan', bestond: false });
+    expect(data.instellingen.clans.find((clan: Json) => clan.groupId === GROUP_ID).lidRol).toBe('role-clan');
 
+    await stuur(`/api/clan/${GUILD_ID}/verwijderen`, 'POST', { groupId: GROUP_ID });
+  });
+
+  it('pakt een bestaande rol met die naam in plaats van een tweede', async () => {
+    (guild.roles.cache as Collection<string, unknown>).set('role-bestaat', {
+      id: 'role-bestaat',
+      name: 'Mijn Clan',
+      position: 4,
+      managed: false,
+    });
+
+    await stuur(`/api/clan/${GUILD_ID}/toevoegen`, 'POST', { groupId: GROUP_ID });
+    const data = await json(await stuur(`/api/clan/${GUILD_ID}/rol`, 'POST', { groupId: GROUP_ID }));
+
+    expect(data).toMatchObject({ bestond: true });
+    expect(data.instellingen.clans.find((clan: Json) => clan.groupId === GROUP_ID).lidRol).toBe('role-bestaat');
+
+    (guild.roles.cache as Collection<string, unknown>).delete('role-bestaat');
     await stuur(`/api/clan/${GUILD_ID}/verwijderen`, 'POST', { groupId: GROUP_ID });
   });
 

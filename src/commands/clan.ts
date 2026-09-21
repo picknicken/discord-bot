@@ -285,7 +285,7 @@ function beschrijfKoppeling(rsn: string, gezien: Array<{ clan: string; rang: str
  */
 async function neemRollenAf(guild: Guild, dossier: ClanDossier, discordId: string): Promise<number> {
   const beheerd = [
-    ...dossier.instellingen.clans.flatMap((clan) => [...Object.values(clan.rangRollen), clan.lidRol]),
+    ...dossier.instellingen.clans.map((clan) => clan.lidRol),
     dossier.instellingen.gastRol,
   ].filter((id): id is string => Boolean(id));
 

@@ -281,20 +281,7 @@
   .clankop strong { display: block; font-size: 13.5px; }
   .clankop small { display: block; font-size: 11.5px; }
   .zoekblok { border-top: 1px solid var(--border); padding-top: 12px; }
-  /* De rangen zijn extra werk voor wie dat wil; ingeklapt dus, met de telling
-     ernaast zodat je ziet of er iets in staat zonder open te klappen. */
-  .clanblok details.rangdetails { border-top: 1px solid var(--border); margin-top: 4px; }
-  .clanblok details.rangdetails > summary { padding: 9px 0 4px; }
-  .clanblok details.rangdetails > summary .muted { font-weight: 400; font-size: 11.5px; }
   .zoeklijst { margin-top: 8px; }
-
-  /* Rangen met een rol ernaast: een raster leest hier prettiger dan een
-     rij losse velden, want je kijkt van boven naar beneden of er gaten in zitten. */
-  .rangen { display: grid; grid-template-columns: minmax(120px, 160px) minmax(0, 1fr) auto; gap: 6px 10px; align-items: center; }
-  .rangen .rang { font-size: 12.5px; color: var(--text-2); }
-  .rangen select { width: 100%; }
-  .rangen .telling { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 4.5rem; text-align: right; }
-  @media (max-width: 620px) { .rangen { grid-template-columns: minmax(0, 1fr) auto; } .rangen .rang { grid-column: 1 / -1; } }
 
   .wissel { display: flex; gap: 9px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--border); }
   .wissel:first-child { border-top: 0; }

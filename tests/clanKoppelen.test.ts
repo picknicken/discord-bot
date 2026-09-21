@@ -97,7 +97,7 @@ async function kiesClan() {
     clanDir,
     GUILD_ID,
     parseClanInstellingen({
-      clans: [{ groupId: 139, naam: 'Mijn Clan', lidRol: null, rangRollen: { captain: 'role-captain' } }],
+      clans: [{ groupId: 139, naam: 'Mijn Clan', lidRol: 'role-captain' }],
     }),
   );
 }
@@ -123,18 +123,18 @@ describe('koppelen', () => {
     // dan nog steeds in het antwoord te staan.
     const nogmaals = await vraag('Tess');
     expect(nogmaals.bericht).toMatch(/staat in \*\*Mijn Clan\*\* als \*\*Captain\*\*/);
-    expect(nogmaals.bericht).toMatch(/klopten al/);
+    expect(nogmaals.bericht).toMatch(/klopte al/);
   });
 
-  it('zegt eerlijk dat er nog geen rol aan die rang hangt', async () => {
-    // Niets gekoppeld aan "captain": dan is "je rollen klopten al" een leugen.
+  it('zegt eerlijk dat er nog geen rol aan de clan hangt', async () => {
+    // Geen rol gekoppeld: dan is "je rol klopte al" een leugen.
     leegClanCache();
     rollenVanLid.clear();
     rmSync(path.join(clanDir, `${GUILD_ID}.json`), { force: true });
     await zetInstellingen(
       clanDir,
       GUILD_ID,
-      parseClanInstellingen({ clans: [{ groupId: 139, naam: 'Mijn Clan', lidRol: null, rangRollen: {} }] }),
+      parseClanInstellingen({ clans: [{ groupId: 139, naam: 'Mijn Clan', lidRol: null }] }),
     );
 
     const uitkomst = await vraag('Tess');
@@ -142,7 +142,7 @@ describe('koppelen', () => {
     expect(uitkomst.inClan).toBe(true);
     expect(uitkomst.bericht).toMatch(/als \*\*Captain\*\*/);
     expect(uitkomst.bericht).toMatch(/nog geen Discord-rol/);
-    expect(uitkomst.bericht).not.toMatch(/klopten al/);
+    expect(uitkomst.bericht).not.toMatch(/klopte al/);
   });
 
   it('bewaart de naam ook als iemand niet in de clan zit, en geeft geen rol', async () => {

@@ -8,7 +8,7 @@ import { describeActions, planSetup, summarizePlan } from '../src/planner.js';
 import { simulate, simulatableRoles } from '../src/simulate.js';
 import type { GuildSnapshot, SnapshotChannel } from '../src/snapshot.js';
 import { loadAllTemplates } from '../src/templates.js';
-import { planClanRangen, raadRangRollen, type RolInfo } from '../src/clan/rangen.js';
+import { planClanRangen, type RolInfo } from '../src/clan/rangen.js';
 import { netteRang } from '../src/clan/wiseoldman.js';
 
 /**
@@ -20,12 +20,10 @@ import { netteRang } from '../src/clan/wiseoldman.js';
  */
 function demoClan() {
   const rollen: RolInfo[] = [
-    { id: '20', naam: 'Owner', beheerbaar: false },
-    { id: '21', naam: 'Captain', beheerbaar: true },
-    { id: '22', naam: 'Corporal', beheerbaar: true },
-    { id: '23', naam: 'Clanlid', beheerbaar: true },
+    { id: '23', naam: 'Mijn Clan', beheerbaar: true },
     { id: '24', naam: 'Gast', beheerbaar: true },
     { id: '25', naam: 'Eventteam', beheerbaar: true },
+    { id: '26', naam: 'Leiding', beheerbaar: false },
   ];
 
   const leden = [
@@ -38,12 +36,7 @@ function demoClan() {
 
   const GROUP_ID = 139;
 
-  const clan = {
-    groupId: GROUP_ID,
-    naam: 'Mijn Clan',
-    lidRol: '23',
-    rangRollen: { owner: '20', captain: '21', corporal: '22' } as Record<string, string>,
-  };
+  const clan = { groupId: GROUP_ID, naam: 'Mijn Clan', lidRol: '23' };
 
   const instellingen = {
     clans: [clan],
@@ -69,10 +62,10 @@ function demoClan() {
     koppelingen: koppelingen.map(({ discordId, rsn }) => ({ discordId, rsn })),
     ledenlijsten: [{ groupId: GROUP_ID, naam: clan.naam, leden }],
     leden: new Map([
-      ['101', { id: '101', naam: 'Sparc', bijnaam: null, rollen: ['20', '23'], beheerbaar: false }],
-      ['102', { id: '102', naam: 'Tessa', bijnaam: null, rollen: ['22', '23'], beheerbaar: true }],
+      ['101', { id: '101', naam: 'Sparc', bijnaam: null, rollen: ['23'], beheerbaar: false }],
+      ['102', { id: '102', naam: 'Tessa', bijnaam: null, rollen: ['23'], beheerbaar: true }],
       ['103', { id: '103', naam: 'Bram', bijnaam: null, rollen: ['25'], beheerbaar: true }],
-      ['104', { id: '104', naam: 'Milan', bijnaam: null, rollen: ['22', '23'], beheerbaar: true }],
+      ['104', { id: '104', naam: 'Milan', bijnaam: null, rollen: ['23'], beheerbaar: true }],
     ]),
     rollen: new Map(rollen.map((rol) => [rol.id, rol])),
   });
@@ -98,7 +91,6 @@ function demoClan() {
           ...clan,
           aantal: leden.length,
           rangen,
-          voorstel: raadRangRollen(rollen, rangen.map((regel) => regel.rang)),
           fout: null,
         },
       ],

@@ -117,9 +117,7 @@ async function kiesClan() {
   await zetInstellingen(
     process.env.CLAN_DIR as string,
     '987654321',
-    parseClanInstellingen({
-      clans: [{ groupId: 139, naam: 'Mijn Clan', lidRol: null, rangRollen: { captain: 'role-captain' } }],
-    }),
+    parseClanInstellingen({ clans: [{ groupId: 139, naam: 'Mijn Clan', lidRol: 'role-captain' }] }),
   );
 }
 
@@ -164,7 +162,7 @@ describe('/clan', () => {
     expect((await leesDossier(process.env.CLAN_DIR as string, '987654321')).koppelingen).toEqual({});
   });
 
-  it('geeft de rol die bij je rang hoort', async () => {
+  it('geeft de rol van de clan, met je rang erbij', async () => {
     await kiesClan();
 
     const { interaction, antwoorden } = interactie({ subcommand: 'koppel', rsn: 'Tess' });

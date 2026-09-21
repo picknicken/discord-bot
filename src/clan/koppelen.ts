@@ -120,19 +120,18 @@ export async function werkBij(
     regels.push(wissel.wijziging.charAt(0).toUpperCase() + wissel.wijziging.slice(1) + '.');
   } else {
     // Niets te doen kan twee dingen betekenen, en het verschil is nogal groot:
-    // je hebt de goede rollen al, óf er hangt hier nog helemaal geen rol aan
-    // jouw rang. Dat tweede als "klopt al" verkopen is ronduit misleidend.
+    // je hebt de rol al, óf aan deze clan hangt nog helemaal geen rol. Dat
+    // tweede als "klopt al" verkopen is ronduit misleidend.
     const instellingen = (await leesDossier(clanDir, guild.id)).instellingen;
 
-    const rollenVoorHem = staatIn.flatMap((plek) => {
-      const clan = instellingen.clans.find((kandidaat) => kandidaat.groupId === plek.groupId);
-      return [clan?.lidRol, clan?.rangRollen[plek.rang]].filter(Boolean);
-    });
+    const rollenVoorHem = staatIn
+      .map((plek) => instellingen.clans.find((kandidaat) => kandidaat.groupId === plek.groupId)?.lidRol)
+      .filter(Boolean);
 
     regels.push(
       rollenVoorHem.length > 0
-        ? 'Je rollen klopten al.'
-        : 'Aan die rang hangt hier nog geen Discord-rol. Een beheerder koppelt die in het dashboard, onder Clan.',
+        ? 'Je rol klopte al.'
+        : 'Aan deze clan hangt hier nog geen Discord-rol. Een beheerder koppelt die in het dashboard, onder Clan.',
     );
   }
 

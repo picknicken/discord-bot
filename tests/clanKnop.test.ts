@@ -56,7 +56,7 @@ async function kiesClan(extra: Record<string, unknown> = {}) {
     clanDir,
     GUILD_ID,
     parseClanInstellingen({
-      clans: [{ groupId: 139, naam: 'Mijn Clan', lidRol: null, rangRollen: { captain: 'role-captain' } }],
+      clans: [{ groupId: 139, naam: 'Mijn Clan', lidRol: 'role-captain' }],
       ...extra,
     }),
   );
