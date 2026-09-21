@@ -410,6 +410,15 @@
   }
   #planResult.verouderd .planblok, #planResult.verouderd .planvoet { opacity: .45; }
 
+  /* Een template die op een andere voortbouwt: je ziet hier alleen het verschil. */
+  .basisbalk {
+    display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+    font-size: 12.5px; border-bottom: 1px solid var(--border);
+    background: var(--accent-bg); color: var(--text);
+  }
+  .basisbalk .grow { min-width: 0; }
+  .basisbalk button { font-size: 12px; padding: 4px 9px; }
+
   /* De kleuren die Discord zelf aanbiedt, naast de vrije kiezer. */
   .kleuren { display: flex; flex-wrap: wrap; gap: 5px; margin: -4px 0 12px; }
   .kleur {
@@ -1010,6 +1019,11 @@
       <button id="tabJson" aria-selected="false">JSON <span class="tabhint">geavanceerd</span></button>
       <button id="tabCheck" aria-selected="false">Controle</button>
       <button id="tabServer" aria-selected="false">Server</button>
+    </div>
+    <div class="basisbalk" id="basisBalk" hidden>
+      <svg class="icon sm" aria-hidden="true"><use href="#i-file"/></svg>
+      <span class="grow" id="basisTekst"></span>
+      <button id="basisTonen">Volledig bekijken</button>
     </div>
     <div class="pbody">
       <div id="treeView">

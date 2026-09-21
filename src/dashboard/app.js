@@ -5,6 +5,8 @@ import { ask, busy, CHANNEL_ICONS, emptyState, escapeHtml as escape, icon, initT
 const state = {
   templates: [], guilds: [], backups: [], permissions: [],
   selected: null, original: '', simRole: null, template: null, dirty: false,
+  /** De template waarop de gekozen template voortbouwt, als hij dat doet. */
+  basis: null,
   session: null, scherm: 'templates', fouten: null, uitgerold: false,
   /** Per server: wijkt hij af van de template die er het laatst op ging? */
   drift: null, driftTijd: 0, driftBezig: false,
@@ -724,7 +726,8 @@ function renderTemplates() {
         const body = template.error
           ? '<small style="color:var(--bad)">' + escape(template.error.split('\n')[0]) + '</small>'
           : '<small>' + template.roles + ' rollen · ' + template.categories + ' cat · ' +
-            template.channels + ' kanalen</small>';
+            template.channels + ' kanalen' +
+            (template.basis ? ' · op ' + escape(template.basis) : '') + '</small>';
         return (
           '<button class="item" data-template="' + escape(template.id) + '" aria-selected="' +
           (template.id === state.selected) + '">' +
@@ -1200,8 +1203,10 @@ async function select(id) {
   setTimeout(renderVariabelen, 0);
   const data = await api('/templates/' + id);
   state.original = data.json;
+  state.basis = data.basis ?? null;
   $('editor').value = data.json;
   $('editorTitle').textContent = id;
+  renderBasis();
   history.past = [];
   history.future = [];
   history.last = data.json;
@@ -1220,6 +1225,22 @@ async function select(id) {
   }
 }
 
+/**
+ * Bouwt deze template op een andere voort, dan staat er in het bestand alleen wat
+ * er anders is - en dat is precies wat je in de structuur ziet. Zonder die uitleg
+ * lijkt het of je template leeg is.
+ */
+function renderBasis() {
+  const balk = $('basisBalk');
+  if (!balk) return;
+
+  balk.hidden = !state.basis;
+  if (state.basis) {
+    $('basisTekst').innerHTML =
+      'Bouwt voort op <strong>' + escape(state.basis) + '</strong> — hieronder staat alleen wat er anders is.';
+  }
+}
+
 function setDirty(dirty) {
   state.dirty = dirty;
   $('saveNote').innerHTML = dirty ? '<span style="color:var(--warn)">niet opgeslagen</span>' : '';
@@ -1232,6 +1253,14 @@ function renderTree() {
   } catch (error) {
     view.innerHTML = '<div class="note bad">JSON is nu ongeldig: ' + escape(error.message) + '</div>';
     return;
+  }
+
+  // Een template die op een basis voortbouwt noemt alleen wat er anders is, dus
+  // de lijsten die hij niet nodig had staan er niet in. De structuurweergave
+  // rekent erop dat ze bestaan; een lege lijst verandert bij het samenvoegen
+  // niets, dus dit is veilig om aan te vullen.
+  for (const veld of ['roles', 'categories', 'uncategorizedChannels', 'emojis', 'automod']) {
+    if (!Array.isArray(state.template[veld])) state.template[veld] = [];
   }
 
   renderEditor(view, {
@@ -2249,19 +2278,56 @@ $('newTemplate').onclick = async () => {
 };
 
 $('dupTemplate').onclick = async () => {
+  // Een kopie loopt vanaf vandaag uit elkaar; een variant blijft meebewegen met
+  // het origineel. Dat verschil is achteraf niet meer te maken, dus vragen we het.
+  const hoe = await kiesUit({
+    title: 'Hoe wil je verder met "' + state.selected + '"?',
+    body: 'Allebei geven een nieuwe template.',
+    opties: [
+      {
+        waarde: 'variant',
+        naam: 'Variant erop bouwen',
+        uitleg: 'Je schrijft alleen op wat er anders is. Verbeteringen in "' + state.selected + '" komen er vanzelf in.',
+      },
+      {
+        waarde: 'kopie',
+        naam: 'Losse kopie maken',
+        uitleg: 'Een compleet eigen bestand. Vanaf nu onderhoud je ze allebei apart.',
+      },
+    ],
+  });
+  if (!hoe) return;
+
+  const variant = hoe === 'variant';
   const name = await ask({
-    title: 'Template kopiëren',
-    body: 'Kopie van "' + state.selected + '".',
-    confirmLabel: 'Kopiëren',
-    input: { value: state.selected + '-kopie' },
+    title: variant ? 'Variant aanmaken' : 'Template kopiëren',
+    body: (variant ? 'Bouwt voort op "' : 'Kopie van "') + state.selected + '".',
+    confirmLabel: variant ? 'Aanmaken' : 'Kopiëren',
+    input: { value: state.selected + (variant ? '-variant' : '-kopie') },
   });
   if (!name) return;
 
   try {
-    const created = await api('/templates', { method: 'POST', body: JSON.stringify({ id: name, from: state.selected }) });
+    const created = await api('/templates', {
+      method: 'POST',
+      body: JSON.stringify({ id: name, from: state.selected, variant }),
+    });
     await refresh();
     await select(created.id);
-    toast('Gekopieerd naar "' + created.id + '"', 'ok');
+    toast(variant ? 'Variant "' + created.id + '" aangemaakt' : 'Gekopieerd naar "' + created.id + '"', 'ok');
+  } catch (error) {
+    toast(error.message, 'bad');
+  }
+};
+
+$('basisTonen').onclick = async () => {
+  try {
+    const data = await api('/templates/' + state.selected);
+    toonTekst({
+      title: state.selected + ' — volledig',
+      tekst: JSON.stringify(data.template, null, 2),
+      hint: 'De basis en dit bestand bij elkaar opgeteld, zoals hij op schijf staat. Alleen om te bekijken.',
+    });
   } catch (error) {
     toast(error.message, 'bad');
   }
@@ -2277,9 +2343,19 @@ $('delTemplate').onclick = async () => {
   if (!confirmed) return;
 
   const removed = state.selected;
-  await api('/templates/' + removed, { method: 'DELETE' });
+  try {
+    await api('/templates/' + removed, { method: 'DELETE' });
+  } catch (error) {
+    // Bijvoorbeeld: dit is de basis van een andere template. Dat is geen
+    // programmeerfout maar een antwoord, en dat hoor je te lezen.
+    toast(error.message, 'bad');
+    return;
+  }
+
   state.selected = null;
   state.template = null;
+  state.basis = null;
+  renderBasis();
   $('editor').value = '';
   $('editorTitle').textContent = 'Geen template gekozen';
   $('treeView').innerHTML = emptyState('file', 'Kies links een template om te bewerken.');

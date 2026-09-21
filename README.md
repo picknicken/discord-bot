@@ -515,6 +515,50 @@ prima: dat veld wordt genegeerd.)
 De snelste manier aan een eigen template te komen: richt een server met de hand in en
 draai `/setup export`.
 
+### Voortbouwen op een andere template
+
+Twee servers die op elkaar lijken hoef je niet twee keer te onderhouden. Met `basis` zegt een
+template: neem alles van die andere, en hieronder staat alleen wat er anders is.
+
+```json
+{
+  "basis": "community",
+  "name": "Community met support",
+  "roles": [
+    { "key": "team", "color": "#ed4245" },
+    { "key": "support", "name": "Support", "permissions": ["ViewChannel", "ManageMessages"] }
+  ],
+  "categories": [
+    { "name": "📋 Algemeen", "channels": [{ "name": "💬│memes" }] }
+  ],
+  "verwijder": { "roles": ["vip"], "channels": ["🎲│spelletjes"] }
+}
+```
+
+Wat hier gebeurt: `team` bestaat al in `community` en krijgt alleen een andere kleur - de rest
+van die rol blijft zoals hij was. `support` bestaat nog niet en komt erbij. De categorie
+`📋 Algemeen` bestaat al en krijgt er een kanaal bij; de kanalen die er al in zaten blijven
+staan. En wat je niet wil, haal je met `verwijder` weg.
+
+- Rollen worden bij elkaar gezocht op `key`, categorieën, kanalen, emoji's en automod-regels op
+  `name`, en overwrites op `role`. Alleen wat je noemt verandert.
+- Lijsten met waarden (`permissions`, `allow`, `deny`, `keywords`) worden vervangen en niet
+  aangevuld: half overnemen levert een lijst op die niemand bedoeld heeft.
+- De volgorde is die van de basis. Wat de basis nog niet kende komt erachteraan. Een andere
+  volgorde dan de basis kun je hier dus niet afdwingen - dat hoort in de basis zelf.
+- `verwijder` kan `roles`, `categories`, `channels`, `uncategorizedChannels`, `emojis` en
+  `automod`. Een naam die de basis niet kent is een fout: dat betekent bijna altijd dat de
+  basis veranderd is en deze template achterloopt.
+- Een basis mag zelf ook weer een basis hebben. Een basis die (via via) naar zichzelf wijst
+  wordt geweigerd, net als een basis die niet bestaat.
+
+In het dashboard: **Kopiëren** vraagt nu of je een losse kopie wil of een variant die erop
+voortbouwt. Bij een template met een basis staat er boven de structuur welke basis dat is, met
+een knop om te zien wat het samen wordt. Een basis verwijderen kan niet zolang er iets op
+voortbouwt, en het overnemen van een server schrijft weer alleen het verschil terug - past dat
+niet (bijvoorbeeld door een andere volgorde), dan zegt hij dat in plaats van de basis stilletjes
+uit het bestand te halen.
+
 ## Clanrangen (OSRS via WiseOldMan)
 
 De tweede tak van deze bot. `/setup` bouwt de server; dit bepaalt wie er binnen welke rol
@@ -746,6 +790,8 @@ src/
 assets/logo.png         avatar en applicatie-icoon
   types.ts              zod-schema en validatie van templates
   templates.ts          templates inlezen uit de map
+  overerven.ts          een template die op een andere voortbouwt samenvoegen
+  variabelen.ts         {{naam}} in een template invullen
   snapshot.ts           bestaande server -> platte structuur
   planner.ts            snapshot + template -> plan
   applier.ts            plan uitvoeren via de Discord API
@@ -756,6 +802,14 @@ assets/logo.png         avatar en applicatie-icoon
   lint.ts               controles op limieten, zichtbaarheid en rechten
   backup.ts             momentopname van een server voor het toepassen
   history.ts            vorige versies van templates
+  uitvoeren.ts          de volgorde van een uitrol, op één plek
+  gepland.ts            uitrollen op een tijdstip, ook na een herstart
+  drift.ts              wijkt een server af van wat er het laatst op ging?
+  driftWacht.ts         daar vanzelf over melden in de server
+  backupWacht.ts        vanzelf een momentopname, en oude opruimen
+  auditlog.ts           wie heeft er met de hand iets veranderd
+  opruimen.ts           kanalen en rollen waar niets meer mee gebeurt
+  importeren.ts         een Discord-template-link naar onze vorm
   permissions.ts        permissienamen <-> bitfields
   permissionCatalogue.ts  gegroepeerde permissielijst voor het dashboard
 templates/              meegeleverde templates
