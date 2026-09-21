@@ -569,15 +569,24 @@ export function planSetup(snapshot: GuildSnapshot, template: ServerTemplate, opt
   const channelPlan = planChannels(snapshot, template, options);
   actions.push(...channelPlan.actions);
 
+  /**
+   * Opruimen gaat als laatste, nadat alles klopt.
+   *
+   * Andersom liep het vast: een kanaal dat Discord nog nodig heeft - het regels-
+   * kanaal van een community-server - laat hij niet weghalen. Eerst de
+   * verwijzing verzetten en dan pas opruimen lukt in één keer; opruimen voordat
+   * de verwijzing verzet is, kost altijd een tweede ronde.
+   */
+  const verwijderingen: PlanAction[] = [];
   if (options.prune) {
     for (const channel of snapshot.channels) {
       if (!channelPlan.keptChannelIds.has(channel.id)) {
-        actions.push({ kind: 'delete-channel', channelId: channel.id, name: channel.name, isCategory: false });
+        verwijderingen.push({ kind: 'delete-channel', channelId: channel.id, name: channel.name, isCategory: false });
       }
     }
     for (const category of snapshot.categories) {
       if (!channelPlan.keptCategoryIds.has(category.id)) {
-        actions.push({ kind: 'delete-channel', channelId: category.id, name: category.name, isCategory: true });
+        verwijderingen.push({ kind: 'delete-channel', channelId: category.id, name: category.name, isCategory: true });
       }
     }
   }
@@ -629,6 +638,7 @@ export function planSetup(snapshot: GuildSnapshot, template: ServerTemplate, opt
   }
 
   actions.push(...planGuildSettings(snapshot, template, warnings));
+  actions.push(...verwijderingen);
 
   const totalChannels = template.categories.reduce((sum, category) => sum + category.channels.length, 0) +
     template.uncategorizedChannels.length;
