@@ -8,6 +8,8 @@ const state = {
   session: null, scherm: 'templates', fouten: null, uitgerold: false,
   /** Per server: wijkt hij af van de template die er het laatst op ging? */
   drift: null, driftTijd: 0, driftBezig: false,
+  /** De server waar het serverscherm over gaat. */
+  serverId: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -87,6 +89,7 @@ const VIEW_VAN = {
   bewerken: 'templates',
   controle: 'templates',
   servers: 'servers',
+  server: 'server',
   uitrollen: 'uitrollen',
   clan: 'clan',
   geschiedenis: 'geschiedenis',
@@ -111,7 +114,8 @@ function toonScherm(naam) {
   );
   $('meerKnop').setAttribute('aria-current', String(achterMeer));
 
-  if (naam === 'overzicht' || naam === 'servers') void laadDrift();
+  if (naam === 'overzicht' || naam === 'servers' || naam === 'server') void laadDrift();
+  if (naam === 'server') renderServerDetail();
 
   if (naam === 'controle') showTab('Check');
   else if (naam === 'bewerken' && $('treeView').hidden) showTab('Tree');
@@ -436,9 +440,9 @@ function renderServerKaarten() {
 
       return (
         '<div class="servercard">' +
-        '<div class="naam">' +
+        '<button class="naam" data-open="' + escape(guild.id) + '" title="Alles over deze server">' +
         (guild.iconUrl ? '<img src="' + escape(guild.iconUrl) + '" alt="" style="width:22px;height:22px;border-radius:6px">' : icon('server')) +
-        '<span class="truncate">' + escape(guild.name) + '</span></div>' +
+        '<span class="truncate">' + escape(guild.name) + '</span></button>' +
         '<div class="muted" style="font-size:11.5px">' + guild.memberCount + ' leden · ' +
         guild.roleCount + ' rollen · ' + guild.channelCount + ' kanalen</div>' +
         '<div class="statusrij">' + status + '</div>' +
@@ -450,6 +454,10 @@ function renderServerKaarten() {
       );
     })
     .join('');
+
+  for (const knop of doel.querySelectorAll('[data-open]')) {
+    knop.onclick = () => openServer(knop.dataset.open);
+  }
 
   for (const knop of doel.querySelectorAll('[data-verschil]')) {
     knop.onclick = async () => {
@@ -823,6 +831,111 @@ function renderBackups() {
 
   for (const button of list.querySelectorAll('[data-backup]')) {
     button.onclick = () => restoreBackup(button.dataset.backup);
+  }
+}
+
+/**
+ * Eén server, alles bij elkaar.
+ *
+ * Uitrollen stond op Uitrollen, back-ups op Back-ups, wat er gebeurd is bij
+ * Geschiedenis en leeghalen bij Servers - terwijl je in je hoofd met één server
+ * bezig bent. Dit scherm zet het naast elkaar; het uitrollen zelf blijft op één
+ * plek, want daar horen de vinkjes en de preview bij.
+ */
+function openServer(guildId) {
+  state.serverId = guildId;
+  toonScherm('server');
+}
+
+function renderServerDetail() {
+  const guild = state.guilds.find((kandidaat) => kandidaat.id === state.serverId);
+  if (!guild) {
+    $('serverNaam').textContent = 'Server';
+    $('serverDetail').innerHTML = emptyState('server', 'Die server staat niet (meer) in de lijst.');
+    return;
+  }
+
+  $('serverNaam').textContent = guild.name;
+  $('serverSub').textContent =
+    guild.memberCount + ' leden · ' + guild.roleCount + ' rollen · ' + guild.channelCount + ' kanalen';
+
+  const drift = state.drift?.[guild.id];
+  const runs = state.setups.filter((run) => run.guildId === guild.id).slice(0, 6);
+  const backups = state.backups.filter((backup) => backup.guildId === guild.id).slice(0, 6);
+
+  const status =
+    driftBadge(guild.id) +
+    (guild.missing.length
+      ? '<span class="badge bad">' + icon('alert', 'sm') + 'mist ' + guild.missing.length + ' recht' +
+        (guild.missing.length === 1 ? '' : 'en') + '</span>'
+      : '<span class="badge ok">' + icon('check', 'sm') + 'rechten in orde</span>') +
+    (guild.rolesAbove > 0
+      ? '<span class="badge warn">' + guild.rolesAbove + ' rol boven de bot</span>'
+      : '<span class="badge ok">rolvolgorde in orde</span>') +
+    (guild.admin ? '<span class="badge">administrator</span>' : '');
+
+  const runRij = (run) =>
+    '<div class="backup"><span class="grow"><strong>' + escape(run.template) + '</strong>' +
+    '<div class="meta muted" style="font-size:11px">' + escape(prettyStamp(run.at)) + ' · door ' +
+    escape(run.door) + '</div></span>' +
+    (run.mode === 'preview'
+      ? '<span class="badge">preview</span>'
+      : run.failed > 0
+        ? '<span class="badge warn">' + run.applied + ' gelukt, ' + run.failed + ' mislukt</span>'
+        : '<span class="badge ok">' + run.applied + ' gelukt</span>') +
+    '</div>';
+
+  const backupRij = (backup) =>
+    '<div class="backup"><span class="grow"><strong>' + escape(prettyStamp(backup.createdAt)) + '</strong>' +
+    '<div class="meta muted" style="font-size:11px">' + backup.roles + ' rollen · ' + backup.channels +
+    ' kanalen</div></span>' +
+    '<a class="btn-sm" href="/api/backups/' + encodeURIComponent(backup.file) + '" download ' +
+    'title="Opslaan op dit apparaat">' + icon('download', 'sm') + '</a>' +
+    '<button class="btn-sm" data-backup="' + escape(backup.file) + '">' + icon('undo', 'sm') + 'Terug</button></div>';
+
+  $('serverDetail').innerHTML =
+    '<div class="statusrij" style="margin-bottom:14px">' + status + '</div>' +
+    '<div class="row" style="margin-bottom:18px">' +
+    '<button class="btn-primary" data-doe="uitrollen">' + icon('zap', 'sm') + 'Uitrollen</button>' +
+    '<button class="btn-sm" data-doe="vergelijken">' + icon('eye', 'sm') + 'Vergelijken</button>' +
+    '<button class="btn-sm" data-doe="bewaren">' + icon('download', 'sm') + 'Opslaan als template</button>' +
+    '<button class="btn-sm btn-danger" data-doe="leeghalen">' + icon('trash', 'sm') + 'Leeghalen</button>' +
+    '</div>' +
+    (drift && drift.count > 0
+      ? '<div class="note warn" style="margin-bottom:18px">' + escape(drift.samenvatting || '') + '</div>'
+      : '') +
+    '<div class="dubbel">' +
+    '<section class="panel"><div class="phead">' + icon('history') +
+    '<h2 class="grow">Wat er gebeurd is</h2></div><div class="pbody">' +
+    (runs.length ? runs.map(runRij).join('') : '<p class="hint">Nog niets uitgerold op deze server.</p>') +
+    '</div></section>' +
+    '<section class="panel"><div class="phead">' + icon('archive') +
+    '<h2 class="grow">Back-ups</h2></div><div class="pbody">' +
+    (backups.length ? backups.map(backupRij).join('') : '<p class="hint">Nog geen back-ups van deze server.</p>') +
+    '</div></section></div>';
+
+  for (const knop of $('serverDetail').querySelectorAll('[data-backup]')) {
+    knop.onclick = () => restoreBackup(knop.dataset.backup);
+  }
+
+  const doe = {
+    uitrollen: async () => {
+      if (drift?.template && state.selected !== drift.template) await select(drift.template);
+      toonScherm('uitrollen');
+      kiesAlleenServer(guild.id);
+    },
+    vergelijken: () => {
+      kiesAlleenServer(guild.id);
+      toonScherm('bewerken');
+      showTab('Server');
+      runCompare();
+    },
+    bewaren: () => exportGuild(guild.id),
+    leeghalen: () => leeghalen(guild.id),
+  };
+
+  for (const knop of $('serverDetail').querySelectorAll('[data-doe]')) {
+    knop.onclick = () => void doe[knop.dataset.doe]();
   }
 }
 
@@ -1873,8 +1986,8 @@ $('delTemplate').onclick = async () => {
   toast('"' + removed + '" verwijderd', 'ok');
 };
 
-$('exportGuild').onclick = async () => {
-  const guildId = selectedGuilds()[0];
+/** Een bestaande server uitlezen en als nieuwe template opslaan. */
+async function exportGuild(guildId) {
   if (!guildId) return toast('Vink eerst een server aan.', 'bad');
 
   const exported = await api('/export/' + guildId);
@@ -1894,7 +2007,10 @@ $('exportGuild').onclick = async () => {
   } catch (error) {
     toast(error.message, 'bad');
   }
-};
+}
+
+$('exportGuild').onclick = () => exportGuild(selectedGuilds()[0]);
+$('terugNaarServers').onclick = () => toonScherm('servers');
 
 $('download').onclick = () => {
   if (!state.selected) return;
