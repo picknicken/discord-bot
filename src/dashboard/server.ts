@@ -15,6 +15,7 @@ import { config } from '../config.js';
 import { missingPermissions, rolesAboveBot } from '../botPermissions.js';
 import { applyPlan } from '../applier.js';
 import { exportGuildFresh } from '../exporter.js';
+import { driftVanServer } from '../drift.js';
 import { describeActions, planRegels, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadTemplateMet } from '../templates.js';
@@ -202,6 +203,7 @@ async function handle(
           history: config.historyDir,
         },
         volume: process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DATA_DIR || null,
+        driftCheckUren: config.driftCheckUren,
         inviteUrl: config.clientId ? buildInviteUrl(config.clientId) : null,
       },
     });
@@ -219,26 +221,10 @@ async function handle(
     const runs = await readSetups(config.historyDir, 500);
     const servers = [...client.guilds.cache.values()].filter((guild) => magHier(guild.id));
 
+    // Zelfde antwoord als de controle die vanzelf loopt; die logica staat op
+    // één plek, anders zeggen het scherm en het bericht in de server iets anders.
     const status = await Promise.all(
-      servers.map(async (guild) => {
-        const laatste = runs.find((run) => run.guildId === guild.id && run.mode === 'apply');
-        if (!laatste) return { guildId: guild.id, template: null, count: null, samenvatting: null };
-
-        try {
-          // Losjes: een template met variabelen is zonder ingevulde waarden niet
-          // te laden, en dan zou de hele rij leeg blijven.
-          const { template } = await loadTemplateMet(config.templatesDir, laatste.template, {}, { losjes: true });
-          const plan = planSetup(await snapshotGuildFresh(guild), template, { prune: false, update: true });
-          return {
-            guildId: guild.id,
-            template: laatste.template,
-            count: plan.actions.length,
-            samenvatting: summarizePlan(plan),
-          };
-        } catch (error) {
-          return { guildId: guild.id, template: laatste.template, count: null, fout: message(error) };
-        }
-      }),
+      servers.map((guild) => driftVanServer(guild, runs, config.templatesDir)),
     );
 
     return send(response, 200, { servers: status });

@@ -533,6 +533,19 @@ function renderInstellingen(instellingen) {
         )) +
     '</div>';
 
+  const kijken =
+    '<div class="rijen" style="margin-bottom:14px">' +
+    rij(
+      'Zelf kijken of een server afdwaalt',
+      instellingen.driftCheckUren > 0
+        ? 'elke ' + instellingen.driftCheckUren + ' uur' +
+          '<br><small class="muted">Hij zegt het in de server zodra er iets verandert, niet elke ronde opnieuw. ' +
+          'Aanpassen: DRIFT_CHECK_UREN (0 is uit).</small>'
+        : '<span class="muted">uit</span>' +
+          '<br><small class="muted">Aanzetten: DRIFT_CHECK_UREN met het aantal uren erin.</small>',
+    ) +
+    '</div>';
+
   const grens =
     '<div class="rijen" style="margin-bottom:14px">' +
     rij(
@@ -570,7 +583,7 @@ function renderInstellingen(instellingen) {
       : '') +
     '</div>';
 
-  doel.innerHTML = bot + inloggen + grens + mappen + thema;
+  doel.innerHTML = bot + inloggen + grens + kijken + mappen + thema;
   const knop = $('themaKnop');
   if (knop) knop.onclick = () => $('themeToggle').click();
 }

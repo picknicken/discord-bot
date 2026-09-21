@@ -78,6 +78,8 @@ export const config = {
   clanDir: schoon(process.env.CLAN_DIR) || opVolume('clan') || './clan',
   /** Hoe vaak de clanrangen vanzelf worden bijgewerkt, in minuten. 0 = nooit. */
   clanSyncMinuten: Math.max(0, Number(schoon(process.env.CLAN_SYNC_MINUTEN) || 60)),
+  /** Hoe vaak de bot zelf kijkt of een server is afgedwaald. 0 is uit. */
+  driftCheckUren: Math.max(0, Number(schoon(process.env.DRIFT_CHECK_UREN) || 24)),
   /**
    * Server-ids waar deze installatie iets mag. Leeg = geen beperking.
    * Vooral voor GitHub Actions: daar is het server-id een invoerveld.
