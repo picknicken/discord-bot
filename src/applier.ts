@@ -20,7 +20,8 @@ import { logger } from './util/logger.js';
 import { toBitfield, toNames } from './permissions.js';
 import { grantableBits, veiligeBits } from './haalbaar.js';
 import { actionLabel, type Plan } from './planner.js';
-import type { AutomodSpec, ChannelSpec, Overwrite, ServerTemplate } from './types.js';
+import { bouwRolmenu, optieLabel } from './rolmenu.js';
+import type { AutomodSpec, ChannelSpec, Overwrite, RoleMenuSpec, ServerTemplate } from './types.js';
 
 /**
  * Verstopt deze set overwrites het kanaal voor @everyone? Zo ja, dan verliest de
@@ -453,6 +454,12 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
           break;
         }
 
+        case 'role-menu': {
+          const melding = await zetRolmenu(guild, template, action.menu, action.messageId, channelIds, roleIds);
+          if (melding) result.errors.push(melding);
+          break;
+        }
+
         case 'guild-settings': {
           const meldingen = await applyGuildSettings(guild, template, channelIds, reason, {
             magCommunity: me.permissions.has(PermissionFlagsBits.Administrator),
@@ -472,6 +479,62 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
   }
 
   return result;
+}
+
+/**
+ * Het rolmenu plaatsen of bijwerken.
+ *
+ * Bijwerken gaat vóór plaatsen: het bericht waar mensen op geklikt hebben blijft
+ * dan staan waar het stond, met zijn geschiedenis eromheen. Een nieuw bericht
+ * duwt het oude naar boven weg en laat twee menu's achter die allebei werken.
+ *
+ * Een rol die niet opgezocht kan worden is geen reden om het hele menu te laten
+ * vallen: de rest van de knoppen doet het gewoon, en wat er mist staat als
+ * melding in het resultaat.
+ */
+async function zetRolmenu(
+  guild: Guild,
+  template: ServerTemplate,
+  menu: RoleMenuSpec,
+  messageId: string | null,
+  channelIds: Map<string, string>,
+  roleIds: Map<string, string>,
+): Promise<string | null> {
+  const kanaalId = channelIds.get(normalize(menu.channel));
+  const kanaal = kanaalId ? guild.channels.cache.get(kanaalId) : undefined;
+  if (!kanaal || !kanaal.isTextBased()) {
+    return `rolmenu "${menu.title}": kanaal #${menu.channel} niet gevonden.`;
+  }
+
+  const rolNamen = new Map(template.roles.map((role) => [role.key, role.name]));
+  const kwijt: string[] = [];
+  const opties = menu.options.flatMap((optie) => {
+    const roleId = roleIds.get(optie.role);
+    if (!roleId) {
+      kwijt.push(optie.role);
+      return [];
+    }
+    return [
+      {
+        roleId,
+        label: optieLabel(optie.label, rolNamen.get(optie.role) ?? optie.role),
+        emoji: optie.emoji ?? null,
+        description: optie.description ?? null,
+      },
+    ];
+  });
+
+  if (opties.length === 0) {
+    return `rolmenu "${menu.title}": geen van de rollen bestaat, er is niets geplaatst.`;
+  }
+
+  const bericht = bouwRolmenu(menu, opties);
+  const bestaand = messageId ? await kanaal.messages.fetch(messageId).catch(() => null) : null;
+
+  if (bestaand) await bestaand.edit(bericht);
+  else await kanaal.send(bericht);
+
+  return kwijt.length > 0 ? `rolmenu "${menu.title}": rol(len) ${kwijt.join(', ')} bestaan niet.` : null;
 }
 
 /**

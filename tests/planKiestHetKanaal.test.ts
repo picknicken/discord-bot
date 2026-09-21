@@ -37,6 +37,8 @@ const snapshot: GuildSnapshot = {
   automod: [],
   settings: standaardInstellingen,
   onboarding: null,
+  rolmenus: [],
+  rolmenusGelezen: true,
 };
 
 function nepServer() {

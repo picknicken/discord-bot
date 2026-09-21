@@ -24,6 +24,8 @@ const snapshot = (overrides: Partial<GuildSnapshot> = {}): GuildSnapshot => ({
   automod: [],
   settings: standaardInstellingen,
   onboarding: null,
+  rolmenus: [],
+  rolmenusGelezen: true,
   ...overrides,
 });
 

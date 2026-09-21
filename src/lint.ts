@@ -62,6 +62,7 @@ export interface AuditSummary {
   overwrites: number;
   automod: number;
   emojis: number;
+  rolmenus: number;
 }
 
 export function auditSummary(template: ServerTemplate): AuditSummary {
@@ -79,6 +80,7 @@ export function auditSummary(template: ServerTemplate): AuditSummary {
       channels.reduce((sum, channel) => sum + channel.overwrites.length, 0),
     automod: template.automod.length,
     emojis: template.emojis.length,
+    rolmenus: template.roleMenus.length,
   };
 }
 
@@ -192,6 +194,34 @@ export function lintTemplate(template: ServerTemplate): Finding[] {
   for (const role of template.roles) {
     if (role.permissions.length === 0 && !usedInOverwrites.has(role.key)) {
       add('info', `rol ${role.name}`, 'heeft geen rechten en wordt nergens gebruikt.');
+    }
+  }
+
+  // --- Rolmenu's ----------------------------------------------------------
+  for (const menu of template.roleMenus) {
+    const waar = `rolmenu ${menu.title}`;
+
+    // Iedereen die op de knop drukt krijgt deze rol. Staat er iets machtigs in,
+    // dan is dat geen rolmenu maar een deur die op een kier staat.
+    for (const optie of menu.options) {
+      const rol = template.roles.find((kandidaat) => kandidaat.key === optie.role);
+      const machtig = (rol?.permissions ?? []).filter((permissie) => RISKY_FOR_EVERYONE.includes(permissie));
+      if (machtig.length > 0) {
+        add('error', waar, `iedereen kan zichzelf @${rol?.name ?? optie.role} geven, en die heeft ${machtig.join(', ')}.`);
+      }
+    }
+
+    if (menu.options.length === 0) {
+      add('warning', waar, 'heeft nog geen rollen; er wordt niets geplaatst.');
+    }
+
+    const gevonden = allChannels.find(({ channel }) => channel.name === menu.channel);
+    if (gevonden && verstoptVoorIedereen(gevonden.channel, gevonden.category)) {
+      add('warning', waar, `${menu.channel} is verstopt voor @everyone; alleen wie het kanaal ziet kan klikken.`);
+    }
+
+    if (menu.style === 'buttons' && menu.options.length > 25) {
+      add('error', waar, `${menu.options.length} knoppen; er passen er 25 in een bericht.`);
     }
   }
 

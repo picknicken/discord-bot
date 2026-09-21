@@ -31,6 +31,8 @@ const server = (extra: Partial<GuildSnapshot> = {}): GuildSnapshot => ({
   automod: [],
   settings: standaardInstellingen,
   onboarding: null,
+  rolmenus: [],
+  rolmenusGelezen: true,
   ...extra,
 });
 

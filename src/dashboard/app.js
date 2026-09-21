@@ -1567,6 +1567,7 @@ function renderCheck(data) {
         s.channels + ' kanalen',
         s.overwrites + ' rechtenregels',
         s.automod ? s.automod + ' automod-regels' : '',
+        s.rolmenus ? s.rolmenus + ' rolmenu\'s' : '',
       ].filter(Boolean).join(' · ') + '</p>'
     : '';
 
@@ -1651,6 +1652,7 @@ const SOORT_ICOON = {
   volgorde: 'up',
   onboarding: 'info',
   instellingen: 'server',
+  rolmenu: 'shield',
 };
 
 function diffRegel(regel) {

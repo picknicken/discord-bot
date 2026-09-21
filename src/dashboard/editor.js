@@ -3,7 +3,7 @@
  * zodra er iets verandert; opslaan en valideren blijft aan app.js.
  */
 
-import { CHANNEL_ICONS, emptyState, escapeHtml, icon, kiesUit } from './ui.js';
+import { CHANNEL_ICONS, emptyState, escapeHtml, icon, kiesUit, zoekUit } from './ui.js';
 
 const CHANNEL_TYPES = ['text', 'voice', 'forum', 'announcement', 'stage'];
 const STATES = { 1: '✓', 0: '·', '-1': '✗' };
@@ -115,7 +115,12 @@ export function resetSelection() {
 
 function changed() {
   ctx.onChange();
-  draw(ctx.container);
+
+  // Niet meteen opnieuw tekenen. Een veld meldt zijn wijziging op het moment dat
+  // je hem verlaat, en de browser is dan midden in het verplaatsen van de focus:
+  // de halve boom vervangen mislukt daar met "the node to be removed is no longer
+  // a child of this node", en dan blijft het scherm staan op de oude naam.
+  setTimeout(() => draw(ctx.container), 0);
 }
 
 function draw(container) {
@@ -407,6 +412,51 @@ function tree() {
     '<ul>' + categories + '</ul>' +
     (loose ? '<div class="treehead"><h4>Zonder categorie</h4></div><ul>' + loose + '</ul>' : '');
 
+  /**
+   * Rolmenu's: het bericht met knoppen waarmee leden zichzelf een rol geven.
+   *
+   * Hier staat welke rollen erin zitten en in welk kanaal het komt; de tekst en
+   * de opmaak blijven in de JSON. Zo is het wél te zien en aan te passen zonder
+   * dat dit scherm een tweede berichteneditor wordt.
+   */
+  const menus = (template.roleMenus ?? [])
+    .map((menu, index) => {
+      const opties = (menu.options ?? [])
+        .map((optie, plek) => {
+          const rol = template.roles.find((kandidaat) => kandidaat.key === optie.role);
+          return (
+            '<li class="node">' + icon('shield', 'sm') +
+            '<span class="grow truncate">' + esc(optie.emoji ? optie.emoji + ' ' : '') +
+            esc(optie.label || rol?.name || optie.role) + '</span>' +
+            '<span class="tools"><button class="btn-icon" data-del="rolmenuRol" data-menu="' + index +
+            '" data-index="' + plek + '" title="Weghalen">' + icon('trash', 'sm') + '</button></span></li>'
+          );
+        })
+        .join('');
+
+      const actief = selection.type === 'rolmenu' && selection.index === index;
+
+      return (
+        '<li class="group"><div class="node head' + (actief ? ' on' : '') +
+        '" data-pick="rolmenu" data-index="' + index + '">' + icon('shield', 'sm') +
+        '<span class="grow truncate"><strong>' + esc(menu.title) + '</strong> ' +
+        '<span class="muted">#' + esc(menu.channel) + '</span></span>' +
+        '<span class="tools">' +
+        '<button class="btn-icon" data-add="rolmenuRol" data-menu="' + index + '" title="Rol toevoegen">' +
+        icon('plus', 'sm') + '</button>' +
+        '<button class="btn-icon" data-del="rolmenu" data-index="' + index + '" title="Verwijderen">' +
+        icon('trash', 'sm') + '</button>' +
+        '</span></div><ul>' + (opties || '<li class="hint">nog geen rollen</li>') + '</ul></li>'
+      );
+    })
+    .join('');
+
+  const menuBlok =
+    '<div class="treehead"><h4>Rolmenu\u2019s</h4><button class="btn-sm" data-add="rolmenu">' +
+    icon('plus', 'sm') + 'Rolmenu</button></div>' +
+    '<p class="hint">Een bericht met knoppen waarmee leden zichzelf een rol geven.</p>' +
+    '<ul>' + (menus || '<li class="hint">nog geen rolmenu\u2019s</li>') + '</ul>';
+
   const serverKnop =
     '<ul><li class="node' + (selection.type === 'server' ? ' on' : '') + '" data-pick="server" data-index="0">' +
     icon('server', 'sm') + '<span class="grow truncate">Serverinstellingen</span></li></ul>';
@@ -418,7 +468,8 @@ function tree() {
     (leeg ? '<p class="hint">Niets gevonden voor \u201c' + esc(zoekterm) + '\u201d.</p>' : '') +
     (zoekterm ? '' : serverKnop) +
     (focus === 'kanalen' ? '' : rollenBlok) +
-    (focus === 'rollen' ? '' : kanalenBlok)
+    (focus === 'rollen' ? '' : kanalenBlok) +
+    (zoekterm || focus !== 'alles' ? '' : menuBlok)
   );
 }
 
@@ -519,6 +570,7 @@ function props() {
   if (selection.type === 'server') return terug + serverProps(ctx.template);
   if (selection.type === 'role') return terug + roleProps(ctx.template.roles[selection.index]);
   if (selection.type === 'category') return terug + categoryProps(ctx.template.categories[selection.index]);
+  if (selection.type === 'rolmenu') return terug + rolmenuProps(ctx.template.roleMenus[selection.index]);
   return terug + channelProps(currentChannel());
 }
 
@@ -685,6 +737,73 @@ function kanaalKeuze(naam, waarde) {
       ? '<option value="' + esc(waarde) + '" selected>' + esc(waarde) + ' — bestaat niet in deze template</option>'
       : '') +
     '</select>'
+  );
+}
+
+/**
+ * Het rolmenu zelf: waar het komt te staan, wat erin staat en hoe het eruitziet.
+ *
+ * De knoppen erin bewerk je per rol - de rol zelf bepaalt wat iemand krijgt, dus
+ * hier gaat het alleen nog over wat erop staat.
+ */
+function rolmenuProps(menu) {
+  const kanalen = [
+    ...ctx.template.uncategorizedChannels.map((kanaal) => kanaal.name),
+    ...ctx.template.categories.flatMap((categorie) => categorie.channels.map((kanaal) => kanaal.name)),
+  ];
+
+  const veld = (naam, waarde) =>
+    '<input type="text" data-rolmenu="' + naam + '" value="' + esc(waarde ?? '') + '">';
+
+  const kanaalKiezer =
+    '<select data-rolmenu="channel">' +
+    (kanalen.includes(menu.channel) ? '' : '<option value="' + esc(menu.channel) + '" selected>' +
+      esc(menu.channel) + ' (bestaat niet)</option>') +
+    kanalen
+      .map(
+        (naam) =>
+          '<option value="' + esc(naam) + '"' + (menu.channel === naam ? ' selected' : '') + '>' + esc(naam) +
+          '</option>',
+      )
+      .join('') +
+    '</select>';
+
+  const vormKiezer =
+    '<select data-rolmenu="style">' +
+    [['buttons', 'Knoppen'], ['menu', 'Keuzemenu']]
+      .map(
+        ([waarde, label]) =>
+          '<option value="' + waarde + '"' + (menu.style === waarde ? ' selected' : '') + '>' + label + '</option>',
+      )
+      .join('') +
+    '</select>';
+
+  const opties = (menu.options ?? [])
+    .map((optie, plek) => {
+      const rol = ctx.template.roles.find((kandidaat) => kandidaat.key === optie.role);
+      const optieVeld = (naam, waarde) =>
+        '<input type="text" data-rolmenu-optie="' + naam + '" data-index="' + plek + '" value="' +
+        esc(waarde ?? '') + '">';
+
+      return (
+        '<div class="menuoptie"><strong>@' + esc(rol?.name ?? optie.role) + '</strong>' +
+        field('Op de knop', optieVeld('label', optie.label), 'Leeg = de naam van de rol') +
+        field('Emoji', optieVeld('emoji', optie.emoji)) +
+        (menu.style === 'menu' ? field('Toelichting', optieVeld('description', optie.description)) : '') +
+        '</div>'
+      );
+    })
+    .join('');
+
+  return (
+    '<h3>Rolmenu</h3>' +
+    '<p class="hint">De bot plaatst dit bericht en houdt het bij. Klikt iemand, dan krijgt hij die rol ' +
+    '\u2014 nog een keer klikken haalt hem er weer af.</p>' +
+    field('Titel', veld('title', menu.title), 'Hieraan herkent de bot zijn eigen bericht terug') +
+    field('Kanaal', kanaalKiezer) +
+    field('Tekst erboven', veld('description', menu.description)) +
+    field('Vorm', vormKiezer, 'Knoppen tot 25 rollen; een keuzemenu leest prettiger bij veel rollen') +
+    (opties || '<p class="hint">Nog geen rollen. Gebruik het plusje in de lijst hiernaast.</p>')
   );
 }
 
@@ -1025,6 +1144,50 @@ function bind(container) {
       return;
     }
 
+    if (data.add === 'rolmenu' || data.add === 'rolmenuRol') {
+      if (!Array.isArray(template.roleMenus)) template.roleMenus = [];
+
+      if (data.add === 'rolmenu') {
+        const kanalen = [
+          ...template.uncategorizedChannels.map((kanaal) => kanaal.name),
+          ...template.categories.flatMap((categorie) => categorie.channels.map((kanaal) => kanaal.name)),
+        ];
+        if (kanalen.length === 0) return;
+
+        const gekozen = await zoekUit({
+          title: 'In welk kanaal komt het rolmenu?',
+          items: kanalen.map((naam) => ({ waarde: naam, naam: '#' + naam })),
+        });
+        if (!gekozen) return;
+
+        template.roleMenus.push({
+          channel: gekozen.waarde,
+          title: 'Kies je rollen',
+          description: '',
+          style: 'buttons',
+          options: [],
+        });
+        selection = { type: 'rolmenu', index: template.roleMenus.length - 1 };
+        changed();
+        return;
+      }
+
+      const menu = template.roleMenus[Number(data.menu)];
+      const vrij = template.roles.filter((rol) => !menu.options.some((optie) => optie.role === rol.key));
+      if (vrij.length === 0) return;
+
+      const rol = await zoekUit({
+        title: 'Welke rol komt erbij?',
+        items: vrij.map((kandidaat) => ({ waarde: kandidaat.key, naam: '@' + kandidaat.name })),
+      });
+      if (!rol) return;
+
+      menu.options.push({ role: rol.waarde });
+      selection = { type: 'rolmenu', index: Number(data.menu) };
+      changed();
+      return;
+    }
+
     if (data.add === 'role') {
       template.roles.push({ key: uniqueKey('rol'), name: 'Nieuwe rol', hoist: false, mentionable: false, permissions: [] });
       selection = { type: 'role', index: template.roles.length - 1 };
@@ -1041,6 +1204,19 @@ function bind(container) {
 
   on('data-del', (data) => {
     const template = ctx.template;
+    if (data.del === 'rolmenu') {
+      template.roleMenus.splice(Number(data.index), 1);
+      selection = { type: 'none' };
+      changed();
+      return;
+    }
+
+    if (data.del === 'rolmenuRol') {
+      template.roleMenus[Number(data.menu)].options.splice(Number(data.index), 1);
+      changed();
+      return;
+    }
+
     if (data.del === 'role') {
       const [removed] = template.roles.splice(Number(data.index), 1);
       stripRole(template, removed.key);
@@ -1177,6 +1353,24 @@ function bind(container) {
       }
 
       if (name === 'name' && selection.type === 'role') syncRoleKey(target);
+      changed();
+    };
+  }
+
+  for (const input of container.querySelectorAll('[data-rolmenu]')) {
+    input.onchange = () => {
+      ctx.template.roleMenus[selection.index][input.dataset.rolmenu] = input.value;
+      changed();
+    };
+  }
+
+  for (const input of container.querySelectorAll('[data-rolmenu-optie]')) {
+    input.onchange = () => {
+      const optie = ctx.template.roleMenus[selection.index].options[Number(input.dataset.index)];
+      const naam = input.dataset.rolmenuOptie;
+      // Leeg betekent "niet opgeven": dan pakt de bot de naam van de rol.
+      if (input.value.trim() === '') delete optie[naam];
+      else optie[naam] = input.value;
       changed();
     };
   }

@@ -62,7 +62,7 @@ export async function rolUit(
   }
 
   const plan = filterPlan(
-    planSetup(await snapshotGuildFresh(guild), template, { prune: opdracht.prune, update: opdracht.update }),
+    planSetup(await snapshotGuildFresh(guild, template), template, { prune: opdracht.prune, update: opdracht.update }),
     opdracht.onderdelen,
   );
 

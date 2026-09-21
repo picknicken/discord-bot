@@ -36,7 +36,7 @@ export async function driftVanServer(
     // Losjes: een template met variabelen is zonder ingevulde waarden niet te
     // laden, en dan zou deze server helemaal geen antwoord opleveren.
     const { template } = await loadTemplateMet(templatesDir, laatste.template, {}, { losjes: true });
-    const plan = planSetup(await snapshotGuildFresh(guild), template, { prune: false, update: true });
+    const plan = planSetup(await snapshotGuildFresh(guild, template), template, { prune: false, update: true });
 
     return {
       guildId: guild.id,

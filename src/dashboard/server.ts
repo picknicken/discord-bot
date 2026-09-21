@@ -422,6 +422,7 @@ async function handle(
             uncategorizedChannels: [],
             emojis: [],
             automod: [],
+            roleMenus: [],
           };
 
       await writeTemplate(newId, source);
@@ -672,7 +673,7 @@ async function handle(
        * structuur, niet wat erin gezegd is.
        */
       const volledig = body.volledig === true;
-      const plan = planSetup(await snapshotGuildFresh(guild), backup.template, { prune: volledig, update: true });
+      const plan = planSetup(await snapshotGuildFresh(guild, backup.template), backup.template, { prune: volledig, update: true });
       if (plan.actions.length === 0) return send(response, 200, { applied: 0, failed: 0, errors: [], note: 'Niets te herstellen.' });
 
       // Voor een volledige terugzet eerst een momentopname van hoe het nu staat.
@@ -689,7 +690,7 @@ async function handle(
 
       // Terugzetten vult aan maar verwijdert niets, dus de server kan na afloop
       // nog steeds afwijken. Dat hoort de gebruiker te zien, niet te vermoeden.
-      const rest = compare(await snapshotGuildFresh(guild), backup.template);
+      const rest = compare(await snapshotGuildFresh(guild, backup.template), backup.template);
       return send(response, 200, {
         ...result,
         volledig,
@@ -820,7 +821,7 @@ async function handle(
 
     try {
       const template = await templateUitJson(config.templatesDir, body.json ?? '');
-      return send(response, 200, compare(await snapshotGuildFresh(guild), template));
+      return send(response, 200, compare(await snapshotGuildFresh(guild, template), template));
     } catch (error) {
       return send(response, 400, { error: message(error) });
     }
@@ -877,7 +878,7 @@ async function handle(
       for (const guildId of guildIds) {
         const guild = client.guilds.cache.get(guildId);
         if (!guild) continue;
-        const plan = filterPlan(planSetup(await snapshotGuildFresh(guild), template, options), onderdelen);
+        const plan = filterPlan(planSetup(await snapshotGuildFresh(guild, template), template, options), onderdelen);
         const me = await guild.members.fetchMe();
         const tekort = planShortfalls(plan, me.permissions);
         const haalbaar = maakHaalbaar(plan, me.permissions, {

@@ -179,6 +179,9 @@ export function exportGuild(
     name: templateName,
     description: `Geexporteerd uit "${guild.name}" op ${new Date().toISOString().slice(0, 10)}`,
     variables: {},
+    // Rolmenu's staan in berichten en niet in de structuur van de server; die
+    // leest een export dus niet mee.
+    roleMenus: [],
     guild: {
       description: guild.description ?? undefined,
       systemChannel: channelName(guild.systemChannelId),

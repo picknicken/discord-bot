@@ -32,6 +32,8 @@ const server = (extra: { settings?: Partial<SnapshotSettings>; automod?: GuildSn
   automod: extra.automod ?? [],
   settings: { ...standaardInstellingen, ...extra.settings },
   onboarding: extra.onboarding ?? null,
+  rolmenus: [],
+  rolmenusGelezen: true,
 });
 
 const maak = (stuk: Record<string, unknown>) =>

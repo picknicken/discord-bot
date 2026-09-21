@@ -127,6 +127,8 @@ describe('opruimen gaat als laatste', () => {
     automod: [],
     settings: { ...standaardInstellingen },
     onboarding: null,
+    rolmenus: [],
+    rolmenusGelezen: true,
   };
 
   it('zet de serverinstellingen voor het verwijderen', () => {

@@ -18,6 +18,7 @@ export const ONDERDELEN = [
   'emojis',
   'instellingen',
   'onboarding',
+  'rolmenus',
 ] as const;
 
 export type Onderdeel = (typeof ONDERDELEN)[number];
@@ -31,6 +32,7 @@ export const UITLEG: Record<Onderdeel, string> = {
   emojis: 'de emoji uit de template',
   instellingen: 'serverinstellingen, het systeem- en regelskanaal, en community-modus',
   onboarding: 'de vragen die nieuwe leden krijgen',
+  rolmenus: 'de berichten met knoppen waarmee leden zichzelf een rol geven',
 };
 
 export function onderdeelVan(action: PlanAction): Onderdeel {
@@ -57,6 +59,8 @@ export function onderdeelVan(action: PlanAction): Onderdeel {
     case 'guild-community':
     case 'guild-settings':
       return 'instellingen';
+    case 'role-menu':
+      return 'rolmenus';
   }
 }
 
