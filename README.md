@@ -526,12 +526,15 @@ Daarna, in het dashboard → **Clan**. Per server:
 1. **Clans die meetellen** — zoek je clan op naam en klik **Laat meetellen**. Alleen de clans
    die je hier kiest doen mee; iemand die in een andere clan zit telt niet. Je kunt er meer
    dan één kiezen (handig voor een Discord met een hoofdclan en een tweede clan).
-2. **Per rang een rol** — onder elke clan staan de rangen die daar *in gebruik* zijn, met
-   hoeveel leden erop staan. Die lijst komt uit de ledenlijst zelf: elke OSRS-clan verzint
-   zijn eigen rangen, dus een vaste lijst zou voor de helft niet kloppen. **Invullen op
+2. **Eén rol voor clanleden** — bijvoorbeeld `@Dutch mayhem`. Die krijgt iedereen die in de
+   ledenlijst staat; wie er niet in staat krijgt niets. **Hier houdt het voor de meeste servers
+   op** — dit is precies het onderscheid tussen "zit in de clan" en "zit er niet in". Staat de
+   rol er nog niet, dan maakt **Aanmaken** hem in één tik, met de naam van de clan.
+3. **Per rang een aparte rol** (optioneel, ingeklapt) — wil je Owner en Corporal uit elkaar
+   houden, dan koppel je ze hier. De rangen komen uit de ledenlijst zelf: elke OSRS-clan
+   verzint zijn eigen rangen, dus een vaste lijst zou voor de helft niet kloppen. **Invullen op
    rolnaam** pakt rollen die al zo heten; **Ontbrekende rollen aanmaken** maakt ze anders aan.
-3. **Rol voor iedereen in deze clan** — bovenaan het clanblok, bijvoorbeeld `@Clanlid`. Die
-   krijgt iedereen die in de ledenlijst staat, ook als er aan hun rang niets hangt.
+   Laat je dit leeg, dan krijgt iedereen in de clan gewoon de rol uit stap 2.
 4. **Verder nog** — een rol voor gekoppelde leden die in géén van de gekozen clans zitten, de
    bijnaam in Discord gelijktrekken met de OSRS-naam, en of de bot elk uur vanzelf bijwerkt.
 5. **Rollen bijwerken** — eerst **Voorbeeld**: per lid één regel met wat hij krijgt en verliest.

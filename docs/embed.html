@@ -278,6 +278,11 @@
   .clankop strong { display: block; font-size: 13.5px; }
   .clankop small { display: block; font-size: 11.5px; }
   .zoekblok { border-top: 1px solid var(--border); padding-top: 12px; }
+  /* De rangen zijn extra werk voor wie dat wil; ingeklapt dus, met de telling
+     ernaast zodat je ziet of er iets in staat zonder open te klappen. */
+  .clanblok details.rangdetails { border-top: 1px solid var(--border); margin-top: 4px; }
+  .clanblok details.rangdetails > summary { padding: 9px 0 4px; }
+  .clanblok details.rangdetails > summary .muted { font-weight: 400; font-size: 11.5px; }
   .zoeklijst { margin-top: 8px; }
 
   /* Rangen met een rol ernaast: een raster leest hier prettiger dan een
@@ -2467,7 +2472,8 @@ function paneelUitleg() {
     '<li>Kies hieronder welke clans meetellen. Dat zijn <em>groups</em> op ' +
     '<a href="https://wiseoldman.net/groups" target="_blank" rel="noopener">wiseoldman.net</a> — ' +
     'daar houdt je clan zijn ledenlijst met rangen bij.</li>' +
-    '<li>Koppel per rang uit die clan een Discord-rol.</li>' +
+    '<li>Kies één rol voor clanleden. Daarmee zie je wie in de clan zit en wie niet. ' +
+    'Per rang een aparte rol mag ook, maar hoeft niet.</li>' +
     '<li>Nieuwe leden krijgen bij binnenkomst een knop <em>Koppel je OSRS-naam</em>. Eén tik, naam ' +
     'invullen, klaar. (Of zelf: <code>/clan koppel</code>.)</li>' +
     '</ol>' +
@@ -2526,6 +2532,22 @@ function clanBlok(clan) {
     return '<div class="clanblok">' + kop + '<div class="note bad">' + escapeHtml(clan.fout) + '</div></div>';
   }
 
+  // Dit is waar het bij de meeste servers om gaat: wie in de clan zit krijgt
+  // deze rol, wie er niet in zit niets. Daarom staat hij hier groot en niet
+  // ergens boven een tabel met twaalf dropdowns.
+  const hoofdrol =
+    '<label class="field"><span>Rol voor iedereen in deze clan</span>' +
+    '<div class="row" style="flex-wrap:nowrap">' +
+    rolKiezer(clan.groupId, null, clan.lidRol ?? '') +
+    (clan.lidRol
+      ? ''
+      : '<button class="btn-sm" data-clanrol="' + clan.groupId + '">' + icon('plus', 'sm') + 'Aanmaken</button>') +
+    '</div></label>' +
+    '<p class="muted" style="font-size:12px;margin:-4px 0 10px">Dit onderscheidt clanleden van de rest. ' +
+    'Meer heb je niet nodig.</p>';
+
+  // De rangen zijn extra: leuk als je Owner en Corporal uit elkaar wilt houden,
+  // maar ingeklapt, want niemand hoeft hier iets in te vullen.
   const rangen = clan.rangen
     .map(
       (regel) =>
@@ -2535,19 +2557,27 @@ function clanBlok(clan) {
     )
     .join('');
 
-  return (
-    '<div class="clanblok">' + kop +
-    '<label class="field"><span>Rol voor iedereen in deze clan, ongeacht rang</span>' +
-    rolKiezer(clan.groupId, null, clan.lidRol ?? '') + '</label>' +
-    (clan.rangen.length > 0
-      ? '<div class="rangen">' + rangen + '</div>' +
+  const gekoppeldeRangen = clan.rangen.filter((regel) => clan.rangRollen[regel.rang]).length;
+
+  const rangblok =
+    clan.rangen.length === 0
+      ? '<p class="muted" style="font-size:12px">Deze clan gebruikt nog geen rangen op WiseOldMan.</p>'
+      : '<details class="rangdetails"' + (gekoppeldeRangen > 0 ? ' open' : '') + '>' +
+        '<summary>Ook per rang een aparte rol? ' +
+        '<span class="muted">' +
+        escapeHtml(
+          gekoppeldeRangen > 0
+            ? gekoppeldeRangen + ' van ' + clan.rangen.length + ' rangen gekoppeld'
+            : 'optioneel — ' + clan.rangen.length + ' rangen in gebruik',
+        ) +
+        '</span></summary>' +
+        '<div class="rangen" style="margin-top:10px">' + rangen + '</div>' +
         '<div class="row" style="margin-top:10px">' +
         '<button class="btn-sm" data-raad="' + clan.groupId + '">' + icon('zap', 'sm') + 'Invullen op rolnaam</button>' +
         '<button class="btn-sm" data-maak="' + clan.groupId + '">' + icon('plus', 'sm') + 'Ontbrekende rollen aanmaken</button>' +
-        '</div>'
-      : '<p class="muted" style="font-size:12px">Deze clan gebruikt nog geen rangen op WiseOldMan.</p>') +
-    '</div>'
-  );
+        '</div></details>';
+
+  return '<div class="clanblok">' + kop + hoofdrol + rangblok + '</div>';
 }
 
 function zoekblok() {
@@ -2734,6 +2764,7 @@ function koppelKnoppen() {
 
   bij('vernieuw', vernieuwClan);
   bij('weg', haalClanWeg);
+  bij('clanrol', maakClanRol);
   bij('raad', raadRollen);
   bij('maak', maakRollen);
   bij('toevoegen', voegClanToe);
@@ -2886,6 +2917,27 @@ function raadRollen(groupId) {
       : 'Geen rollen gevonden die net zo heten als een rang van deze clan.',
     ingevuld > 0 ? 'ok' : 'info',
   );
+}
+
+/**
+ * De rol voor clanleden in één tik: aanmaken met de naam van de clan, en meteen
+ * invullen. Bestaat er al een rol met die naam, dan pakt hij die.
+ */
+async function maakClanRol(groupId) {
+  const clan = gegevens.clans.find((kandidaat) => kandidaat.groupId === groupId);
+
+  try {
+    const uitkomst = await vraag('/clan/' + gekozen + '/rollen', {
+      method: 'POST',
+      body: JSON.stringify({ groupId, lidrol: true }),
+      timeout: 60000,
+    });
+
+    toast(uitkomst.note ?? 'Rol "' + (clan?.naam ?? 'clan') + '" staat klaar en is ingevuld.', 'ok');
+    await laad();
+  } catch (error) {
+    toast(error.message, 'bad', 6000);
+  }
 }
 
 async function maakRollen(groupId) {

@@ -303,6 +303,28 @@ describe('clan-api van het dashboard', () => {
     expect(data.rollen).toHaveLength(4);
   });
 
+  it('maakt in één klik de rol voor clanleden aan', async () => {
+    const gemaakt: string[] = [];
+    (guild.roles as unknown as { create: (opties: { name: string }) => Promise<{ id: string }> }).create = async (
+      opties,
+    ) => {
+      gemaakt.push(opties.name);
+      return { id: 'role-clan' };
+    };
+
+    await stuur(`/api/clan/${GUILD_ID}/toevoegen`, 'POST', { groupId: GROUP_ID });
+    const data = await json(await stuur(`/api/clan/${GUILD_ID}/rollen`, 'POST', { groupId: GROUP_ID, lidrol: true }));
+
+    // De rol heet naar de clan, en staat meteen ingevuld.
+    const opgeslagen = data.instellingen.clans.find((clan: Json) => clan.groupId === GROUP_ID);
+    expect(gemaakt).toEqual(['Mijn Clan']);
+    expect(opgeslagen.lidRol).toBe('role-clan');
+    // De rangen blijven ongemoeid: die zijn optioneel.
+    expect(opgeslagen.rangRollen).toEqual({});
+
+    await stuur(`/api/clan/${GUILD_ID}/verwijderen`, 'POST', { groupId: GROUP_ID });
+  });
+
   it('biedt de kanalen aan voor het welkomstbericht', async () => {
     const data = await json(await get(`/api/clan/${GUILD_ID}`));
 

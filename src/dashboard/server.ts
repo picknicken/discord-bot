@@ -833,15 +833,18 @@ async function handle(
       return send(response, 200, { koppelingen: await beschrijfKoppelingen(guild, bijgewerkt) });
     }
 
-    // Rollen aanmaken voor rangen die er nog geen hebben. Met de hand acht
-    // rollen aanmaken is precies het werk dat deze bot afneemt.
+    // Rollen aanmaken: de rol voor de clan zelf, of de rangen die er nog geen
+    // hebben. Met de hand acht rollen aanmaken is precies het werk dat deze bot
+    // afneemt.
     if (method === 'POST' && sub === 'rollen') {
-      const body = await readJson<{ groupId?: number; rangen?: string[] }>(request);
+      const body = await readJson<{ groupId?: number; rangen?: string[]; lidrol?: boolean }>(request);
       const clan = dossier.instellingen.clans.find((kandidaat) => kandidaat.groupId === Number(body.groupId));
       if (!clan) return send(response, 400, { error: 'Die clan telt hier niet mee.' });
 
       const gevraagd = (body.rangen ?? []).map((rang) => String(rang).trim()).filter(Boolean).slice(0, 30);
-      if (gevraagd.length === 0) return send(response, 400, { error: 'Kies minstens één rang.' });
+      if (!body.lidrol && gevraagd.length === 0) {
+        return send(response, 400, { error: 'Kies minstens één rang.' });
+      }
 
       if (config.demo) {
         return send(response, 200, { gemaakt: [], note: 'demo-modus — er zijn geen rollen aangemaakt' });
@@ -850,19 +853,39 @@ async function handle(
         return send(response, 400, { error: 'De bot mist het recht "Rollen beheren".' });
       }
 
-      const rangRollen = { ...clan.rangRollen };
+      /** Staat er al een rol met die naam, dan die; anders een nieuwe. */
+      const zorgVoorRol = async (naam: string) => {
+        const bestaand = guild.roles.cache.find((rol) => rol.name.toLowerCase() === naam.toLowerCase());
+        return {
+          rol: bestaand ?? (await guild.roles.create({ name: naam, reason: 'Clanrol via het dashboard' })),
+          bestond: Boolean(bestaand),
+        };
+      };
+
       const gemaakt: Array<{ rang: string; id: string }> = [];
       const fouten: string[] = [];
+      let lidRol = clan.lidRol;
+      const rangRollen = { ...clan.rangRollen };
+
+      // De rol die clanleden van de rest onderscheidt: die heet gewoon naar de
+      // clan. Voor de meeste servers is dit het enige wat ze nodig hebben.
+      if (body.lidrol) {
+        const naam = (clan.naam || `clan ${clan.groupId}`).slice(0, 100);
+        try {
+          const { rol, bestond } = await zorgVoorRol(naam);
+          lidRol = rol.id;
+          if (!bestond) gemaakt.push({ rang: naam, id: rol.id });
+        } catch (error) {
+          return send(response, 400, { error: `"${naam}" aanmaken lukte niet: ${message(error)}` });
+        }
+      }
 
       for (const rang of gevraagd) {
         const naam = netteRang(rang);
-        // Staat er al een rol met die naam, dan pakken we die in plaats van er
-        // een tweede naast te zetten.
-        const bestaand = guild.roles.cache.find((rol) => rol.name.toLowerCase() === naam.toLowerCase());
         try {
-          const rol = bestaand ?? (await guild.roles.create({ name: naam, reason: 'Clanrang-rol via het dashboard' }));
+          const { rol, bestond } = await zorgVoorRol(naam);
           rangRollen[rang] = rol.id;
-          if (!bestaand) gemaakt.push({ rang, id: rol.id });
+          if (!bestond) gemaakt.push({ rang, id: rol.id });
         } catch (error) {
           fouten.push(`${naam}: ${message(error)}`);
         }
@@ -871,7 +894,7 @@ async function handle(
       const instellingen = parseClanInstellingen({
         ...dossier.instellingen,
         clans: dossier.instellingen.clans.map((kandidaat) =>
-          kandidaat.groupId === clan.groupId ? { ...kandidaat, rangRollen } : kandidaat,
+          kandidaat.groupId === clan.groupId ? { ...kandidaat, lidRol, rangRollen } : kandidaat,
         ),
       });
 
