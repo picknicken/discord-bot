@@ -207,6 +207,43 @@ async function handle(
     });
   }
 
+  /**
+   * Klopt elke server nog met de template die er het laatst op ging?
+   *
+   * Vergelijken kon al, maar alleen als je er zelf naartoe ging: per template,
+   * per server. Terwijl dat juist het getal is dat je wil zien zodra je het
+   * dashboard opent. Apart van /state, want hiervoor moet van elke server een
+   * verse momentopname worden opgehaald - dat hoeft niet bij elke verversing.
+   */
+  if (method === 'GET' && resource === 'drift') {
+    const runs = await readSetups(config.historyDir, 500);
+    const servers = [...client.guilds.cache.values()].filter((guild) => magHier(guild.id));
+
+    const status = await Promise.all(
+      servers.map(async (guild) => {
+        const laatste = runs.find((run) => run.guildId === guild.id && run.mode === 'apply');
+        if (!laatste) return { guildId: guild.id, template: null, count: null, samenvatting: null };
+
+        try {
+          // Losjes: een template met variabelen is zonder ingevulde waarden niet
+          // te laden, en dan zou de hele rij leeg blijven.
+          const { template } = await loadTemplateMet(config.templatesDir, laatste.template, {}, { losjes: true });
+          const plan = planSetup(await snapshotGuildFresh(guild), template, { prune: false, update: true });
+          return {
+            guildId: guild.id,
+            template: laatste.template,
+            count: plan.actions.length,
+            samenvatting: summarizePlan(plan),
+          };
+        } catch (error) {
+          return { guildId: guild.id, template: laatste.template, count: null, fout: message(error) };
+        }
+      }),
+    );
+
+    return send(response, 200, { servers: status });
+  }
+
   if (method === 'GET' && resource === 'setups') {
     // Eerst zeven, dan afkappen. Andersom zie je een lege lijst zodra de laatste
     // regels toevallig van servers van iemand anders waren.

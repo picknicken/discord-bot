@@ -249,6 +249,9 @@
     display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 99px;
     font-size: 11px; font-weight: 600; background: var(--surface-3); color: var(--text-2);
   }
+  /* Een badge die je kunt aanklikken hoort dat ook te laten zien. */
+  button.badge { border: 0; cursor: pointer; font-family: inherit; }
+  button.badge:hover { filter: brightness(1.15); text-decoration: underline; }
   .badge.ok { background: var(--ok-bg); color: var(--ok); }
   .badge.warn { background: var(--warn-bg); color: var(--warn); }
   .badge.bad { background: var(--bad-bg); color: var(--bad); }

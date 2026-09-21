@@ -6,6 +6,8 @@ const state = {
   templates: [], guilds: [], backups: [], permissions: [],
   selected: null, original: '', simRole: null, template: null, dirty: false,
   session: null, scherm: 'templates', fouten: null, uitgerold: false,
+  /** Per server: wijkt hij af van de template die er het laatst op ging? */
+  drift: null, driftTijd: 0, driftBezig: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -108,6 +110,8 @@ function toonScherm(naam) {
     (knop) => VIEW_VAN[knop.dataset.scherm] === view,
   );
   $('meerKnop').setAttribute('aria-current', String(achterMeer));
+
+  if (naam === 'overzicht' || naam === 'servers') void laadDrift();
 
   if (naam === 'controle') showTab('Check');
   else if (naam === 'bewerken' && $('treeView').hidden) showTab('Tree');
@@ -259,10 +263,67 @@ async function refresh() {
 // --- overzicht en servers ---------------------------------------------------
 
 /** Wat er aan de hand is, in de volgorde waarin het je zou moeten opvallen. */
+/**
+ * Klopt elke server nog met de template die er het laatst op ging?
+ *
+ * Vergelijken kon al, maar alleen als je er zelf naartoe ging - per template,
+ * per server. Dit is hetzelfde getal, maar dan zonder erom te vragen.
+ *
+ * Het kost van elke server een verse momentopname bij Discord, dus niet bij elke
+ * verversing: alleen op de schermen waar het getal staat, en hoogstens eens per
+ * halve minuut.
+ */
+const DRIFT_VERS = 30000;
+
+function driftBadge(guildId) {
+  if (!state.drift) return '<span class="badge">nakijken…</span>';
+
+  const status = state.drift[guildId];
+  if (!status || status.template === null) return '<span class="badge">nog niet uitgerold</span>';
+  if (status.count === null) return '<span class="badge">niet te vergelijken</span>';
+  if (status.count === 0) {
+    return '<span class="badge ok">' + icon('check', 'sm') + 'komt overeen met ' + escape(status.template) + '</span>';
+  }
+  // Aanklikbaar: van "er zijn verschillen" naar het scherm waar je ze ziet en
+  // rechtzet, met die server en die template al ingevuld.
+  return (
+    '<button class="badge warn" data-verschil="' + escape(guildId) + '" data-template="' +
+    escape(status.template) + '">' + status.count + ' verschil' + (status.count === 1 ? '' : 'len') +
+    ' met ' + escape(status.template) + '</button>'
+  );
+}
+
+async function laadDrift(opnieuw = false) {
+  if (state.driftBezig) return;
+  if (!opnieuw && state.drift && Date.now() - state.driftTijd < DRIFT_VERS) return;
+
+  state.driftBezig = true;
+  try {
+    const data = await api('/drift', { timeout: 60000 });
+    state.drift = Object.fromEntries(data.servers.map((server) => [server.guildId, server]));
+    state.driftTijd = Date.now();
+    renderServerKaarten();
+    renderOverzicht();
+  } catch {
+    // Niet kunnen kijken is geen reden om het scherm vol te zetten met een
+    // foutmelding; de badges blijven dan staan op wat ze waren.
+  } finally {
+    state.driftBezig = false;
+  }
+}
+
 function problemen() {
   const uit = [];
 
   for (const guild of state.guilds) {
+    const drift = state.drift?.[guild.id];
+    if (drift && drift.count > 0) {
+      uit.push({
+        soort: 'waarschuwing',
+        wat: guild.name + ' wijkt af van "' + drift.template + '"',
+        waarom: drift.samenvatting || drift.count + ' acties zouden dat rechtzetten.',
+      });
+    }
     if (guild.missing.length > 0) {
       uit.push({
         soort: 'fout',
@@ -360,6 +421,7 @@ function renderServerKaarten() {
   doel.innerHTML = state.guilds
     .map((guild) => {
       const status = [
+        driftBadge(guild.id),
         guild.missing.length
           ? '<span class="badge bad">' + icon('alert', 'sm') + 'mist ' + guild.missing.length + ' recht' +
             (guild.missing.length === 1 ? '' : 'en') + '</span>'
@@ -388,6 +450,15 @@ function renderServerKaarten() {
       );
     })
     .join('');
+
+  for (const knop of doel.querySelectorAll('[data-verschil]')) {
+    knop.onclick = async () => {
+      if (state.selected !== knop.dataset.template) await select(knop.dataset.template);
+      toonScherm('uitrollen');
+      kiesAlleenServer(knop.dataset.verschil);
+      await preview();
+    };
+  }
 
   for (const knop of doel.querySelectorAll('[data-vergelijk]')) {
     knop.onclick = () => {
@@ -1488,6 +1559,7 @@ async function apply(alleen = null, opnieuw = false) {
       data.failed ? 'bad' : 'ok');
 
     await naControle(body);
+    await laadDrift(true);
     await refresh();
     if (state.session?.authEnabled) await checkSession();
   } catch (error) {
