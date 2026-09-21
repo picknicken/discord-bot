@@ -911,6 +911,10 @@ function renderServerDetail() {
     '<div class="row" style="margin-bottom:18px">' +
     '<button class="btn-primary" data-doe="uitrollen">' + icon('zap', 'sm') + 'Uitrollen</button>' +
     '<button class="btn-sm" data-doe="vergelijken">' + icon('eye', 'sm') + 'Vergelijken</button>' +
+    (drift?.template
+      ? '<button class="btn-sm" data-doe="overnemen">' + icon('undo', 'sm') +
+        'Overnemen in "' + escape(drift.template) + '"</button>'
+      : '') +
     '<button class="btn-sm" data-doe="bewaren">' + icon('download', 'sm') + 'Opslaan als template</button>' +
     '<button class="btn-sm btn-danger" data-doe="leeghalen">' + icon('trash', 'sm') + 'Leeghalen</button>' +
     '</div>' +
@@ -949,11 +953,56 @@ function renderServerDetail() {
       runCompare();
     },
     bewaren: () => exportGuild(guild.id),
+    overnemen: () => overnemenInTemplate(guild.id, drift?.template),
     leeghalen: () => leeghalen(guild.id),
   };
 
   for (const knop of $('serverDetail').querySelectorAll('[data-doe]')) {
     knop.onclick = () => void doe[knop.dataset.doe]();
+  }
+}
+
+/**
+ * De andere kant op: wat er in de server staat overnemen in de template.
+ *
+ * Tot nu toe kon je alleen de template naar de server duwen. Maar vaak is de
+ * afwijking juist bedoeld - iemand heeft een kanaal toegevoegd dat er hoort te
+ * zijn. Dan wil je het in de template hebben zonder met de hand JSON bij te
+ * werken. Eerst zien wat er verandert, dan pas doen.
+ */
+async function overnemenInTemplate(guildId, templateId) {
+  if (!templateId) return toast('Er is nog geen template op deze server uitgerold.', 'bad');
+
+  const pad = '/templates/' + encodeURIComponent(templateId) + '/overnemen';
+  let voorstel;
+  try {
+    voorstel = await api(pad, { method: 'POST', body: JSON.stringify({ guildId }), timeout: 60000 });
+  } catch (error) {
+    return toast(error.message, 'bad');
+  }
+
+  if (!voorstel.samenvatting) return toast('"' + templateId + '" staat al gelijk aan deze server.', 'info');
+
+  const regels = voorstel.regels.slice(0, 12);
+  const akkoord = await ask({
+    title: 'Deze server overnemen in "' + templateId + '"?',
+    body:
+      voorstel.samenvatting + '\n\n' + regels.join('\n') +
+      (voorstel.regels.length > regels.length ? '\n… en nog ' + (voorstel.regels.length - regels.length) : '') +
+      (voorstel.waarschuwingen.length ? '\n\n' + voorstel.waarschuwingen.join('\n') : '') +
+      '\n\nDe vorige versie blijft bewaard, dus dit is terug te draaien.',
+    confirmLabel: 'Overnemen',
+  });
+  if (!akkoord) return;
+
+  try {
+    await api(pad, { method: 'POST', body: JSON.stringify({ guildId, toepassen: true }), timeout: 60000 });
+    toast('"' + templateId + '" bijgewerkt met deze server', 'ok');
+    await refresh();
+    await laadDrift(true);
+    if (state.selected === templateId) await select(templateId);
+  } catch (error) {
+    toast(error.message, 'bad');
   }
 }
 

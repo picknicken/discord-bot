@@ -7,7 +7,15 @@ import {
   type GuildBasedChannel,
 } from 'discord.js';
 import { toNames } from './permissions.js';
-import { mapChannelType, PRESET_NAMEN, TRIGGER_NAMEN } from './snapshot.js';
+import {
+  mapChannelType,
+  PRESET_NAMEN,
+  snapshotGuildFresh,
+  TRIGGER_NAMEN,
+  type GuildSnapshot,
+  type SnapshotOnboarding,
+  type SnapshotSettings,
+} from './snapshot.js';
 import type { AutomodSpec, CategorySpec, ChannelSpec, Overwrite, RoleSpec, ServerTemplate } from './types.js';
 
 const slug = (value: string) =>
@@ -17,7 +25,64 @@ const slug = (value: string) =>
     .replace(/^-+|-+$/g, '') || 'rol';
 
 /** Leest een bestaande server uit als template, zodat je hem elders kunt herhalen. */
-export function exportGuild(guild: Guild, templateName = guild.name): ServerTemplate {
+/**
+ * De afk-tijd zoals Discord hem accepteert. Iets anders weigert hij, dus zetten
+ * we hem liever niet in de template dan er een verzonnen waarde in te doen.
+ */
+const AFK_TIJDEN = [60, 300, 900, 1800, 3600] as const;
+
+const afkTijd = (seconden: number) =>
+  (AFK_TIJDEN as readonly number[]).includes(seconden)
+    ? (seconden as (typeof AFK_TIJDEN)[number])
+    : undefined;
+
+/**
+ * De onboarding van ids terug naar namen.
+ *
+ * In de server staan rollen en kanalen als id; een template kent alleen namen en
+ * rolsleutels. Wat niet meer bestaat laten we weg - anders levert de export een
+ * template op die nergens meer op uit te rollen is.
+ */
+function onboardingUitServer(
+  onboarding: SnapshotOnboarding,
+  guild: Guild,
+  roleKeys: ReadonlyMap<string, string>,
+): ServerTemplate['onboarding'] {
+  const kanaalNaam = (id: string) => guild.channels.cache.get(id)?.name;
+  const namen = (ids: readonly string[]) => ids.map(kanaalNaam).filter((naam): naam is string => Boolean(naam));
+  const sleutels = (ids: readonly string[]) =>
+    ids.map((id) => roleKeys.get(id)).filter((key): key is string => Boolean(key));
+
+  return {
+    enabled: onboarding.enabled,
+    mode: onboarding.mode,
+    defaultChannels: namen(onboarding.defaultChannelIds),
+    prompts: onboarding.prompts.map((vraag) => ({
+      title: vraag.title,
+      singleSelect: vraag.singleSelect,
+      required: vraag.required,
+      options: vraag.options.map((optie) => ({
+        title: optie.title,
+        description: optie.description ?? undefined,
+        emoji: optie.emoji ?? undefined,
+        roles: sleutels(optie.roleIds),
+        channels: namen(optie.channelIds),
+      })),
+    })),
+  };
+}
+
+/**
+ * @param extra De momentopname, voor de dingen die niet rechtstreeks uit een
+ *   guild-object te lezen zijn: de serverinstellingen in template-woorden, en de
+ *   onboarding. Zonder deze blijven die uit de export - en dan levert
+ *   "overnemen" een template op die nog steeds afwijkt.
+ */
+export function exportGuild(
+  guild: Guild,
+  templateName = guild.name,
+  extra?: { settings: SnapshotSettings; onboarding: SnapshotOnboarding | null },
+): ServerTemplate {
   const roleKeys = new Map<string, string>();
   roleKeys.set(guild.id, '@everyone');
 
@@ -121,6 +186,14 @@ export function exportGuild(guild: Guild, templateName = guild.name): ServerTemp
       rulesChannel: channelName(guild.rulesChannelId),
       updatesChannel: channelName(guild.publicUpdatesChannelId),
       community: guild.features.includes('COMMUNITY') || undefined,
+      ...(extra
+        ? {
+            verificationLevel: extra.settings.verificationLevel,
+            explicitContentFilter: extra.settings.explicitContentFilter,
+            defaultMessageNotifications: extra.settings.defaultMessageNotifications,
+            afkTimeoutSeconds: afkTijd(extra.settings.afkTimeoutSeconds),
+          }
+        : {}),
     },
     roles,
     categories,
@@ -134,6 +207,7 @@ export function exportGuild(guild: Guild, templateName = guild.name): ServerTemp
     automod: [...guild.autoModerationRules.cache.values()].map((rule) =>
       automodUitServer(rule, roleKeys, channelName),
     ),
+    ...(extra?.onboarding ? { onboarding: onboardingUitServer(extra.onboarding, guild, roleKeys) } : {}),
   };
 }
 
@@ -145,8 +219,10 @@ export function exportGuild(guild: Guild, templateName = guild.name): ServerTemp
  * een kopie van je server te hebben en miste stilletjes een stuk.
  */
 export async function exportGuildFresh(guild: Guild, templateName = guild.name): Promise<ServerTemplate> {
-  await guild.autoModerationRules.fetch().catch(() => null);
-  return exportGuild(guild, templateName);
+  // De momentopname haalt de AutoMod-regels en de onboarding op, en vertaalt de
+  // serverinstellingen naar de woorden die in een template staan.
+  const snapshot: GuildSnapshot = await snapshotGuildFresh(guild);
+  return exportGuild(guild, templateName, { settings: snapshot.settings, onboarding: snapshot.onboarding });
 }
 
 /** Een AutoMod-regel van Discord terug naar de vorm die in een template past. */
