@@ -148,7 +148,16 @@
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-2);
     padding: 13px 14px; box-shadow: var(--shadow-1);
   }
-  .servercard .naam { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .servercard .naam {
+    display: flex; align-items: center; gap: 8px; font-weight: 600;
+    background: none; border: 0; padding: 0; color: inherit; font-size: inherit;
+    font-family: inherit; cursor: pointer; text-align: left; width: 100%;
+  }
+  .servercard .naam:hover { color: var(--accent); }
+
+  /* Twee panelen naast elkaar op het serverscherm; onder elkaar op een telefoon. */
+  .dubbel { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  @media (max-width: 900px) { .dubbel { grid-template-columns: minmax(0, 1fr); } }
   .servercard .statusrij { display: flex; flex-wrap: wrap; gap: 5px; margin: 9px 0 11px; }
   .servercard .acties { display: flex; gap: 6px; flex-wrap: wrap; }
 
@@ -889,6 +898,20 @@
   <div class="row" style="margin-top:16px">
     <button id="exportGuild" class="btn-sm"><svg class="icon sm" aria-hidden="true"><use href="#i-download"/></svg>Server opslaan als template</button>
   </div>
+</section>
+
+<!-- Eén server, alles bij elkaar. Uitrollen, back-ups, geschiedenis en
+     leeghalen stonden elk op een ander scherm, terwijl je in je hoofd met één
+     server bezig bent. -->
+<section class="view" id="view-server">
+  <div class="viewkop">
+    <div class="grow">
+      <button id="terugNaarServers" class="btn-ghost btn-sm">← Servers</button>
+      <h2 id="serverNaam">Server</h2>
+      <p id="serverSub"></p>
+    </div>
+  </div>
+  <div id="serverDetail"></div>
 </section>
 
 <section class="view" id="view-clan">
