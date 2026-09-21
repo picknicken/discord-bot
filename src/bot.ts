@@ -1,7 +1,10 @@
 import { Events, MessageFlags, type AutocompleteInteraction, type ChatInputCommandInteraction, type Client } from 'discord.js';
 import * as setup from './commands/setup.js';
 import * as clan from './commands/clan.js';
+import { config } from './config.js';
+import { KOPPEL_KNOP, KOPPEL_VENSTER, toonKoppelVenster, verwerkKoppelVenster } from './clan/knop.js';
 import { handleGuildCreate } from './events/guildCreate.js';
+import { handleGuildMemberAdd } from './events/guildMemberAdd.js';
 import { logger } from './util/logger.js';
 
 /**
@@ -33,8 +36,29 @@ export function koppelBot(client: Client): void {
     }
   });
 
+  // Nieuwe leden krijgen de knop "Koppel je OSRS-naam". Dit vraagt de
+  // Server Members Intent; staat die uit, dan komt deze gebeurtenis niet binnen
+  // en blijft de rest gewoon werken.
+  client.on(Events.GuildMemberAdd, async (member) => {
+    try {
+      await handleGuildMemberAdd(member);
+    } catch (error) {
+      logger.error(`Welkom voor ${member.user.username} in "${member.guild.name}" mislukt`, error);
+    }
+  });
+
   client.on(Events.InteractionCreate, async (interaction) => {
     try {
+      if (interaction.isButton() && interaction.customId === KOPPEL_KNOP) {
+        await toonKoppelVenster(interaction);
+        return;
+      }
+
+      if (interaction.isModalSubmit() && interaction.customId === KOPPEL_VENSTER) {
+        await verwerkKoppelVenster(interaction, config.clanDir);
+        return;
+      }
+
       if (interaction.isAutocomplete()) {
         const command = COMMANDS.find((kandidaat) => kandidaat.data.name === interaction.commandName);
         await command?.autocomplete?.(interaction);

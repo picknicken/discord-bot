@@ -8,14 +8,13 @@ import { netteRang, normaliseerNaam, type WomLid } from './wiseoldman.js';
  * maakt en dat pas daarna uitvoert — je wilt kunnen zien wie welke rol krijgt
  * voordat driehonderd mensen een melding krijgen.
  *
- * Twee dingen zijn met opzet anders dan je misschien verwacht:
+ * Eén rol per clan, en verder niets. De vraag die een Discord-server heeft is
+ * "zit deze persoon in de clan, ja of nee" — en die is met één rol beantwoord.
  *
- * 1. Er is geen vaste lijst rangen. In OSRS bepaalt elke clan zelf welke rangen
- *    hij gebruikt, en WiseOldMan geeft ze terug zoals ze daar staan. De rangen
- *    die je in het dashboard ziet komen dus uit de ledenlijst van jouw clan.
- * 2. Er is geen volgorde tussen rangen. WiseOldMan zegt nergens dat een Captain
- *    boven een Corporal staat. Elke rang krijgt daarom zijn eigen rol, en wie
- *    een rang heeft waar niets aan gekoppeld is krijgt alleen de clanrol.
+ * Rangen doet hij met opzet niet. Een rang uitdelen is in de meeste clans juist
+ * mensenwerk: iemand kijkt ernaar en beslist. De rang die iemand heeft wordt
+ * wél getoond, in het dashboard en in het antwoord dat een lid krijgt; er hangt
+ * alleen geen rol aan.
  */
 
 const rolId = z.string().regex(/^[A-Za-z0-9_-]{1,32}$/, 'Dat is geen rol-id.');
@@ -25,10 +24,8 @@ export const clanSchema = z.object({
   groupId: z.number().int().positive(),
   /** De naam zoals hij bij WiseOldMan staat; alleen om te tonen. */
   naam: z.string().trim().max(64).default(''),
-  /** Rol voor iedereen in deze clan, ongeacht rang. */
+  /** De rol die iedereen in deze clan krijgt. Zonder rol telt de clan niet mee. */
   lidRol: rolId.nullable().default(null),
-  /** Per rang van deze clan de rol die daarbij hoort. */
-  rangRollen: z.record(z.string(), rolId).default({}),
 });
 
 export type ClanKeuze = z.infer<typeof clanSchema>;
@@ -44,6 +41,16 @@ export const clanInstellingenSchema = z.object({
   opruimen: z.boolean().default(true),
   /** Elk uur vanzelf bijwerken, zonder dat iemand op een knop drukt. */
   automatisch: z.boolean().default(false),
+  /**
+   * Nieuwe leden begroeten met de knop "Koppel je OSRS-naam". Zonder dat moet
+   * iedereen zelf /clan koppel ontdekken, en dat doet niemand.
+   */
+  welkom: z.boolean().default(true),
+  /**
+   * In welk kanaal dat bericht komt. Leeg = het systeemkanaal van de server,
+   * en anders het eerste kanaal waar de bot mag praten.
+   */
+  welkomKanaal: z.string().regex(/^[A-Za-z0-9_-]{1,32}$/).nullable().default(null),
 });
 
 export type ClanInstellingen = z.infer<typeof clanInstellingenSchema>;
@@ -179,13 +186,17 @@ export function planClanRangen(invoer: ClanPlanInvoer): ClanPlan {
   });
 
   const beheerdeRollen = [
-    ...instellingen.clans.flatMap((clan) => [...Object.values(clan.rangRollen), clan.lidRol]),
+    ...instellingen.clans.map((clan) => clan.lidRol),
     instellingen.gastRol,
   ].filter((id): id is string => Boolean(id));
 
   const waarschuwingen: string[] = [];
   if (instellingen.clans.length === 0) waarschuwingen.push('Er is nog geen clan gekozen.');
-  if (beheerdeRollen.length === 0) waarschuwingen.push('Er is nog geen enkele rol aan een clan of rang gekoppeld.');
+  for (const clan of instellingen.clans) {
+    if (!clan.lidRol) {
+      waarschuwingen.push(`Aan "${clan.naam || `clan ${clan.groupId}`}" hangt nog geen rol.`);
+    }
+  }
 
   for (const regel of perClan) {
     if (!regel.gevonden) waarschuwingen.push(`De ledenlijst van "${regel.naam}" is niet opgehaald.`);
@@ -226,8 +237,6 @@ export function planClanRangen(invoer: ClanPlanInvoer): ClanPlan {
       naam = clanLid.naam;
 
       if (regel.clan.lidRol) gewenst.add(regel.clan.lidRol);
-      const rangRol = regel.clan.rangRollen[clanLid.rang];
-      if (rangRol) gewenst.add(rangRol);
     }
 
     if (gevonden.length === 0 && instellingen.gastRol) gewenst.add(instellingen.gastRol);
@@ -307,24 +316,4 @@ function beschrijf(
 
   const wijziging = delen.join(', ');
   return { staat, wijziging, reden: `${staat} — ${wijziging}` };
-}
-
-/**
- * Een eerste invulling op basis van de rolnamen die er al staan: een rol die
- * "Deputy owner" of "deputy_owner" heet hoort bij die rang. Scheelt bij een
- * clanserver die al jaren draait een hoop keuzes uit een dropdown.
- */
-export function raadRangRollen(rollen: RolInfo[], rangen: string[]): Record<string, string> {
-  const gevonden: Record<string, string> = {};
-
-  for (const rang of rangen) {
-    const rol = rollen.find(
-      (kandidaat) =>
-        normaliseerNaam(kandidaat.naam) === normaliseerNaam(rang) ||
-        normaliseerNaam(kandidaat.naam) === normaliseerNaam(netteRang(rang)),
-    );
-    if (rol) gevonden[rang] = rol.id;
-  }
-
-  return gevonden;
 }

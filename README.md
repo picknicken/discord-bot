@@ -22,6 +22,7 @@ Daarnaast is er een tweede tak, voor OSRS-clans (via WiseOldMan):
 | `/clan status` | Welke clans hier meetellen, en wat er over jou bekend is |
 | `/clan wie lid:<@lid>` | Beheer: welke OSRS-naam hoort bij dit lid |
 | `/clan sync` | Beheer: werkt de clanrollen van iedereen bij |
+| `/clan knop` | Beheer: zet een knop neer waarmee leden hun naam koppelen |
 
 Hetzelfde kan lokaal via het dashboard (`npm run dashboard`), inclusief het bewerken van
 templates en het instellen van de clanrangen.
@@ -525,11 +526,11 @@ is precies wat hier gebruikt wordt. Je clan moet er dus op staan en bijgehouden 
 doet de clan zelf, met de WiseOldMan-plugin in RuneLite of op de site.
 
 ```
-WiseOldMan (group "Mijn Clan")        Discord
-Sparc Mac — owner              ->   @Owner   + @Clanlid
-Tess      — captain            ->   @Captain + @Clanlid
-Noa       — member             ->              @Clanlid
-Milan     — (staat er niet in) ->   @Gast
+WiseOldMan (group "Dutch mayhem")      Discord
+Sparc Mac — owner              ->   @Dutch mayhem
+Tess      — captain            ->   @Dutch mayhem
+Noa       — member             ->   @Dutch mayhem
+Milan     — (staat er niet in) ->   (geen rol)
 ```
 
 ### Instellen
@@ -543,12 +544,10 @@ Daarna, in het dashboard → **Clan**. Per server:
 1. **Clans die meetellen** — zoek je clan op naam en klik **Laat meetellen**. Alleen de clans
    die je hier kiest doen mee; iemand die in een andere clan zit telt niet. Je kunt er meer
    dan één kiezen (handig voor een Discord met een hoofdclan en een tweede clan).
-2. **Per rang een rol** — onder elke clan staan de rangen die daar *in gebruik* zijn, met
-   hoeveel leden erop staan. Die lijst komt uit de ledenlijst zelf: elke OSRS-clan verzint
-   zijn eigen rangen, dus een vaste lijst zou voor de helft niet kloppen. **Invullen op
-   rolnaam** pakt rollen die al zo heten; **Ontbrekende rollen aanmaken** maakt ze anders aan.
-3. **Rol voor iedereen in deze clan** — bovenaan het clanblok, bijvoorbeeld `@Clanlid`. Die
-   krijgt iedereen die in de ledenlijst staat, ook als er aan hun rang niets hangt.
+2. **Eén rol voor de clan** — bijvoorbeeld `@Dutch mayhem`. Die krijgt iedereen die in de
+   ledenlijst staat; wie er niet in staat krijgt niets. Dat is het hele onderscheid: zit in de
+   clan, of zit er niet in. Staat de rol er nog niet, dan maakt **Aanmaken** hem in één tik,
+   met de naam van de clan erop — bestaat er al een rol met die naam, dan pakt hij die.
 4. **Verder nog** — een rol voor gekoppelde leden die in géén van de gekozen clans zitten, de
    bijnaam in Discord gelijktrekken met de OSRS-naam, en of de bot elk uur vanzelf bijwerkt.
 5. **Rollen bijwerken** — eerst **Voorbeeld**: per lid één regel met wat hij krijgt en verliest.
@@ -559,18 +558,46 @@ regel die zich zonder voorrangslijstje laat uitleggen: elke clan die je kiest te
 
 ### Wie is wie
 
-Leden koppelen zichzelf met `/clan koppel rsn:<naam>`. De bot zoekt die naam op in de
-ledenlijsten van de gekozen clans en zet de bijbehorende rollen erop — allemaal in hetzelfde
-antwoord, dat alleen zij zien:
+Dit is het enige stukje dat niet vanzelf gaat, en dat kan ook niet: **Discord weet alleen
+iemands Discord-naam.** Welk OSRS-account daarachter zit weet niemand — WiseOldMan niet, en de
+bot dus ook niet. Elk lid moet één keer zeggen hoe hij in het spel heet. Daarna gaat alles
+vanzelf.
+
+Daarom staat er een knop klaar. Wie de server binnenkomt krijgt meteen een bericht:
 
 ```
-/clan koppel rsn:Tess
--> Tess staat in Mijn Clan als Captain.
-   Krijgt @Captain, @Clanlid.
+👋 Welkom! Zit je in de clan?
+   Zit je in Mijn Clan? Koppel dan je OSRS-naam, dan krijg je meteen
+   de rol die bij je rang hoort.
+   [ 🎣 Koppel je OSRS-naam ]
 ```
 
-Staat iemand er niet in, dan vraagt de bot WiseOldMan in welke clans hij wél zit. Dat scheelt
-het verschil tussen *"je naam staat verkeerd"* en *"je zit in een clan die hier niet meetelt"*.
+Eén tik, naam invullen in het venstertje, klaar — geen commando's typen, wat op een telefoon
+een groot verschil is. Het antwoord ziet alleen hij:
+
+```
+Tess staat in Dutch mayhem als Captain.
+Krijgt @Dutch mayhem.
+```
+
+Voor wie er al was: `/clan knop` zet dezelfde knop vast in het kanaal waar je hem uitvoert. Die
+blijft werken, ook voor wie later komt. En `/clan koppel rsn:<naam>` bestaat gewoon nog.
+
+**Staat iemand niet in een van de gekozen clans, dan krijgt hij geen rol** — maar zijn naam
+blijft wel gekoppeld. Zo weet je alsnog wie wie is in het spel, en zodra hij lid wordt telt hij
+bij de eerstvolgende ronde vanzelf mee. Wil je zulke mensen tóch een rol geven (bijvoorbeeld
+`@Gast`), vul dan de gastrol in; laat je hem leeg, dan gebeurt er niets.
+
+De bot vraagt WiseOldMan bovendien in welke clans zo iemand wél zit. Dat scheelt het verschil
+tussen *"je naam staat verkeerd"* en *"je zit in een clan die hier niet meetelt"*.
+
+#### Server Members Intent
+
+Om binnenkomers te kúnnen begroeten moet de bot ze zien binnenkomen, en dat is bij Discord een
+schakelaar: **Developer Portal → jouw applicatie → Bot → Privileged Gateway Intents → Server
+Members Intent**. Staat hij uit, dan start de bot gewoon (hij vraagt er dan niet om — anders
+zou Discord de hele inlog weigeren), maar blijft het welkomstbericht achterwege. Je ziet het
+in het log en in het clanscherm, en `/clan knop` werkt ondertussen wel.
 
 In het dashboard staan alle koppelingen bij elkaar: wie het deed (zelf of een beheerder), waar
 het lid voor het laatst gezien is, en wie er niet meer in de server zit. Handmatig koppelen kan
@@ -579,9 +606,9 @@ vastzitten; de tweede poging wordt geweigerd in plaats van stilletjes overgenome
 
 ### Wat de bot niet aanraakt
 
-- **Alleen de rollen die hier zijn ingesteld.** De rangrollen, de clanrollen en de gastrol. Een
-  lid dat daarnaast `@Eventteam` heeft, houdt die — ook bij een promotie, een degradatie of het
-  verlaten van de clan.
+- **Alleen de rollen die hier zijn ingesteld.** De clanrollen en de gastrol, en verder niets.
+  Een lid dat daarnaast `@Eventteam` of `@Corporal` heeft, houdt die — ook bij een promotie, een
+  degradatie of het verlaten van de clan.
 - **Alleen gekoppelde leden.** Wie geen naam heeft opgegeven blijft buiten schot. In het
   voorbeeld zie je wel welke clanleden nog geen koppeling hebben.
 - **Niets zonder dat het kan.** Een rol boven de rol van de bot, of een lid dat boven hem
@@ -659,7 +686,10 @@ src/
   botPermissions.ts     de enige lijst met rechten die de bot vraagt
   commands/setup.ts     /setup met list, preview, apply, export
   commands/clan.ts      /clan: koppelen, bijwerken en opzoeken van clanrangen
+  events/guildMemberAdd.ts  nieuwe leden begroeten met de koppelknop
   clan/wiseoldman.ts    de WiseOldMan-API: clans zoeken, ledenlijst, met cache
+  clan/koppelen.ts      een naam koppelen en er meteen de juiste rollen bij zetten
+  clan/knop.ts          de knop "Koppel je OSRS-naam" en het venstertje erachter
   clan/rangen.ts        clanrang + instellingen -> welke rol, als plan
   clan/opslag.ts        gekozen clans en koppelingen per server, op schijf
   clan/synchroniseren.ts  plan maken, uitvoeren en elk uur vanzelf bijwerken
@@ -671,6 +701,7 @@ src/
   dashboard/editor.js   de klik-editor voor rollen, kanalen en permissies
   dashboard/ui.js       iconen, meldingen, dialogen en het thema
   dashboard/clan.js     het clanscherm: clans kiezen, rangen, leden en bijwerken
+  util/intents.ts       welke intents de bot mag vragen, volgens het portal
 assets/logo.png         avatar en applicatie-icoon
   types.ts              zod-schema en validatie van templates
   templates.ts          templates inlezen uit de map

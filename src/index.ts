@@ -1,9 +1,10 @@
-import { Client, Events, GatewayIntentBits } from 'discord.js';
+import { Client, Events } from 'discord.js';
 import { config } from './config.js';
 import { koppelBot } from './bot.js';
 import { zaaiTemplates } from './templates.js';
 import { buildInviteUrl } from './botPermissions.js';
 import { startAutomatischeSync } from './clan/synchroniseren.js';
+import { kiesIntents } from './util/intents.js';
 import { logger } from './util/logger.js';
 import { login } from './util/start.js';
 
@@ -12,7 +13,9 @@ if (gezaaid.length > 0) {
   logger.info(`Templates klaargezet in ${config.templatesDir}: ${gezaaid.join(', ')}`);
 }
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+// Welke intents we mogen vragen hangt af van een schakelaar in het Developer
+// Portal; vragen we er een die uitstaat, dan weigert Discord de hele inlog.
+const client = new Client({ intents: await kiesIntents(config.token) });
 
 client.once(Events.ClientReady, (ready) => {
   logger.info(`Ingelogd als ${ready.user.tag} — actief in ${ready.guilds.cache.size} server(s)`);
