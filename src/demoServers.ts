@@ -1,4 +1,5 @@
 import {
+  AuditLogEvent,
   ChannelType,
   Collection,
   GuildDefaultMessageNotifications,
@@ -133,6 +134,9 @@ export function demoServer({ id, naam, leden, scenario }: DemoOpties) {
     explicitContentFilter: GuildExplicitContentFilter.Disabled,
     defaultMessageNotifications: GuildDefaultMessageNotifications.AllMessages,
     afkTimeout: 300,
+    // Een auditlog met wat er in zo'n server gebeurt, zodat het scherm
+    // "wie heeft wat veranderd" ook zonder Discord iets laat zien.
+    fetchAuditLogs: async () => ({ entries: nepAuditlog(scenario) }),
     fetchOnboarding: async () => ({
       enabled: false,
       mode: GuildOnboardingMode.OnboardingDefault,
@@ -147,6 +151,26 @@ export function demoServer({ id, naam, leden, scenario }: DemoOpties) {
       }),
     },
   };
+}
+
+/** Een paar regels auditlog, verschillend per scenario. */
+function nepAuditlog(scenario: string) {
+  const uur = (terug: number) => new Date(Date.now() - terug * 60 * 60 * 1000);
+  const wie = (naam: string) => ({ globalName: naam, username: naam.toLowerCase() });
+
+  const regels =
+    scenario === 'afgeweken'
+      ? [
+          { action: AuditLogEvent.ChannelDelete, target: null, changes: [{ key: 'name', old: '🖼️│media' }], executor: wie('Jasper'), createdAt: uur(14) },
+          { action: AuditLogEvent.ChannelCreate, target: { name: '🎲│memes' }, executor: wie('Lotte'), createdAt: uur(30) },
+          { action: AuditLogEvent.RoleUpdate, target: { name: 'Lid' }, executor: wie('Jasper'), createdAt: uur(52) },
+        ]
+      : [
+          { action: AuditLogEvent.ChannelUpdate, target: { name: '🗣️│algemeen' }, executor: wie('Lotte'), createdAt: uur(8) },
+          { action: AuditLogEvent.GuildUpdate, target: null, changes: [{ key: 'verification_level', old: 1, new: 2 }], executor: wie('Setup Bot'), createdAt: uur(26) },
+        ];
+
+  return new Collection(regels.map((regel, index) => [String(index), regel]));
 }
 
 export const DEMO_SERVERS = [

@@ -15,6 +15,7 @@ import { config } from '../config.js';
 import { missingPermissions, rolesAboveBot } from '../botPermissions.js';
 import { applyPlan } from '../applier.js';
 import { exportGuildFresh } from '../exporter.js';
+import { recenteWijzigingen } from '../auditlog.js';
 import { driftVanServer } from '../drift.js';
 import { describeActions, planRegels, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
@@ -228,6 +229,23 @@ async function handle(
     );
 
     return send(response, 200, { servers: status });
+  }
+
+  /**
+   * Wie heeft er iets veranderd in deze server?
+   *
+   * "Drie verschillen met de template" zegt wat er anders is, niet hoe het zo
+   * gekomen is. Dat staat in het auditlog van Discord, en daar kon de bot nog
+   * niet bij kijken.
+   */
+  if (method === 'GET' && resource === 'wijzigingen' && id !== undefined) {
+    const nee = weigering(id);
+    if (nee) return send(response, 403, { error: nee });
+
+    const guild = client.guilds.cache.get(id);
+    if (!guild) return send(response, 404, { error: 'Server niet gevonden.' });
+
+    return send(response, 200, await recenteWijzigingen(guild, 15));
   }
 
   if (method === 'GET' && resource === 'setups') {
