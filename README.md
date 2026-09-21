@@ -657,6 +657,20 @@ van de server kan door niemand hernoemd worden, ook niet door een bot met alle r
 rollen lukken wel. Er is geen privileged intent nodig: de bot haalt alleen de leden op die
 gekoppeld zijn, op id.
 
+## Wat er is blijven liggen
+
+Een server groeit dicht: kanalen waar al een half jaar niets gebeurt, rollen die niemand meer
+heeft, uitnodigingen die nooit verlopen, webhooks waarvan niemand weet waar ze vandaan komen.
+Niets daarvan is kapot, dus niemand ruimt het op — je komt er alleen achter als je er expres
+naar gaat zoeken.
+
+Op het serverscherm staat dat zoeken als lijst. Stil betekent zestig dagen geen bericht;
+kanalen waar nooit iets in gezegd is staan er apart bij, want dat is iets anders dan "ooit
+druk, nu stil". Opruimen doe je zelf in Discord — de bot kijkt alleen.
+
+Twee dingen kan hij niet altijd zien, en dan zegt hij dat in plaats van te zwijgen: rollen
+zonder leden vragen de Server Members Intent, en webhooks het recht **Webhooks beheren**.
+
 ## Vanzelf een momentopname
 
 Er werd alleen een back-up gemaakt vlak voor een uitrol of een leeghaal. Gebeurt er een maand
