@@ -31,7 +31,7 @@ export type PlanAction =
   | { kind: 'update-category'; channelId: string; category: CategorySpec; changes: string[] }
   | { kind: 'create-channel'; channel: ChannelSpec; categoryName: string | null }
   | { kind: 'update-channel'; channelId: string; channel: ChannelSpec; categoryName: string | null; changes: string[] }
-  | { kind: 'delete-channel'; channelId: string; name: string; isCategory: boolean }
+  | { kind: 'delete-channel'; channelId: string; name: string; isCategory: boolean; onder?: string | null }
   | { kind: 'create-emoji'; emoji: EmojiSpec }
   | { kind: 'create-automod'; rule: AutomodSpec }
   | { kind: 'update-automod'; ruleId: string; rule: AutomodSpec }
@@ -581,7 +581,16 @@ export function planSetup(snapshot: GuildSnapshot, template: ServerTemplate, opt
   if (options.prune) {
     for (const channel of snapshot.channels) {
       if (!channelPlan.keptChannelIds.has(channel.id)) {
-        verwijderingen.push({ kind: 'delete-channel', channelId: channel.id, name: channel.name, isCategory: false });
+        // De categorie erbij: "#algemeen verdwijnt" is iets anders als je weet
+        // dat het om de oude gamingzone gaat en niet om je eigen gesprekskanaal.
+        const onder = snapshot.categories.find((categorie) => categorie.id === channel.parentId)?.name ?? null;
+        verwijderingen.push({
+          kind: 'delete-channel',
+          channelId: channel.id,
+          name: channel.name,
+          isCategory: false,
+          onder,
+        });
       }
     }
     for (const category of snapshot.categories) {
@@ -783,6 +792,7 @@ export function planRegels(plan: Plan): ActieRegel[] {
           teken: '-',
           soort: action.isCategory ? 'categorie' : 'kanaal',
           naam: action.name,
+          onder: action.onder ?? null,
           prune: true,
         };
       case 'create-emoji':
