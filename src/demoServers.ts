@@ -36,7 +36,18 @@ const rol = (id: string, name: string, position: number, color = 0x99aab5, manag
   managed,
 });
 
-const kanaal = (id: string, name: string, type: ChannelType, parentId: string | null, position = 0) => ({
+/** Een bericht-id van zoveel dagen geleden; daar leest de opruimlijst de stilte uit af. */
+const berichtVan = (dagenGeleden: number) =>
+  String((BigInt(Date.now() - dagenGeleden * 86400000 - 1420070400000) << 22n) | 1n);
+
+const kanaal = (
+  id: string,
+  name: string,
+  type: ChannelType,
+  parentId: string | null,
+  position = 0,
+  stilSinds: number | null = 1,
+) => ({
   id,
   name,
   type,
@@ -46,6 +57,7 @@ const kanaal = (id: string, name: string, type: ChannelType, parentId: string | 
   nsfw: false,
   rateLimitPerUser: 0,
   userLimit: 0,
+  lastMessageId: stilSinds === null ? null : berichtVan(stilSinds),
   isThread: () => false,
   permissionOverwrites: { cache: new Collection() },
 });
@@ -87,9 +99,11 @@ function inhoud(id: string, scenario: DemoScenario) {
   if (scenario !== 'klopt') {
     // Rommel die niet in de template staat; zichtbaar in het vergelijkscherm.
     for (const c of [
-      kanaal('c5', 'oude-memes', ChannelType.GuildText, 'c3', 1),
+      // Al een half jaar stil, en eentje waar nooit iets in gezegd is: precies
+      // wat er in de opruimlijst hoort te staan.
+      kanaal('c5', 'oude-memes', ChannelType.GuildText, 'c3', 1, 190),
       kanaal('c6', 'Archief', ChannelType.GuildCategory, null, 2),
-      kanaal('c7', 'stof', ChannelType.GuildText, 'c6', 0),
+      kanaal('c7', 'stof', ChannelType.GuildText, 'c6', 0, null),
     ]) {
       channels.set(c.id, c);
     }
@@ -137,6 +151,18 @@ export function demoServer({ id, naam, leden, scenario }: DemoOpties) {
     // Een auditlog met wat er in zo'n server gebeurt, zodat het scherm
     // "wie heeft wat veranderd" ook zonder Discord iets laat zien.
     fetchAuditLogs: async () => ({ entries: nepAuditlog(scenario) }),
+    // Een eeuwige uitnodiging en een vergeten webhook, voor de opruimlijst.
+    invites: {
+      fetch: async () =>
+        new Collection([
+          ['abc123', { code: 'abc123', maxAge: 0, uses: 42, inviter: { globalName: 'Jasper', username: 'jasper' } }],
+          ['tijdelijk', { code: 'tijdelijk', maxAge: 86400, uses: 3, inviter: null }],
+        ]),
+    },
+    fetchWebhooks: async () =>
+      new Collection([
+        ['w1', { name: 'Oude statuspagina', channelId: 'c2', owner: { username: 'jasper' } }],
+      ]),
     fetchOnboarding: async () => ({
       enabled: false,
       mode: GuildOnboardingMode.OnboardingDefault,
@@ -144,6 +170,11 @@ export function demoServer({ id, naam, leden, scenario }: DemoOpties) {
       prompts: new Collection(),
     }),
     members: {
+      // De demo heeft geen ledenlijst; de opruimlijst zegt dan netjes dat hij
+      // niet kan beoordelen welke rollen niemand heeft.
+      fetch: async () => {
+        throw new Error('geen ledenlijst in de demo');
+      },
       fetchMe: async () => ({
         permissions: new PermissionsBitField(rechten),
         // In de kapotte server staat de bot laag, dus Moderator staat erboven.

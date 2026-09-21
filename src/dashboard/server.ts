@@ -17,6 +17,7 @@ import { applyPlan } from '../applier.js';
 import { exportGuildFresh } from '../exporter.js';
 import { recenteWijzigingen } from '../auditlog.js';
 import { driftVanServer } from '../drift.js';
+import { opruimlijst } from '../opruimen.js';
 import { describeActions, planRegels, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadTemplateMet } from '../templates.js';
@@ -248,6 +249,20 @@ async function handle(
     if (!guild) return send(response, 404, { error: 'Server niet gevonden.' });
 
     return send(response, 200, await recenteWijzigingen(guild, 15));
+  }
+
+  /**
+   * Wat er in deze server is blijven liggen: stille kanalen, rollen die niemand
+   * heeft, uitnodigingen die nooit verlopen, webhooks. Alleen kijken.
+   */
+  if (method === 'GET' && resource === 'opruimen' && id !== undefined) {
+    const nee = weigering(id);
+    if (nee) return send(response, 403, { error: nee });
+
+    const guild = client.guilds.cache.get(id);
+    if (!guild) return send(response, 404, { error: 'Server niet gevonden.' });
+
+    return send(response, 200, await opruimlijst(guild));
   }
 
   if (method === 'GET' && resource === 'setups') {

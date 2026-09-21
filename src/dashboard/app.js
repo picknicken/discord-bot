@@ -944,9 +944,13 @@ function renderServerDetail() {
     '</div></section></div>' +
     '<section class="panel" style="margin-top:14px"><div class="phead">' + icon('history') +
     '<h2 class="grow">Wie heeft wat veranderd</h2></div>' +
-    '<div class="pbody" id="wijzigingenLijst">' + busy('Auditlog lezen…') + '</div></section>';
+    '<div class="pbody" id="wijzigingenLijst">' + busy('Auditlog lezen…') + '</div></section>' +
+    '<section class="panel" style="margin-top:14px"><div class="phead">' + icon('trash') +
+    '<h2 class="grow">Blijven liggen</h2></div>' +
+    '<div class="pbody" id="opruimLijst">' + busy('Nakijken…') + '</div></section>';
 
   void laadWijzigingen(guild.id);
+  void laadOpruimen(guild.id);
 
   for (const knop of $('serverDetail').querySelectorAll('[data-backup]')) {
     knop.onclick = () => restoreBackup(knop.dataset.backup);
@@ -1015,6 +1019,48 @@ async function overnemenInTemplate(guildId, templateId) {
     if (state.selected === templateId) await select(templateId);
   } catch (error) {
     toast(error.message, 'bad');
+  }
+}
+
+const OPRUIM_ICOON = { kanaal: 'hash', rol: 'shield', uitnodiging: 'plus', webhook: 'zap' };
+
+/**
+ * Wat er in een server is blijven liggen.
+ *
+ * Niets hiervan is kapot, dus niemand ruimt het op - je komt er alleen achter
+ * als je er expres naar gaat zoeken. Alleen kijken; wat ermee gebeurt beslis je
+ * zelf, in Discord.
+ */
+async function laadOpruimen(guildId) {
+  const doel = $('opruimLijst');
+  if (!doel) return;
+
+  try {
+    const data = await api('/opruimen/' + encodeURIComponent(guildId), { timeout: 60000 });
+
+    const rijen = data.punten
+      .map(
+        (punt) =>
+          '<div class="diffrij anders">' +
+          icon(OPRUIM_ICOON[punt.soort] || 'info', 'sm') +
+          '<span class="grow truncate">' + escape(punt.naam) +
+          '<span class="waar"> · ' + escape(punt.soort) + '</span></span>' +
+          '<span class="detail truncate">' + escape(punt.waarom) + '</span></div>',
+      )
+      .join('');
+
+    doel.innerHTML =
+      (data.punten.length
+        ? '<div class="diff">' + rijen + '</div>'
+        : '<p class="hint">Niets blijven liggen: geen stille kanalen, geen lege rollen, geen eeuwige ' +
+          'uitnodigingen.</p>') +
+      (data.punten.length
+        ? '<p class="hint" style="margin-top:8px">Stil = ' + data.dagen +
+          ' dagen geen bericht. Opruimen doe je zelf in Discord; de bot kijkt alleen.</p>'
+        : '') +
+      (data.gemist.length ? waarschuwingen(data.gemist) : '');
+  } catch (error) {
+    doel.innerHTML = '<p class="hint">' + escape(error.message) + '</p>';
   }
 }
 
