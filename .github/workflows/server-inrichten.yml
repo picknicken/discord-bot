@@ -119,10 +119,14 @@ jobs:
         run: |
           args=(--guild "$GUILD_ID" --template "$TEMPLATE" --alleen "${ONDERDELEN:-alles}")
           [ -z "$VARIABELEN" ] || args+=(--var "$VARIABELEN")
+          # prune gaat ook mee in een preview: dan zie je wat er weg zou gaan
+          # zonder dat er iets gebeurt. Verwijderen doet alleen --apply.
+          if [ "$PRUNE" = "true" ]; then
+            args+=(--prune)
+          fi
           if [ "$MODE" = "apply" ]; then
             args+=(--apply)
             if [ "$PRUNE" = "true" ]; then
-              args+=(--prune)
               echo "::warning::prune staat aan — kanalen buiten de template worden verwijderd."
             fi
             if [ "$STOP_BIJ_TEKORT" = "true" ]; then

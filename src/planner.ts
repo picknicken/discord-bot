@@ -55,6 +55,34 @@ export interface Plan {
 
 const normalize = (value: string) => value.trim().toLowerCase();
 
+const ZIEN = toBitfield(['ViewChannel']);
+
+/**
+ * Kan @everyone dit kanaal zien?
+ *
+ * Zelfde volgorde als Discord: het basisrecht van de rol, dan de categorie,
+ * dan het kanaal zelf. Nodig voor de onboarding: Discord weigert die in zijn
+ * geheel zodra één standaardkanaal voor @everyone verstopt is, en noemt er
+ * niet bij welk kanaal hij bedoelt.
+ */
+function everyoneZiet(snapshot: GuildSnapshot, channel: SnapshotChannel): boolean {
+  const everyone = snapshot.roles.find((role) => role.isEveryone);
+  let zichtbaar = everyone === undefined || (everyone.permissions & ZIEN) === ZIEN;
+
+  const categorie = channel.parentId
+    ? snapshot.categories.find((c) => c.id === channel.parentId)
+    : undefined;
+
+  for (const rechten of [categorie?.overwrites, channel.overwrites]) {
+    const eigen = rechten?.find((overwrite) => overwrite.roleId === snapshot.id);
+    if (!eigen) continue;
+    if ((eigen.deny & ZIEN) === ZIEN) zichtbaar = false;
+    if ((eigen.allow & ZIEN) === ZIEN) zichtbaar = true;
+  }
+
+  return zichtbaar;
+}
+
 function hexToInt(color: string | undefined): number | undefined {
   if (!color) return undefined;
   return Number.parseInt(color.replace('#', ''), 16);
@@ -428,7 +456,47 @@ function channelsOutOfOrder(snapshot: GuildSnapshot, template: ServerTemplate): 
  * uitrol een regel "serverinstellingen" in de preview, en erger: community-modus
  * werd elke keer opnieuw gezet, terwijl Discord daar juist zuinig mee wil zijn.
  */
-function planGuildSettings(snapshot: GuildSnapshot, template: ServerTemplate): PlanAction[] {
+/**
+ * Kanalen en categorieen waarvan er meer dan een dezelfde naam heeft.
+ *
+ * De bot zoekt alles op naam op: de template kent geen id's. Staan er twee met
+ * dezelfde naam, dan kiest hij er willekeurig een, en dan blijft er een verschil
+ * bestaan dat je nergens terugvindt - precies wat er op de testserver gebeurde
+ * toen de template er per ongeluk twee keer op stond.
+ *
+ * Alleen namen die de template zelf gebruikt; wat verder in de server staat is
+ * niet onze zaak.
+ */
+function dubbeleNamen(snapshot: GuildSnapshot, template: ServerTemplate): string[] {
+  const kanaalNamen = new Set(
+    [...template.categories.flatMap((category) => category.channels), ...template.uncategorizedChannels].map(
+      (channel) => normalize(channel.name),
+    ),
+  );
+  const categorieNamen = new Set(template.categories.map((category) => normalize(category.name)));
+
+  const tel = (namen: ReadonlySet<string>, wat: string, lijst: readonly { name: string }[]) => {
+    const geteld = new Map<string, { naam: string; aantal: number }>();
+    for (const item of lijst) {
+      const sleutel = normalize(item.name);
+      if (!namen.has(sleutel)) continue;
+      const staat = geteld.get(sleutel);
+      if (staat) staat.aantal += 1;
+      else geteld.set(sleutel, { naam: item.name, aantal: 1 });
+    }
+    return [...geteld.values()]
+      .filter((staat) => staat.aantal > 1)
+      .map(
+        (staat) =>
+          `Er staan ${staat.aantal} ${wat} met de naam "${staat.naam}" in de server. De bot zoekt op naam ` +
+          'en kan er maar een bedoelen; haal de dubbele weg of geef ze een eigen naam.',
+      );
+  };
+
+  return [...tel(categorieNamen, 'categorieen', snapshot.categories), ...tel(kanaalNamen, 'kanalen', snapshot.channels)];
+}
+
+function planGuildSettings(snapshot: GuildSnapshot, template: ServerTemplate, warnings: string[]): PlanAction[] {
   const gewenst = template.guild;
   const nu = snapshot.settings;
   const kanalen = kanaalIdsVanServer(snapshot);
@@ -439,9 +507,23 @@ function planGuildSettings(snapshot: GuildSnapshot, template: ServerTemplate): P
   };
 
   /** Een kanaal dat nog niet bestaat wordt straks aangemaakt: dan moet de verwijzing dus alsnog gezet. */
-  const kanaalAnders = (sleutel: string, naam: string | undefined, huidig: string | null) => {
+  const kanaalAnders = (sleutel: string, wat: string, naam: string | undefined, huidig: string | null) => {
     if (naam === undefined) return;
-    if (kanalen.get(normalize(naam)) !== (huidig ?? undefined)) changes.push(sleutel);
+    const gevonden = kanalen.get(normalize(naam));
+    if (gevonden === (huidig ?? undefined)) return;
+    changes.push(sleutel);
+
+    // Staat er al iets anders, zeg dan waar het nu op staat. Zonder dat blijft
+    // het bij "serverinstellingen" en zie je niet dat de server iets anders
+    // vasthoudt dan wat je uitrolt.
+    if (!huidig) return;
+    const staatOp = snapshot.channels.find((channel) => channel.id === huidig);
+    const opNu = staatOp ? `"${staatOp.name}"` : 'een kanaal dat niet meer bestaat';
+    warnings.push(
+      gevonden
+        ? `${wat} staat op ${opNu}; de template wil "${naam}".`
+        : `${wat} staat op ${opNu}; een kanaal met de naam "${naam}" staat niet in de server.`,
+    );
   };
 
   // Op een community-server dwingt Discord het inhoudsfilter en een minimale
@@ -460,14 +542,14 @@ function planGuildSettings(snapshot: GuildSnapshot, template: ServerTemplate): P
   anders('afkTimeoutSeconds', gewenst.afkTimeoutSeconds, nu.afkTimeoutSeconds);
   anders('description', gewenst.description, nu.description ?? '');
 
-  kanaalAnders('systemChannel', gewenst.systemChannel, nu.systemChannelId);
-  kanaalAnders('afkChannel', gewenst.afkChannel, nu.afkChannelId);
+  kanaalAnders('systemChannel', 'Het systeemkanaal', gewenst.systemChannel, nu.systemChannelId);
+  kanaalAnders('afkChannel', 'Het afk-kanaal', gewenst.afkChannel, nu.afkChannelId);
 
   // Een regels- en updateskanaal bestaan alleen op een community-server; op een
   // gewone server weigert Discord ze en slaat de applier ze over.
   if (community) {
-    kanaalAnders('rulesChannel', gewenst.rulesChannel, nu.rulesChannelId);
-    kanaalAnders('updatesChannel', gewenst.updatesChannel, nu.updatesChannelId);
+    kanaalAnders('rulesChannel', 'Het regelskanaal', gewenst.rulesChannel, nu.rulesChannelId);
+    kanaalAnders('updatesChannel', 'Het updateskanaal', gewenst.updatesChannel, nu.updatesChannelId);
   }
 
   if (gewenst.community === true && !nu.community) changes.push('community');
@@ -546,7 +628,7 @@ export function planSetup(snapshot: GuildSnapshot, template: ServerTemplate, opt
     if (!gelijk) actions.push({ kind: 'onboarding', prompts: template.onboarding.prompts.length });
   }
 
-  actions.push(...planGuildSettings(snapshot, template));
+  actions.push(...planGuildSettings(snapshot, template, warnings));
 
   const totalChannels = template.categories.reduce((sum, category) => sum + category.channels.length, 0) +
     template.uncategorizedChannels.length;
@@ -555,6 +637,19 @@ export function planSetup(snapshot: GuildSnapshot, template: ServerTemplate, opt
   }
   if (template.roles.length > 250) {
     warnings.push('Discord staat maximaal 250 rollen per server toe.');
+  }
+
+  warnings.push(...dubbeleNamen(snapshot, template));
+
+  // Alleen kanalen die er al staan; wat deze ronde nog gemaakt wordt krijgt de
+  // rechten uit de template, en daar kijkt de controle vooraf al naar.
+  for (const naam of template.onboarding?.defaultChannels ?? []) {
+    const kanaal = snapshot.channels.find((channel) => normalize(channel.name) === normalize(naam));
+    if (kanaal && !everyoneZiet(snapshot, kanaal)) {
+      warnings.push(
+        `Onboarding: @everyone kan "${naam}" niet zien. Discord weigert de hele onboarding zolang een standaardkanaal verstopt is.`,
+      );
+    }
   }
 
   return { templateName: template.name, options, actions, warnings };
