@@ -44,7 +44,7 @@ import {
 import { backupGuild, leesBackupTekst, listBackups, readBackup, readBackupRaw } from '../backup.js';
 import { ALLES, applyReset, countReset, describeReset, planReset, type ResetScope } from '../reset.js';
 import { listVersions, readVersion, recordVersion } from '../history.js';
-import { diffTemplates, summarizeDiff } from '../diff.js';
+import { describeDiff, diffTemplates, summarizeDiff } from '../diff.js';
 import { simulate, simulatableRoles } from '../simulate.js';
 import { compare } from '../compare.js';
 import { parseTemplate, type ServerTemplate } from '../types.js';
@@ -323,6 +323,81 @@ async function handle(
     if (method === 'DELETE') {
       await unlink(templatePath(id));
       return send(response, 200, { deleted: id });
+    }
+  }
+
+  /**
+   * De andere kant op: neem over wat er in de server staat.
+   *
+   * Tot nu toe kon je alleen de template naar de server duwen. Maar vaak is de
+   * afwijking juist bedoeld - iemand heeft een kanaal toegevoegd dat er hoort te
+   * zijn. Dan wil je dat in de template hebben zonder met de hand JSON bij te
+   * werken.
+   *
+   * Zonder `toepassen` is dit een preview: je krijgt te zien wat er in de
+   * template zou veranderen, en pas daarna gebeurt er iets.
+   */
+  if (method === 'POST' && resource === 'templates' && id !== undefined && sub === 'overnemen') {
+    const body = await readJson<{ guildId?: string; toepassen?: boolean }>(request);
+    if (!body.guildId) return send(response, 400, { error: 'Kies een server om over te nemen.' });
+
+    const nee = weigering(body.guildId);
+    if (nee) return send(response, 403, { error: nee });
+
+    const guild = client.guilds.cache.get(body.guildId);
+    if (!guild) return send(response, 404, { error: 'Server niet gevonden.' });
+
+    const huidigJson = await readFile(templatePath(id), 'utf8').catch(() => null);
+    if (huidigJson === null) return send(response, 404, { error: 'Template niet gevonden.' });
+
+    try {
+      const huidig = parseTemplate(JSON.parse(huidigJson));
+      const uitServer = await exportGuildFresh(guild, huidig.name);
+
+      // Wat van de template is en niet van de server: de naam, de uitleg, de
+      // variabelen en de plaatjes - een pad of URL naar een icoon is niet uit
+      // een server te lezen.
+      const nieuw = parseTemplate({
+        ...uitServer,
+        name: huidig.name,
+        description: huidig.description,
+        variables: huidig.variables,
+        guild: { ...uitServer.guild, icon: huidig.guild.icon, banner: huidig.guild.banner },
+      });
+
+      const verschil = diffTemplates(huidig, nieuw);
+      const waarschuwingen = Object.keys(huidig.variables).length
+        ? [
+            'Deze template gebruikt variabelen. In de server staan de ingevulde waarden, dus die ' +
+              'komen er letterlijk in te staan - de variabelen zelf verdwijnen.',
+          ]
+        : [];
+
+      if (!body.toepassen) {
+        return send(response, 200, {
+          id,
+          samenvatting: summarizeDiff(verschil),
+          regels: describeDiff(verschil),
+          waarschuwingen,
+          json: JSON.stringify(nieuw, null, 2),
+        });
+      }
+
+      // De oude versie bewaren, zodat dit met één klik terug te draaien is.
+      await recordVersion(config.historyDir, id, huidigJson, wie(session));
+      await writeTemplate(id, nieuw);
+
+      logger.info(`Dashboard neemt "${guild.name}" over in template "${id}" (${summarizeDiff(verschil)})`);
+      return send(response, 200, {
+        id,
+        saved: true,
+        samenvatting: summarizeDiff(verschil),
+        regels: describeDiff(verschil),
+        waarschuwingen,
+        json: JSON.stringify(nieuw, null, 2),
+      });
+    } catch (error) {
+      return send(response, 400, { error: message(error) });
     }
   }
 
