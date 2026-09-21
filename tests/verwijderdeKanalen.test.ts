@@ -14,7 +14,7 @@ import { standaardInstellingen } from './helpers/snapshot.js';
  * niet meer bestond, en de onboarding kreeg "Unknown channel" terug — terwijl er
  * nog een kanaal met precies die naam stond.
  */
-function nepServer() {
+function nepServer(opties: { negeert?: boolean } = {}) {
   const kanaal = (id: string, name: string) => ({ id, name, type: ChannelType.GuildText, isThread: () => false });
   const kanalen = new Collection<string, ReturnType<typeof kanaal>>();
   // Het dubbele kanaal staat als laatste in de lijst, dus dat is het kanaal dat
@@ -52,8 +52,18 @@ function nepServer() {
         permissions: new PermissionsBitField([PermissionFlagsBits.Administrator]),
       }),
     },
+    systemChannelId: null as string | null,
+    afkChannelId: null as string | null,
+    rulesChannelId: null as string | null,
+    publicUpdatesChannelId: null as string | null,
     edit: async (payload: Record<string, unknown>) => {
       edits.push(payload);
+      // Zoals Discord: het verzoek lukt en de server is daarna bijgewerkt.
+      // Met `negeert` doet hij wat hij in het echt soms ook doet - "gelukt"
+      // antwoorden en niets veranderen.
+      if (!opties.negeert && typeof payload.systemChannel === 'string') {
+        guild.systemChannelId = payload.systemChannel;
+      }
       return guild;
     },
   };
@@ -122,5 +132,24 @@ describe('opruimen gaat als laatste', () => {
     expect(soorten).toContain('delete-channel');
     expect(soorten).toContain('guild-settings');
     expect(soorten.indexOf('delete-channel')).toBeGreaterThan(soorten.indexOf('guild-settings'));
+  });
+});
+
+describe('gelukt is niet hetzelfde als gedaan', () => {
+  it('meldt het als Discord de verwijzing niet overneemt', async () => {
+    // Dit kostte een ochtend zoeken: de bot meldde elke keer dat het
+    // regelskanaal gezet was, terwijl de preview daarna bleef zeggen dat het
+    // anders was. Discord gaf geen fout; hij deed het gewoon niet.
+    const nep = nepServer({ negeert: true });
+    const result = await applyPlan(nep.guild, template, plan);
+
+    expect(result.errors.join(' ')).toContain('systeemkanaal niet overgenomen');
+  });
+
+  it('zegt niets als het wel gelukt is', async () => {
+    const nep = nepServer();
+    const result = await applyPlan(nep.guild, template, plan);
+
+    expect(result.errors).toEqual([]);
   });
 });
