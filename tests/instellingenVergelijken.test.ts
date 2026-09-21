@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { planSetup, type PlanAction } from '../src/planner.js';
 import { parseTemplate } from '../src/types.js';
+import { toBitfield } from '../src/permissions.js';
 import type { GuildSnapshot, SnapshotOnboarding, SnapshotSettings } from '../src/snapshot.js';
 import { snapshotAutomod, standaardInstellingen } from './helpers/snapshot.js';
 
@@ -100,6 +101,48 @@ describe('serverinstellingen vergelijken', () => {
   });
 });
 
+describe('serverinstellingen: zeggen waar een verwijzing nu op staat', () => {
+  // "serverinstellingen" als enige regel zegt niets. Dat de server iets anders
+  // vasthoudt dan wat je uitrolt, is juist het interessante deel.
+  const template = maak({ guild: { community: true, rulesChannel: 'regels', updatesChannel: 'updates' } });
+
+  const waarschuwingen = (rulesChannelId: string | null) =>
+    planSetup(server({ settings: { community: true, rulesChannelId } }), template, {
+      prune: false,
+      update: true,
+    }).warnings.filter((regel) => regel.startsWith('Het regelskanaal'));
+
+  it('noemt het kanaal waar de server nu op staat', () => {
+    expect(waarschuwingen('ch1')).toEqual(['Het regelskanaal staat op "welkom"; de template wil "regels".']);
+  });
+
+  it('zegt het ook als dat kanaal niet meer bestaat', () => {
+    expect(waarschuwingen('weg')).toEqual([
+      'Het regelskanaal staat op een kanaal dat niet meer bestaat; de template wil "regels".',
+    ]);
+  });
+
+  it('zegt het als de template een kanaal noemt dat er niet is', () => {
+    // Anders zoek je je suf naar een verschil met een kanaal dat nergens staat.
+    const anders = maak({
+      uncategorizedChannels: [{ name: 'welkom' }, { name: 'regels' }, { name: 'updates' }, { name: 'nieuw' }],
+      guild: { community: true, rulesChannel: 'nieuw', updatesChannel: 'updates' },
+    });
+    const plan = planSetup(server({ settings: { community: true, rulesChannelId: 'ch1' } }), anders, {
+      prune: false,
+      update: true,
+    });
+
+    expect(plan.warnings).toContain(
+      'Het regelskanaal staat op "welkom"; een kanaal met de naam "nieuw" staat niet in de server.',
+    );
+  });
+
+  it('zwijgt als er nog niets stond', () => {
+    expect(waarschuwingen(null)).toEqual([]);
+  });
+});
+
 describe('automod-regels vergelijken', () => {
   it('laat een regel die al klopt met rust', () => {
     const template = maak({ automod: [{ name: 'Spam', trigger: 'spam' }] });
@@ -142,6 +185,56 @@ describe('automod-regels vergelijken', () => {
     const snapshot = server({ automod: [snapshotAutomod('a1', 'Spam')] });
 
     expect(acties(snapshot, template, 'update-automod')).toHaveLength(1);
+  });
+});
+
+describe('onboarding: waarschuwen voor een verstopt standaardkanaal', () => {
+  /**
+   * Discord weigert de hele onboarding zodra @everyone één standaardkanaal niet
+   * kan zien, en noemt er niet bij welk kanaal hij bedoelt. Dus zoeken we het
+   * zelf op, met dezelfde volgorde die Discord aanhoudt: basisrecht, categorie,
+   * kanaal.
+   */
+  const template = maak({ onboarding: { defaultChannels: ['welkom'] } });
+
+  const metEveryone = (permissions: bigint, overwrites: { allow: bigint; deny: bigint }[]): GuildSnapshot => {
+    const basis = server();
+    const [everyone, ...rest] = basis.roles;
+    return {
+      ...basis,
+      roles: [{ ...everyone!, permissions }, ...rest],
+      channels: [
+        { ...kanaal('ch1', 'welkom', 0), overwrites: overwrites.map((o) => ({ roleId: 'g1', ...o })) },
+        ...basis.channels.slice(1),
+      ],
+    };
+  };
+
+  const waarschuwingen = (snapshot: GuildSnapshot) =>
+    planSetup(snapshot, template, { prune: false, update: true }).warnings.filter((regel) =>
+      regel.startsWith('Onboarding:'),
+    );
+
+  it('zegt welk kanaal verstopt is', () => {
+    const verstopt = metEveryone(toBitfield(['ViewChannel']), [{ allow: 0n, deny: toBitfield(['ViewChannel']) }]);
+    expect(waarschuwingen(verstopt)).toEqual([expect.stringContaining('welkom')]);
+  });
+
+  it('zwijgt als het kanaal gewoon zichtbaar is', () => {
+    expect(waarschuwingen(metEveryone(toBitfield(['ViewChannel']), []))).toEqual([]);
+  });
+
+  it('telt een recht op het kanaal zelf mee, ook zonder basisrecht', () => {
+    // Zo staan de meeste servers: @everyone mag niets, behalve waar het kanaal
+    // het toestaat. Dat is zichtbaar genoeg voor Discord.
+    const open = metEveryone(0n, [{ allow: toBitfield(['ViewChannel']), deny: 0n }]);
+    expect(waarschuwingen(open)).toEqual([]);
+  });
+
+  it('ziet een kanaal dat de server helemaal niet heeft over het hoofd', () => {
+    // Dat wordt deze ronde nog aangemaakt; daar kijkt de controle vooraf naar.
+    const zonder = { ...server(), channels: [] };
+    expect(waarschuwingen(zonder)).toEqual([]);
   });
 });
 

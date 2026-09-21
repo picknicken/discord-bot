@@ -125,7 +125,7 @@ if (!serverToegestaan(options.guildId, config.toegestaneServers)) {
 }
 
 if (options.prune && !options.apply) {
-  logger.warn('--prune zonder --apply doet niets; dit blijft een preview.');
+  logger.info('Preview met --prune: hieronder staat ook wat er weg zou gaan. Er wordt niets verwijderd.');
 }
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -153,7 +153,9 @@ client.once(Events.ClientReady, async (ready) => {
     }
     const plan = filterPlan(
       planSetup(await snapshotGuildFresh(guild), template, {
-        prune: options.prune && options.apply,
+        // Ook in een preview: anders kun je nooit zien wat prune zou weghalen
+        // voordat je het doet. Uitvoeren gebeurt alleen met --apply.
+        prune: options.prune,
         update: true,
       }),
       options.onderdelen,
