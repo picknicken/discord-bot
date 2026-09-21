@@ -18,6 +18,8 @@ import { exportGuildFresh } from '../exporter.js';
 import { recenteWijzigingen } from '../auditlog.js';
 import { driftVanServer } from '../drift.js';
 import { opruimlijst } from '../opruimen.js';
+import { rolUit } from '../uitvoeren.js';
+import { leesGepland, nieuweUitrol, schrijfGepland } from '../gepland.js';
 import { templateCode, uitDiscordTemplate } from '../importeren.js';
 import { describeActions, planRegels, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
@@ -264,6 +266,84 @@ async function handle(
     if (!guild) return send(response, 404, { error: 'Server niet gevonden.' });
 
     return send(response, 200, await opruimlijst(guild));
+  }
+
+  /**
+   * Uitrollen op een tijdstip. Dertig kanalen aanmaken terwijl iedereen online
+   * is hoeft niet; de bot werkt 's nachts net zo hard.
+   */
+  if (resource === 'gepland') {
+    const lijst = await leesGepland(config.historyDir);
+
+    if (method === 'GET') {
+      return send(response, 200, {
+        gepland: lijst
+          .filter((uitrol) => uitrol.guildIds.every(magHier))
+          .sort((a, b) => a.wanneer.localeCompare(b.wanneer)),
+      });
+    }
+
+    if (method === 'POST') {
+      const body = await readJson<{
+        wanneer?: string;
+        templateId?: string;
+        guildIds?: string[];
+        prune?: boolean;
+        update?: boolean;
+        onderdelen?: string[];
+        variabelen?: Record<string, string>;
+      }>(request);
+
+      const guildIds = body.guildIds ?? [];
+      if (!body.templateId || guildIds.length === 0) {
+        return send(response, 400, { error: 'Kies een template en minstens een server.' });
+      }
+
+      const redenen = [...new Set(guildIds.map((guildId) => weigering(guildId)).filter(Boolean))];
+      if (redenen.length > 0) return send(response, 403, { error: redenen.join(' ') });
+
+      const wanneer = new Date(body.wanneer ?? '');
+      if (Number.isNaN(wanneer.getTime())) return send(response, 400, { error: 'Geef een geldig tijdstip op.' });
+      if (wanneer.getTime() < Date.now()) return send(response, 400, { error: 'Dat tijdstip is al geweest.' });
+
+      const onderdelen = leesOnderdelen(body.onderdelen?.join(','));
+      if (!onderdelen) return send(response, 400, { error: `Onbekend onderdeel. Kies uit: ${ONDERDELEN.join(', ')}.` });
+
+      // Nu al controleren of de template te laden is, met deze variabelen. Een
+      // fout om drie uur 's nachts ziet niemand.
+      try {
+        await loadTemplateMet(config.templatesDir, body.templateId, body.variabelen ?? {});
+      } catch (error) {
+        return send(response, 400, { error: message(error) });
+      }
+
+      const uitrol = nieuweUitrol({
+        wanneer: wanneer.toISOString(),
+        templateId: body.templateId,
+        guildIds,
+        guildNamen: guildIds.map((guildId) => client.guilds.cache.get(guildId)?.name ?? guildId),
+        prune: body.prune ?? false,
+        update: body.update ?? true,
+        onderdelen,
+        variabelen: body.variabelen ?? {},
+        door: wie(session) ?? 'dashboard',
+      });
+
+      await schrijfGepland(config.historyDir, [...lijst, uitrol]);
+      logger.info(`Gepland: "${uitrol.templateId}" op ${uitrol.guildNamen.join(', ')} om ${uitrol.wanneer}`);
+      return send(response, 200, { uitrol });
+    }
+
+    if (method === 'DELETE' && id !== undefined) {
+      const uitrol = lijst.find((kandidaat) => kandidaat.id === id);
+      if (!uitrol) return send(response, 404, { error: 'Die geplande uitrol staat er niet (meer).' });
+
+      const redenen = [...new Set(uitrol.guildIds.map((guildId) => weigering(guildId)).filter(Boolean))];
+      if (redenen.length > 0) return send(response, 403, { error: redenen.join(' ') });
+
+      await schrijfGepland(config.historyDir, lijst.filter((kandidaat) => kandidaat.id !== id));
+      return send(response, 200, { geannuleerd: id });
+    }
   }
 
   if (method === 'GET' && resource === 'setups') {
@@ -776,6 +856,8 @@ async function handle(
       });
     }
 
+    // Dezelfde volgorde als een geplande uitrol: momentopname, plan, bijstellen
+    // naar wat de bot mag, uitvoeren, logboek, bericht in de server.
     const results = [];
     for (const guildId of guildIds) {
       const guild = client.guilds.cache.get(guildId);
@@ -784,66 +866,18 @@ async function handle(
         continue;
       }
 
-      const me = await guild.members.fetchMe();
-      const missing = missingPermissions(me);
-      if (missing.length > 0) {
-        results.push({
-          guildId,
-          guildName: guild.name,
-          applied: 0,
-          failed: 0,
-          errors: [`de bot mist rechten: ${missing.join(', ')}`],
-        });
-        continue;
-      }
-
-      const plan = filterPlan(planSetup(await snapshotGuildFresh(guild), template, options), onderdelen);
-
-      const haalbaar = maakHaalbaar(plan, me.permissions, {
-        alCommunity: guild.features.includes('COMMUNITY'),
-      });
-
-      if (haalbaar.plan.actions.length === 0) {
-        results.push({ guildId, guildName: guild.name, applied: 0, failed: 0, errors: [], note: 'niets te doen' });
-        continue;
-      }
-
-      // Altijd eerst een momentopname, tenzij het dashboard er expliciet om vraagt.
-      let backupFile: string | null = null;
-      if (body.backup !== false) {
-        backupFile = await backupGuild(guild, config.backupsDir, body.templateId).catch(() => null);
-      }
-
-      logger.info(
-        `Dashboard past "${body.templateId}" toe op "${guild.name}" (${haalbaar.plan.actions.length} acties)`,
+      results.push(
+        await rolUit(guild, template, {
+          templateId: body.templateId,
+          onderdelen,
+          prune: options.prune,
+          update: options.update,
+          door: session?.user.globalName || session?.user.username || 'dashboard',
+          backupsDir: config.backupsDir,
+          historyDir: config.historyDir,
+          backup: body.backup,
+        }),
       );
-      const result = await applyPlan(guild, template, haalbaar.plan);
-      const meldingen = [...result.errors, ...haalbaar.aanpassingen];
-
-      await logSetup(config.historyDir, {
-        at: new Date().toISOString(),
-        guildId,
-        guildName: guild.name,
-        template: body.templateId,
-        door: session?.user.globalName || session?.user.username || 'dashboard',
-        mode: 'apply',
-        onderdelen,
-        applied: result.applied,
-        failed: result.failed,
-        backup: backupFile,
-        notes: meldingen,
-      });
-
-      const bericht = letopEmbed(template.name, meldingen);
-      if (bericht) await meldInServer(guild, me, bericht);
-
-      results.push({
-        guildId,
-        guildName: guild.name,
-        backup: backupFile,
-        ...result,
-        errors: meldingen,
-      });
     }
 
     return send(response, 200, {

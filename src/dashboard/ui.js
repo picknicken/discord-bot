@@ -58,8 +58,8 @@ export function ask({
   const dialog = document.getElementById('dialog');
 
   const inputHtml = input
-    ? '<input type="text" id="dialogInput" value="' + escapeHtml(input.value ?? '') +
-      '" placeholder="' + escapeHtml(input.placeholder ?? '') + '">'
+    ? '<input type="' + escapeHtml(input.type ?? 'text') + '" id="dialogInput" value="' +
+      escapeHtml(input.value ?? '') + '" placeholder="' + escapeHtml(input.placeholder ?? '') + '">'
     : requireText
       ? '<input type="text" id="dialogInput" placeholder="' + escapeHtml(requireText) + '" autocomplete="off">'
       : '';

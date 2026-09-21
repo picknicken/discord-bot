@@ -5,6 +5,7 @@ import { zaaiTemplates } from './templates.js';
 import { authEnabled, createDashboard } from './dashboard/server.js';
 import { startAutomatischeSync } from './clan/synchroniseren.js';
 import { startBackupWacht } from './backupWacht.js';
+import { startGeplandeUitrol } from './gepland.js';
 import { startDriftWacht } from './driftWacht.js';
 import { kiesIntents } from './util/intents.js';
 import { logger } from './util/logger.js';
@@ -89,6 +90,13 @@ client.once(Events.ClientReady, async (ready) => {
     });
     logger.info(`Elke ${config.backupUren} uur een momentopname; de laatste ${config.backupBewaar} blijven staan.`);
   }
+
+  // Uitrollen die op een tijdstip klaarstaan.
+  startGeplandeUitrol(ready, {
+    templatesDir: config.templatesDir,
+    backupsDir: config.backupsDir,
+    historyDir: config.historyDir,
+  });
 
   const server = createDashboard(ready, { applicationOwners: owners });
 
