@@ -307,7 +307,8 @@ function tree() {
     .map(([role, index]) => {
       const active = selection.type === 'role' && selection.index === index;
       return (
-        '<li class="node' + (active ? ' on' : '') + '" data-pick="role" data-index="' + index + '">' +
+        '<li class="node' + (active ? ' on' : '') + '" draggable="true" data-sleep="role" data-pick="role" ' +
+        'data-index="' + index + '">' +
         '<span class="dot" style="background:' + esc(role.color || 'var(--muted)') + '"></span>' +
         '<span class="grow truncate">' + esc(role.name) + '</span>' +
         '<span class="tools">' +
@@ -341,7 +342,7 @@ function tree() {
             selection.category === categoryIndex &&
             selection.index === channelIndex;
           return (
-            '<li class="node' + (active ? ' on' : '') + '" data-pick="channel" data-category="' +
+            '<li class="node' + (active ? ' on' : '') + '" draggable="true" data-sleep="channel" data-pick="channel" data-category="' +
             categoryIndex + '" data-index="' + channelIndex + '">' +
             icon(CHANNEL_ICONS[channel.type] || 'hash', 'sm') +
             '<span class="grow truncate">' + esc(channel.name) + '</span>' +
@@ -358,7 +359,7 @@ function tree() {
 
       return (
         '<li class="group"><div class="node head' + (activeCategory ? ' on' : '') +
-        '" data-pick="category" data-index="' + categoryIndex + '">' +
+        '" draggable="true" data-sleep="category" data-pick="category" data-index="' + categoryIndex + '">' +
         icon('folder', 'sm') + '<span class="grow truncate"><strong>' + esc(category.name) + '</strong></span>' +
         '<span class="tools">' +
         moveButtons('category', categoryIndex, template.categories.length) +
@@ -379,7 +380,7 @@ function tree() {
     .map(([channel, index]) => {
       const active = selection.type === 'channel' && selection.category === null && selection.index === index;
       return (
-        '<li class="node' + (active ? ' on' : '') + '" data-pick="channel" data-category="" data-index="' +
+        '<li class="node' + (active ? ' on' : '') + '" draggable="true" data-sleep="channel" data-pick="channel" data-category="" data-index="' +
         index + '">' + icon(CHANNEL_ICONS[channel.type] || 'hash', 'sm') + '<span class="grow truncate">' +
         esc(channel.name) + '</span><span class="tools">' +
         '<button class="btn-icon" data-dup="channel" data-category="" data-index="' + index +
@@ -441,6 +442,59 @@ function focusBalk() {
     '<div class="focusbalk">' + icon('eye', 'sm') + '<span class="grow">' + FOCUS_TEKST[focus] + '</span>' +
     '<button class="btn-sm" id="focusUit">Alles tonen</button></div>'
   );
+}
+
+/** Wat er op dit moment gesleept wordt. */
+let sleept = null;
+
+/** De beschrijving van een knoop in de boom: wat het is en waar het staat. */
+function lees(dataset) {
+  return {
+    soort: dataset.sleep,
+    index: Number(dataset.index),
+    category: dataset.category === undefined ? null : dataset.category === '' ? null : Number(dataset.category),
+    losKanaal: dataset.category === '',
+  };
+}
+
+/**
+ * Mag dit daarheen?
+ *
+ * Een rol tussen de rollen, een categorie tussen de categorieen, een kanaal
+ * tussen de kanalen - ook die van een andere categorie, want juist dát is met
+ * pijltjesknoppen geen doen. Een kanaal op een categoriekop laten vallen zet
+ * het vooraan in die categorie.
+ */
+function magHier(van, naar) {
+  if (van.soort === 'role') return naar.soort === 'role';
+  if (van.soort === 'category') return naar.soort === 'category';
+  return naar.soort === 'channel' || naar.soort === 'category';
+}
+
+function kanaalLijst(category) {
+  return category === null ? ctx.template.uncategorizedChannels : ctx.template.categories[category].channels;
+}
+
+function verplaats(van, naar) {
+  if (van.soort === 'role' || van.soort === 'category') {
+    const lijst = van.soort === 'role' ? ctx.template.roles : ctx.template.categories;
+    const [stuk] = lijst.splice(van.index, 1);
+    lijst.splice(naar.index, 0, stuk);
+    selection = { type: van.soort === 'role' ? 'role' : 'category', index: naar.index };
+    return;
+  }
+
+  const uit = kanaalLijst(van.category);
+  const [kanaal] = uit.splice(van.index, 1);
+
+  // Op een categoriekop: vooraan in die categorie. Op een kanaal: op de plek van
+  // dat kanaal, dus sleep je naar beneden dan komt het erachter en naar boven
+  // ervoor - zoals je het loslaat.
+  const naarCategorie = naar.soort === 'category' ? naar.index : naar.category;
+  const plek = naar.soort === 'category' ? 0 : naar.index;
+
+  kanaalLijst(naarCategorie).splice(plek, 0, kanaal);
+  selection = { type: 'channel', category: naarCategorie, index: plek };
 }
 
 function moveButtons(kind, index, total, category) {
@@ -1000,6 +1054,49 @@ function bind(container) {
     selection = { type: 'none' };
     changed();
   });
+
+  /**
+   * Slepen om te ordenen.
+   *
+   * De pijltjesknoppen blijven staan - op een telefoon werkt slepen niet, en
+   * voor één plekje omhoog is een knop sneller. Maar een kanaal van de ene
+   * categorie naar de andere is met pijltjes geen doen.
+   */
+  for (const element of container.querySelectorAll('[data-sleep]')) {
+    element.ondragstart = (gebeurtenis) => {
+      sleept = lees(element.dataset);
+      gebeurtenis.dataTransfer.effectAllowed = 'move';
+      // Firefox begint pas te slepen als er iets in het klembord zit.
+      gebeurtenis.dataTransfer.setData('text/plain', element.dataset.sleep);
+    };
+
+    element.ondragend = () => {
+      sleept = null;
+      for (const doel of container.querySelectorAll('.sleepdoel')) doel.classList.remove('sleepdoel');
+    };
+
+    element.ondragover = (gebeurtenis) => {
+      if (!sleept || !magHier(sleept, lees(element.dataset))) return;
+      gebeurtenis.preventDefault();
+      element.classList.add('sleepdoel');
+    };
+
+    element.ondragleave = () => element.classList.remove('sleepdoel');
+
+    element.ondrop = (gebeurtenis) => {
+      element.classList.remove('sleepdoel');
+      if (!sleept) return;
+
+      const naar = lees(element.dataset);
+      if (!magHier(sleept, naar)) return;
+      gebeurtenis.preventDefault();
+      gebeurtenis.stopPropagation();
+
+      verplaats(sleept, naar);
+      sleept = null;
+      changed();
+    };
+  }
 
   on('data-move', (data) => {
     const template = ctx.template;
