@@ -1,5 +1,6 @@
 import { copyFile, mkdir, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { basisVan, bouwOp, type Ruw } from './overerven.js';
 import { parseTemplate, type ServerTemplate } from './types.js';
 import { aangegevenVariabelen, uitlegOntbrekend, vulVariabelenIn } from './variabelen.js';
 
@@ -67,6 +68,82 @@ export interface GeladenTemplate {
   onbekend: string[];
 }
 
+/**
+ * De ruwe JSON van één bestand, met de bestandsnaam in de foutmelding. Zonder
+ * die naam weet je bij een template die op een andere voortbouwt niet welk van
+ * de twee bestanden scheef staat.
+ */
+async function leesRuw(dir: string, id: string): Promise<Ruw> {
+  if (!/^[\w-]+$/.test(id)) throw new Error(`Ongeldige template-naam: "${id}"`);
+
+  let tekst: string;
+  try {
+    tekst = await readFile(path.join(dir, `${id}.json`), 'utf8');
+  } catch {
+    throw new Error(`Template "${id}" bestaat niet.`);
+  }
+
+  try {
+    const data: unknown = JSON.parse(tekst);
+    if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+      throw new Error('de inhoud is geen object');
+    }
+    return data as Ruw;
+  } catch (error) {
+    throw new Error(`${id}.json bevat geen geldige JSON: ${(error as Error).message}`);
+  }
+}
+
+/**
+ * De template met alles wat hij van zijn basis erft er al in verwerkt.
+ *
+ * Een basis mag zelf ook weer een basis hebben; we lopen de rij van onderaf af en
+ * houden bij waar we geweest zijn, want een template die (via via) zichzelf als
+ * basis heeft zou anders blijven lezen tot het geheugen op is.
+ */
+export async function ruweTemplate(dir: string, id: string, gezien: readonly string[] = []): Promise<Ruw> {
+  if (gezien.includes(id)) {
+    throw new Error(`De basis loopt rond: ${[...gezien, id].join(" -> ")}.`);
+  }
+
+  const data = await leesRuw(dir, id);
+  return metBasis(dir, data, [...gezien, id]);
+}
+
+async function metBasis(dir: string, data: Ruw, gezien: readonly string[]): Promise<Ruw> {
+  const basis = basisVan(data);
+
+  if (basis === null) {
+    if (data['verwijder'] !== undefined) {
+      throw new Error('"verwijder" kan alleen in een template met een "basis": er is anders niets om uit weg te halen.');
+    }
+    return data;
+  }
+
+  return bouwOp(await ruweTemplate(dir, basis, gezien), data);
+}
+
+/**
+ * Een template uit de editor controleren zonder hem op te slaan: net als bij het
+ * laden wordt de basis er eerst bij gezocht, zodat wat je ziet ook is wat er
+ * uitgerold wordt.
+ */
+export async function templateUitJson(dir: string, json: string): Promise<ServerTemplate> {
+  let data: unknown;
+  try {
+    data = JSON.parse(json);
+  } catch (error) {
+    throw new Error(`Dit is geen geldige JSON: ${(error as Error).message}`);
+  }
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    throw new Error('Een template hoort een object te zijn.');
+  }
+
+  const compleet = await metBasis(dir, data as Ruw, []);
+  const ingevuld = vulVariabelenIn(JSON.stringify(compleet, null, 2));
+  return parseTemplate(JSON.parse(ingevuld.json));
+}
+
 export async function loadTemplateMet(
   dir: string,
   id: string,
@@ -78,7 +155,15 @@ export async function loadTemplateMet(
   }
 
   const file = path.join(dir, `${id}.json`);
-  const raw = await readFile(file, 'utf8');
+  const opSchijf = await readFile(file, 'utf8');
+
+  // Bouwt deze template op een andere voort, dan voegen we ze eerst samen en gaan
+  // we verder met het resultaat. Doet hij dat niet - en dat geldt voor bijna
+  // alles - dan blijft het pad precies zoals het was: de tekst van het bestand
+  // in, de variabelen erin, en dan pas JSON.
+  const erft = /"(basis|verwijder)"\s*:/.test(opSchijf);
+  const raw = erft ? JSON.stringify(await metBasis(dir, JSON.parse(opSchijf) as Ruw, [id]), null, 2) : opSchijf;
+
   const ingevuld = vulVariabelenIn(raw, variabelen);
 
   // Losjes is voor een lijstje op het scherm: dan blijft {{clan}} gewoon staan.

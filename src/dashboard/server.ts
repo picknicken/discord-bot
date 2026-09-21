@@ -23,7 +23,8 @@ import { leesGepland, nieuweUitrol, schrijfGepland } from '../gepland.js';
 import { templateCode, uitDiscordTemplate } from '../importeren.js';
 import { describeActions, planRegels, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
-import { listTemplateIds, loadTemplateMet } from '../templates.js';
+import { listTemplateIds, loadTemplateMet, ruweTemplate, templateUitJson } from '../templates.js';
+import { alleenVerschil, basisVan, eersteVerschil, gelijk, type Ruw } from '../overerven.js';
 import { auditSummary, countBySeverity, lintTemplate } from '../lint.js';
 import { PERMISSION_CATALOGUE } from '../permissionCatalogue.js';
 import { filterPlan, leesOnderdelen, ONDERDELEN, UITLEG } from '../onderdelen.js';
@@ -388,11 +389,22 @@ async function handle(
     if (method === 'GET') return send(response, 200, { templates: await describeTemplates() });
 
     if (method === 'POST') {
-      const body = await readJson<{ id?: string; from?: string }>(request);
+      const body = await readJson<{ id?: string; from?: string; variant?: boolean }>(request);
       const newId = slug(body.id ?? '');
       if (!newId) return send(response, 400, { error: 'Geef een naam op (letters, cijfers, streepjes).' });
       if ((await listTemplateIds(config.templatesDir)).includes(newId)) {
         return send(response, 400, { error: `"${newId}" bestaat al.` });
+      }
+
+      // Een variant is geen kopie: hij bewaart alleen dat hij op de ander
+      // voortbouwt, zodat een verbetering in het origineel hier vanzelf in komt.
+      if (body.variant && body.from) {
+        if (!(await listTemplateIds(config.templatesDir)).includes(body.from)) {
+          return send(response, 400, { error: `Template "${body.from}" bestaat niet.` });
+        }
+        const json = `${JSON.stringify({ basis: body.from, name: newId }, null, 2)}\n`;
+        await writeRuw(newId, json);
+        return send(response, 200, { id: newId, json });
       }
 
       const source: ServerTemplate = body.from
@@ -431,17 +443,22 @@ async function handle(
 
     if (method === 'GET' && sub === undefined) {
       const json = await readFile(templatePath(id), 'utf8');
-      return send(response, 200, { id, json, template: parseTemplate(JSON.parse(json)) });
+      // `json` is wat er in het bestand staat, `template` wat het wordt: bij een
+      // template met een basis zijn dat twee verschillende dingen.
+      const template = await templateUitJson(config.templatesDir, json);
+      return send(response, 200, { id, json, template, basis: basisVan(JSON.parse(json)) });
     }
 
     if (method === 'PUT') {
       const body = await readJson<{ json?: string }>(request);
       try {
-        const template = parseTemplate(JSON.parse(body.json ?? ''));
+        const json = body.json ?? '';
+        const template = await templateUitJson(config.templatesDir, json);
         // Eerst de oude inhoud bewaren, dan pas overschrijven.
         const previous = await readFile(templatePath(id), 'utf8').catch(() => null);
         if (previous) await recordVersion(config.historyDir, id, previous, wie(session));
-        await writeTemplate(id, template);
+        if (erft(json)) await writeRuw(id, json);
+        else await writeTemplate(id, template);
         return send(response, 200, { id, template, saved: true });
       } catch (error) {
         return send(response, 400, { error: message(error) });
@@ -449,6 +466,15 @@ async function handle(
     }
 
     if (method === 'DELETE') {
+      // Een basis weghalen maakt alles wat erop voortbouwt in één klap
+      // onlaadbaar. Dat hoor je te weten voordat het gebeurt.
+      const kinderen = await bouwenHierop(id);
+      if (kinderen.length > 0) {
+        return send(response, 400, {
+          error: `Dit is de basis van ${kinderen.join(', ')}. Haal daar eerst de basis weg.`,
+        });
+      }
+
       await unlink(templatePath(id));
       return send(response, 200, { deleted: id });
     }
@@ -479,7 +505,8 @@ async function handle(
     if (huidigJson === null) return send(response, 404, { error: 'Template niet gevonden.' });
 
     try {
-      const huidig = parseTemplate(JSON.parse(huidigJson));
+      const huidig = await templateUitJson(config.templatesDir, huidigJson);
+      const basisId = basisVan(JSON.parse(huidigJson));
       const uitServer = await exportGuildFresh(guild, huidig.name);
 
       // Wat van de template is en niet van de server: de naam, de uitleg, de
@@ -501,19 +528,48 @@ async function handle(
           ]
         : [];
 
+      // Bouwt deze template op een andere voort, dan hoort er niet de hele
+      // samengevoegde template in het bestand te belanden maar alleen weer het
+      // verschil met de basis. Niet alles past daarin: een andere volgorde dan de
+      // basis bijvoorbeeld. Dat controleren we door het antwoord terug te leggen,
+      // en klopt het niet, dan zeggen we dat in plaats van de basis stuk te maken.
+      let bestand = JSON.stringify(nieuw, null, 2);
+
+      if (basisId !== null) {
+        const basisTemplate = (await loadTemplateMet(config.templatesDir, basisId, {}, { losjes: true })).template;
+        const kind = {
+          basis: basisId,
+          ...alleenVerschil(basisTemplate as unknown as Ruw, nieuw as unknown as Ruw),
+        };
+        const terug = await templateUitJson(config.templatesDir, JSON.stringify(kind)).catch(() => null);
+
+        if (terug === null || !gelijk(terug, nieuw)) {
+          const waar = terug === null ? null : eersteVerschil(terug, nieuw);
+          return send(response, 400, {
+            error:
+              `Deze template bouwt voort op "${basisId}", en wat er in de server staat past daar niet in ` +
+              `als "de basis plus verschillen"${waar === null ? '' : ` (het gaat mis bij ${waar})`} - meestal ` +
+              `door een andere volgorde dan de basis, of een kanaal dat van categorie gewisseld is. ` +
+              `Pas de basis aan, of haal de basis uit deze template.`,
+          });
+        }
+        bestand = JSON.stringify(kind, null, 2);
+      }
+
       if (!body.toepassen) {
         return send(response, 200, {
           id,
           samenvatting: summarizeDiff(verschil),
           regels: describeDiff(verschil),
           waarschuwingen,
-          json: JSON.stringify(nieuw, null, 2),
+          json: bestand,
         });
       }
 
       // De oude versie bewaren, zodat dit met één klik terug te draaien is.
       await recordVersion(config.historyDir, id, huidigJson, wie(session));
-      await writeTemplate(id, nieuw);
+      if (basisId !== null) await writeRuw(id, bestand);
+      else await writeTemplate(id, nieuw);
 
       logger.info(`Dashboard neemt "${guild.name}" over in template "${id}" (${summarizeDiff(verschil)})`);
       return send(response, 200, {
@@ -522,7 +578,7 @@ async function handle(
         samenvatting: summarizeDiff(verschil),
         regels: describeDiff(verschil),
         waarschuwingen,
-        json: JSON.stringify(nieuw, null, 2),
+        json: bestand,
       });
     } catch (error) {
       return send(response, 400, { error: message(error) });
@@ -534,13 +590,18 @@ async function handle(
     if (!body.stamp) return send(response, 400, { error: 'Geef een versie op.' });
 
     const contents = await readVersion(config.historyDir, id, body.stamp);
-    const template = parseTemplate(JSON.parse(contents));
+    const template = await templateUitJson(config.templatesDir, contents);
 
     const current = await readFile(templatePath(id), 'utf8').catch(() => null);
     if (current) await recordVersion(config.historyDir, id, current, wie(session));
-    await writeTemplate(id, template);
+    if (erft(contents)) await writeRuw(id, contents);
+    else await writeTemplate(id, template);
 
-    return send(response, 200, { id, json: JSON.stringify(template, null, 2), restored: body.stamp });
+    return send(response, 200, {
+      id,
+      json: erft(contents) ? contents : JSON.stringify(template, null, 2),
+      restored: body.stamp,
+    });
   }
 
   // --- Back-ups ------------------------------------------------------------
@@ -731,7 +792,7 @@ async function handle(
   if (method === 'POST' && resource === 'analyze') {
     const body = await readJson<{ json?: string; role?: string }>(request);
     try {
-      const template = parseTemplate(JSON.parse(body.json ?? ''));
+      const template = await templateUitJson(config.templatesDir, body.json ?? '');
       const roles = simulatableRoles(template);
       const role = roles.find((candidate) => candidate.key === body.role) ?? roles[0];
       const findings = lintTemplate(template);
@@ -758,7 +819,7 @@ async function handle(
     if (!guild) return send(response, 404, { error: 'Kies een server om mee te vergelijken.' });
 
     try {
-      const template = parseTemplate(JSON.parse(body.json ?? ''));
+      const template = await templateUitJson(config.templatesDir, body.json ?? '');
       return send(response, 200, compare(await snapshotGuildFresh(guild), template));
     } catch (error) {
       return send(response, 400, { error: message(error) });
@@ -1280,8 +1341,10 @@ async function describeTemplates() {
   for (const id of ids) {
     try {
       const { template } = await loadTemplateMet(config.templatesDir, id, {}, { losjes: true });
+      const ruw = await readFile(templatePath(id), 'utf8').catch(() => null);
       described.push({
         id,
+        basis: ruw === null ? null : basisVan(JSON.parse(ruw)),
         name: template.name,
         description: template.description,
         variables: template.variables,
@@ -1295,6 +1358,7 @@ async function describeTemplates() {
     } catch (error) {
       described.push({
         id,
+        basis: null,
         name: id,
         description: '',
         roles: 0,
@@ -1308,6 +1372,25 @@ async function describeTemplates() {
   return described;
 }
 
+/** Welke templates deze als basis gebruiken? */
+async function bouwenHierop(id: string): Promise<string[]> {
+  const ids = await listTemplateIds(config.templatesDir);
+  const kinderen: string[] = [];
+
+  for (const andere of ids) {
+    if (andere === id) continue;
+    const json = await readFile(templatePath(andere), 'utf8').catch(() => null);
+    if (json === null) continue;
+    try {
+      if (basisVan(JSON.parse(json)) === id) kinderen.push(andere);
+    } catch {
+      // Een template die niet eens te lezen is houdt het verwijderen niet tegen.
+    }
+  }
+
+  return kinderen;
+}
+
 function templatePath(id: string): string {
   if (!/^[\w-]+$/.test(id)) throw new Error(`Ongeldige template-naam: "${id}"`);
   return path.join(config.templatesDir, `${id}.json`);
@@ -1315,6 +1398,23 @@ function templatePath(id: string): string {
 
 async function writeTemplate(id: string, template: ServerTemplate): Promise<void> {
   await writeFile(templatePath(id), `${JSON.stringify(template, null, 2)}\n`, 'utf8');
+}
+
+/**
+ * Bouwt een template op een andere voort, dan slaan we op wat er getypt is en
+ * niet wat eruit komt. Het samengevoegde resultaat wegschrijven zou de basis
+ * stilletjes uit het bestand halen, en dan is precies het punt van overerven weg.
+ */
+async function writeRuw(id: string, json: string): Promise<void> {
+  await writeFile(templatePath(id), json.endsWith('\n') ? json : `${json}\n`, 'utf8');
+}
+
+function erft(json: string): boolean {
+  try {
+    return basisVan(JSON.parse(json)) !== null;
+  } catch {
+    return false;
+  }
 }
 
 const slug = (value: string) =>
