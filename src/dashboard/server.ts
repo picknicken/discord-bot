@@ -353,7 +353,7 @@ async function handle(
     }
 
     if (method === 'POST' && id === 'restore') {
-      const body = await readJson<{ file?: string; inhoud?: string; guildId?: string }>(request);
+      const body = await readJson<{ file?: string; inhoud?: string; guildId?: string; volledig?: boolean }>(request);
       if (!body.file && !body.inhoud) return send(response, 400, { error: 'Geef een back-up op.' });
 
       // Uit een bestand dat je zelf meestuurt, of uit een die hier al staat.
@@ -380,12 +380,29 @@ async function handle(
         return send(response, 200, { applied: 0, failed: 0, errors: [], note: 'demo-modus — er is niets teruggezet' });
       }
 
-      // Terugzetten vult aan en werkt bij; het verwijdert nooit, want wat weg is
-      // krijgt deze back-up toch niet terug.
-      const plan = planSetup(await snapshotGuildFresh(guild), backup.template, { prune: false, update: true });
+      /**
+       * Aanvullen of echt terugzetten.
+       *
+       * Aanvullen zet terug wat er in de back-up staat en laat de rest met rust;
+       * dat is veilig, maar de server is daarna niet gelijk aan de back-up. Met
+       * `volledig` gaat weg wat er niet in stond - dan is "terugzetten" ook echt
+       * terugzetten. Berichten komen daarmee niet terug: een back-up bewaart de
+       * structuur, niet wat erin gezegd is.
+       */
+      const volledig = body.volledig === true;
+      const plan = planSetup(await snapshotGuildFresh(guild), backup.template, { prune: volledig, update: true });
       if (plan.actions.length === 0) return send(response, 200, { applied: 0, failed: 0, errors: [], note: 'Niets te herstellen.' });
 
-      logger.info(`Dashboard herstelt "${body.file}" op "${guild.name}" (${plan.actions.length} acties)`);
+      // Voor een volledige terugzet eerst een momentopname van hoe het nu staat.
+      // Je gooit hier dingen weg; dan hoort er een weg terug te zijn.
+      const vooraf = volledig
+        ? await backupGuild(guild, config.backupsDir, 'voor-terugzetten').catch(() => null)
+        : null;
+
+      logger.info(
+        `Dashboard herstelt "${body.file}" op "${guild.name}" (${plan.actions.length} acties` +
+          `${volledig ? ', volledig' : ''})`,
+      );
       const result = await applyPlan(guild, backup.template, plan);
 
       // Terugzetten vult aan maar verwijdert niets, dus de server kan na afloop
@@ -393,6 +410,8 @@ async function handle(
       const rest = compare(await snapshotGuildFresh(guild), backup.template);
       return send(response, 200, {
         ...result,
+        volledig,
+        backup: vooraf,
         leftover: rest.counts.extra,
         mismatch: rest.counts['type-mismatch'],
       });
