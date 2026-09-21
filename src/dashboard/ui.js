@@ -5,7 +5,9 @@
  */
 
 export function icon(name, extra = '') {
-  return '<svg class="icon ' + extra + '"><use href="#i-' + name + '"/></svg>';
+  // Versiering, geen inhoud: een schermlezer hoort hier niets voor te zeggen.
+  // De tekst ernaast zegt al waar de knop voor is.
+  return '<svg class="icon ' + extra + '" aria-hidden="true"><use href="#i-' + name + '"/></svg>';
 }
 
 export const CHANNEL_ICONS = {
@@ -84,6 +86,10 @@ export function ask({
 
   dialog.showModal();
   if (field) setTimeout(() => field.select(), 30);
+  // Zonder invoerveld staat de focus op Annuleren, want dat is de eerste knop.
+  // Bij een gewone vraag is doorgaan wat je bedoelt; bij iets onomkeerbaars
+  // laten we hem juist staan waar hij staat.
+  else if (!danger) setTimeout(() => okButton.focus(), 30);
 
   return new Promise((resolve) => {
     dialog.addEventListener(
@@ -91,6 +97,88 @@ export function ask({
       () => {
         if (dialog.returnValue !== 'ok') return resolve(false);
         resolve(input ? (field?.value.trim() || false) : true);
+      },
+      { once: true },
+    );
+  });
+}
+
+/**
+ * Springen naar iets, door te typen.
+ *
+ * Hetzelfde idee als kiesUit, maar met een zoekveld ervoor en toetsen eronder:
+ * pijltjes om te kiezen, Enter om te gaan. Bedoeld voor een lijst die te lang
+ * is om langs te scrollen.
+ */
+export function zoekUit({ title, items, placeholder = 'Typ om te zoeken…' }) {
+  const dialog = document.getElementById('dialog');
+
+  dialog.innerHTML =
+    '<form method="dialog" class="palet">' +
+    '<div class="dhead"><h3>' + escapeHtml(title) + '</h3></div>' +
+    '<div class="dbody"><input type="text" id="paletVeld" autocomplete="off" placeholder="' +
+    escapeHtml(placeholder) + '"></div>' +
+    '<div class="keuzes" id="paletLijst"></div>' +
+    '<div class="dfoot"><button value="cancel" type="submit">Sluiten</button></div>' +
+    '</form>';
+
+  const veld = dialog.querySelector('#paletVeld');
+  const lijst = dialog.querySelector('#paletLijst');
+  let zicht = items;
+  let hier = 0;
+
+  const teken = () => {
+    lijst.innerHTML = zicht
+      .map(
+        (item, plek) =>
+          '<button value="' + escapeHtml(String(plek)) + '" type="submit" class="keuze' +
+          (plek === hier ? ' hier' : '') + '">' +
+          '<strong>' + escapeHtml(item.naam) + '</strong>' +
+          (item.uitleg ? '<span>' + escapeHtml(item.uitleg) + '</span>' : '') +
+          '</button>',
+      )
+      .join('');
+    lijst.querySelector('.hier')?.scrollIntoView({ block: 'nearest' });
+  };
+
+  veld.oninput = () => {
+    const zoek = veld.value.trim().toLowerCase();
+    zicht = zoek
+      ? items.filter((item) => (item.naam + ' ' + (item.uitleg ?? '')).toLowerCase().includes(zoek))
+      : items;
+    hier = 0;
+    teken();
+  };
+
+  veld.onkeydown = (gebeurtenis) => {
+    // Enter in een formulier kiest de eerste knop; wij bedoelen de regel die
+    // oplicht, ook als je net met de pijltjes drie regels verder bent.
+    if (gebeurtenis.key === 'Enter') {
+      gebeurtenis.preventDefault();
+      if (zicht.length > 0) dialog.close(String(hier));
+      return;
+    }
+    if (gebeurtenis.key === 'ArrowDown' || gebeurtenis.key === 'ArrowUp') {
+      gebeurtenis.preventDefault();
+      if (zicht.length === 0) return;
+      hier = (hier + (gebeurtenis.key === 'ArrowDown' ? 1 : zicht.length - 1)) % zicht.length;
+      teken();
+    }
+  };
+
+  teken();
+  dialog.showModal();
+  setTimeout(() => veld.focus(), 30);
+
+  return new Promise((resolve) => {
+    dialog.addEventListener(
+      'close',
+      () => {
+        if (dialog.returnValue === 'cancel' || dialog.returnValue === '') return resolve(null);
+        // Enter in het zoekveld levert geen knopwaarde op; dan is het de regel
+        // die oplicht.
+        const plek = dialog.returnValue === 'default' ? hier : Number(dialog.returnValue);
+        resolve(zicht[plek] ?? null);
       },
       { once: true },
     );

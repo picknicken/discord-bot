@@ -612,7 +612,17 @@
     display: block; text-align: left; width: 100%; padding: 11px 13px; border-radius: var(--r-2);
     background: var(--surface-2); border: 1px solid var(--border); box-shadow: none;
   }
-  dialog .keuze:hover { border-color: var(--accent); background: var(--surface-3); }
+  dialog .keuze:hover, dialog .keuze.hier { border-color: var(--accent); background: var(--surface-3); }
+  dialog .palet .keuzes { max-height: 46vh; overflow-y: auto; padding-bottom: 12px; }
+  dialog .palet input { width: 100%; }
+
+  /* Een knop die zegt dat de sneltoets bestaat; anders vindt niemand hem. */
+  .springknop { gap: 6px; }
+  .springknop kbd {
+    font-family: var(--mono); font-size: 10px; padding: 1px 5px; border-radius: 5px;
+    background: var(--surface-3); color: var(--muted); border: 1px solid var(--border);
+  }
+  @media (max-width: 720px) { .springknop { display: none; } }
   dialog .keuze strong { display: block; font-size: 13.5px; }
   dialog .keuze span { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
   .toasts { position: fixed; right: 16px; bottom: 16px; z-index: 60; display: flex; flex-direction: column; gap: 8px; }
@@ -806,7 +816,10 @@
     <div class="sub" id="botSub"><span class="spinner" style="width:9px;height:9px"></span> verbinden</div>
   </div>
   <div id="who" class="who"></div>
-  <button id="themeToggle" class="btn-icon" title="Licht of donker"><svg class="icon"><use href="#i-moon"/></svg></button>
+  <button id="paletKnop" class="btn-sm springknop" title="Springen naar (Ctrl+K)">
+    <svg class="icon sm" aria-hidden="true"><use href="#i-eye"/></svg>Springen naar<kbd>Ctrl K</kbd></button>
+  <button id="themeToggle" class="btn-icon" title="Licht of donker" aria-label="Licht of donker thema">
+    <svg class="icon" aria-hidden="true"><use href="#i-moon"/></svg></button>
 </header>
 
 <div id="gate" class="gate" hidden>
@@ -816,24 +829,24 @@
     <p class="muted">Log in met Discord om je servers in te richten. Alleen de eigenaar van deze
       bot komt binnen.</p>
     <a class="btn-primary gatebtn" href="/auth/login">
-      <svg class="icon"><use href="#i-shield"/></svg> Inloggen met Discord</a>
+      <svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg> Inloggen met Discord</a>
     <p class="hint" id="gateNote"></p>
   </div>
 </div>
 
 <div class="app">
 <aside class="sidebar" id="sidebar">
-  <button data-scherm="overzicht"><svg class="icon"><use href="#i-server"/></svg>Overzicht</button>
-  <button data-scherm="templates"><svg class="icon"><use href="#i-folder"/></svg>Templates<span class="telling" id="telTemplates"></span></button>
-  <button data-scherm="servers"><svg class="icon"><use href="#i-shield"/></svg>Servers<span class="telling" id="telServers"></span></button>
-  <button data-scherm="uitrollen"><svg class="icon"><use href="#i-zap"/></svg>Uitrollen</button>
+  <button data-scherm="overzicht"><svg class="icon" aria-hidden="true"><use href="#i-server"/></svg>Overzicht</button>
+  <button data-scherm="templates"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg>Templates<span class="telling" id="telTemplates"></span></button>
+  <button data-scherm="servers"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg>Servers<span class="telling" id="telServers"></span></button>
+  <button data-scherm="uitrollen"><svg class="icon" aria-hidden="true"><use href="#i-zap"/></svg>Uitrollen</button>
   <div class="kop">OSRS</div>
-  <button data-scherm="clan"><svg class="icon"><use href="#i-crown"/></svg>Clan<span class="telling" id="telClan"></span></button>
+  <button data-scherm="clan"><svg class="icon" aria-hidden="true"><use href="#i-crown"/></svg>Clan<span class="telling" id="telClan"></span></button>
   <div class="kop">Terugkijken</div>
-  <button data-scherm="geschiedenis"><svg class="icon"><use href="#i-history"/></svg>Geschiedenis</button>
-  <button data-scherm="backups"><svg class="icon"><use href="#i-archive"/></svg>Back-ups</button>
+  <button data-scherm="geschiedenis"><svg class="icon" aria-hidden="true"><use href="#i-history"/></svg>Geschiedenis</button>
+  <button data-scherm="backups"><svg class="icon" aria-hidden="true"><use href="#i-archive"/></svg>Back-ups</button>
   <div class="kop">Deze bot</div>
-  <button data-scherm="instellingen"><svg class="icon"><use href="#i-shield"/></svg>Instellingen</button>
+  <button data-scherm="instellingen"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg>Instellingen</button>
   <div class="sidefoot">
     <div class="demobalk" id="demoBalk" hidden>
       <strong>Demomodus</strong><br>Nagemaakte servers. Er verandert niets in Discord.
@@ -854,12 +867,12 @@
   <div class="stats" id="overzichtStats"></div>
 
   <section class="panel" style="margin-bottom:14px">
-    <div class="phead"><svg class="icon"><use href="#i-alert"/></svg><h2 class="grow">Aandacht</h2></div>
+    <div class="phead"><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg><h2 class="grow">Aandacht</h2></div>
     <div class="pbody"><div id="overzichtProblemen"></div></div>
   </section>
 
   <section class="panel">
-    <div class="phead"><svg class="icon"><use href="#i-history"/></svg><h2 class="grow">Laatst uitgerold</h2></div>
+    <div class="phead"><svg class="icon" aria-hidden="true"><use href="#i-history"/></svg><h2 class="grow">Laatst uitgerold</h2></div>
     <div class="pbody"><div id="overzichtRecent"></div></div>
   </section>
 </section>
@@ -874,7 +887,7 @@
   <div class="kaarten" id="serverCards"></div>
   <div id="joinable"></div>
   <div class="row" style="margin-top:16px">
-    <button id="exportGuild" class="btn-sm"><svg class="icon sm"><use href="#i-download"/></svg>Server opslaan als template</button>
+    <button id="exportGuild" class="btn-sm"><svg class="icon sm" aria-hidden="true"><use href="#i-download"/></svg>Server opslaan als template</button>
   </div>
 </section>
 
@@ -912,7 +925,7 @@
     <div class="pbody">
       <div id="backupList"></div>
       <div class="row" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
-        <button id="backupUit" class="btn-sm"><svg class="icon sm"><use href="#i-up"/></svg>Back-up uit bestand terugzetten</button>
+        <button id="backupUit" class="btn-sm"><svg class="icon sm" aria-hidden="true"><use href="#i-up"/></svg>Back-up uit bestand terugzetten</button>
         <input type="file" id="backupBestand" accept="application/json,.json" hidden>
       </div>
       <div id="backupResult"></div>
@@ -933,14 +946,14 @@
 
 <section class="view tweeluik" id="view-templates">
   <section class="panel" id="scherm-templates">
-    <div class="phead"><svg class="icon"><use href="#i-folder"/></svg><h2 class="grow">Templates</h2></div>
+    <div class="phead"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg><h2 class="grow">Templates</h2></div>
     <div id="templateList"></div>
     <div class="pbody">
       <div class="row">
-        <button id="newTemplate" class="btn-sm"><svg class="icon sm"><use href="#i-plus"/></svg>Nieuw</button>
-        <button id="dupTemplate" class="btn-sm" disabled><svg class="icon sm"><use href="#i-copy"/></svg>Kopie</button>
-        <button id="importTemplate" class="btn-sm"><svg class="icon sm"><use href="#i-download"/></svg>Import</button>
-        <button id="delTemplate" class="btn-sm btn-danger" disabled><svg class="icon sm"><use href="#i-trash"/></svg></button>
+        <button id="newTemplate" class="btn-sm"><svg class="icon sm" aria-hidden="true"><use href="#i-plus"/></svg>Nieuw</button>
+        <button id="dupTemplate" class="btn-sm" disabled><svg class="icon sm" aria-hidden="true"><use href="#i-copy"/></svg>Kopie</button>
+        <button id="importTemplate" class="btn-sm"><svg class="icon sm" aria-hidden="true"><use href="#i-download"/></svg>Import</button>
+        <button id="delTemplate" class="btn-sm btn-danger" disabled><svg class="icon sm" aria-hidden="true"><use href="#i-trash"/></svg></button>
         <input type="file" id="importFile" accept="application/json,.json" hidden>
       </div>
     </div>
@@ -948,11 +961,11 @@
 
   <section class="panel" id="scherm-bewerken">
     <div class="phead">
-      <svg class="icon"><use href="#i-file"/></svg>
+      <svg class="icon" aria-hidden="true"><use href="#i-file"/></svg>
       <h2 class="grow" id="editorTitle">Geen template gekozen</h2>
       <span id="saveNote" class="muted" style="font-size:11.5px"></span>
-      <button id="undo" class="btn-icon" title="Ongedaan maken (Ctrl+Z)" disabled><svg class="icon"><use href="#i-undo"/></svg></button>
-      <button id="redo" class="btn-icon" title="Opnieuw (Ctrl+Shift+Z)" disabled><svg class="icon" style="transform:scaleX(-1)"><use href="#i-undo"/></svg></button>
+      <button id="undo" class="btn-icon" title="Ongedaan maken (Ctrl+Z)" disabled><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg></button>
+      <button id="redo" class="btn-icon" title="Opnieuw (Ctrl+Shift+Z)" disabled><svg class="icon" aria-hidden="true" style="transform:scaleX(-1)"><use href="#i-undo"/></svg></button>
     </div>
     <div class="tabs">
       <button id="tabTree" aria-selected="true">Structuur</button>
@@ -962,18 +975,18 @@
     </div>
     <div class="pbody">
       <div id="treeView">
-        <div class="empty"><svg class="icon"><use href="#i-file"/></svg><div>Kies links een template om te bewerken.</div></div>
+        <div class="empty"><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg><div>Kies links een template om te bewerken.</div></div>
       </div>
       <div id="checkView" hidden>
         <div class="row" style="margin-bottom:14px">
-          <button id="runCheck" class="btn-primary"><svg class="icon sm"><use href="#i-check"/></svg>Controleer</button>
+          <button id="runCheck" class="btn-primary"><svg class="icon sm" aria-hidden="true"><use href="#i-check"/></svg>Controleer</button>
           <span class="muted" style="font-size:12px">werkt op wat er nu in de editor staat</span>
         </div>
         <div id="checkResult"></div>
       </div>
       <div id="serverView" hidden>
         <div class="row" style="margin-bottom:14px">
-          <button id="runCompare" class="btn-primary"><svg class="icon sm"><use href="#i-server"/></svg>Vergelijk</button>
+          <button id="runCompare" class="btn-primary"><svg class="icon sm" aria-hidden="true"><use href="#i-server"/></svg>Vergelijk</button>
           <span class="muted" style="font-size:12px">met de eerst aangevinkte server</span>
         </div>
         <div id="compareResult"></div>
@@ -981,13 +994,13 @@
       <div id="jsonView" hidden>
         <textarea id="editor" spellcheck="false"></textarea>
         <div class="row">
-          <button id="save" class="btn-primary"><svg class="icon sm"><use href="#i-save"/></svg>Opslaan</button>
-          <button id="revert"><svg class="icon sm"><use href="#i-undo"/></svg>Terug</button>
-          <button id="download"><svg class="icon sm"><use href="#i-download"/></svg>Download</button>
+          <button id="save" class="btn-primary"><svg class="icon sm" aria-hidden="true"><use href="#i-save"/></svg>Opslaan</button>
+          <button id="revert"><svg class="icon sm" aria-hidden="true"><use href="#i-undo"/></svg>Terug</button>
+          <button id="download"><svg class="icon sm" aria-hidden="true"><use href="#i-download"/></svg>Download</button>
         </div>
 
         <details id="versieblok" style="margin-top:14px">
-          <summary><svg class="icon sm"><use href="#i-history"/></svg> Versies</summary>
+          <summary><svg class="icon sm" aria-hidden="true"><use href="#i-history"/></svg> Versies</summary>
           <div id="versions"></div>
         </details>
       </div>
@@ -997,7 +1010,7 @@
 
 <section class="view" id="view-uitrollen">
   <section class="panel" id="scherm-uitrollen">
-    <div class="phead"><svg class="icon"><use href="#i-server"/></svg><h2 class="grow">Uitrollen</h2></div>
+    <div class="phead"><svg class="icon" aria-hidden="true"><use href="#i-server"/></svg><h2 class="grow">Uitrollen</h2></div>
     <div class="pbody">
       <div id="guildList"></div>
       <div class="row" style="margin-top:4px">
@@ -1022,7 +1035,7 @@
       </div>
 
       <details id="onderdelenBlok" style="margin-top:14px">
-        <summary><svg class="icon sm"><use href="#i-shield"/></svg> Welke onderdelen (standaard alles)</summary>
+        <summary><svg class="icon sm" aria-hidden="true"><use href="#i-shield"/></svg> Welke onderdelen (standaard alles)</summary>
         <p class="hint" style="margin:6px 0 8px">
           Vink uit wat je met rust wilt laten. Handig als je alleen de rollen wilt bijwerken.
         </p>
@@ -1034,8 +1047,8 @@
       </details>
 
       <div class="row" style="margin-top:14px">
-        <button id="preview"><svg class="icon sm"><use href="#i-play"/></svg>Preview</button>
-        <button id="apply" class="btn-primary"><svg class="icon sm"><use href="#i-zap"/></svg>Toepassen</button>
+        <button id="preview"><svg class="icon sm" aria-hidden="true"><use href="#i-play"/></svg>Preview</button>
+        <button id="apply" class="btn-primary"><svg class="icon sm" aria-hidden="true"><use href="#i-zap"/></svg>Toepassen</button>
       </div>
 
       <div id="planResult"></div>
@@ -1051,24 +1064,24 @@
   staan nu achter "Meer", dat oplicht als je op zo'n scherm bent.
 -->
 <nav class="mobilenav" id="mobilenav">
-  <button data-scherm="overzicht"><svg class="icon"><use href="#i-server"/></svg><span>Overzicht</span></button>
-  <button data-scherm="templates"><svg class="icon"><use href="#i-folder"/></svg><span>Templates</span></button>
-  <button data-scherm="servers"><svg class="icon"><use href="#i-shield"/></svg><span>Servers</span></button>
-  <button data-scherm="uitrollen"><svg class="icon"><use href="#i-zap"/></svg><span>Uitrollen</span></button>
-  <button id="meerKnop"><svg class="icon"><use href="#i-meer"/></svg><span>Meer</span></button>
+  <button data-scherm="overzicht"><svg class="icon" aria-hidden="true"><use href="#i-server"/></svg><span>Overzicht</span></button>
+  <button data-scherm="templates"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg><span>Templates</span></button>
+  <button data-scherm="servers"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg><span>Servers</span></button>
+  <button data-scherm="uitrollen"><svg class="icon" aria-hidden="true"><use href="#i-zap"/></svg><span>Uitrollen</span></button>
+  <button id="meerKnop"><svg class="icon" aria-hidden="true"><use href="#i-meer"/></svg><span>Meer</span></button>
 </nav>
 
 <dialog id="meerBlad" class="blad">
   <div class="bladkop">Meer</div>
-  <button data-scherm="clan"><svg class="icon"><use href="#i-crown"/></svg><span class="grow">Clan</span></button>
-  <button data-scherm="geschiedenis"><svg class="icon"><use href="#i-history"/></svg><span class="grow">Geschiedenis</span></button>
-  <button data-scherm="backups"><svg class="icon"><use href="#i-archive"/></svg><span class="grow">Back-ups</span></button>
-  <button data-scherm="instellingen"><svg class="icon"><use href="#i-shield"/></svg><span class="grow">Instellingen</span></button>
-  <button id="bladThema"><svg class="icon"><use href="#i-moon"/></svg><span class="grow">Licht of donker</span></button>
+  <button data-scherm="clan"><svg class="icon" aria-hidden="true"><use href="#i-crown"/></svg><span class="grow">Clan</span></button>
+  <button data-scherm="geschiedenis"><svg class="icon" aria-hidden="true"><use href="#i-history"/></svg><span class="grow">Geschiedenis</span></button>
+  <button data-scherm="backups"><svg class="icon" aria-hidden="true"><use href="#i-archive"/></svg><span class="grow">Back-ups</span></button>
+  <button data-scherm="instellingen"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg><span class="grow">Instellingen</span></button>
+  <button id="bladThema"><svg class="icon" aria-hidden="true"><use href="#i-moon"/></svg><span class="grow">Licht of donker</span></button>
   <button id="bladSluit" class="bladsluit">Sluiten</button>
 </dialog>
 
-<div class="toasts" id="toasts"></div>
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 <dialog id="dialog"></dialog>
 
 <script type="module" src="app.js"></script>

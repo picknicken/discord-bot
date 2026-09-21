@@ -1,6 +1,6 @@
 import { renderEditor, resetSelection, zetFocus } from './editor.js';
 import { clanTelling, koppelClan, toonClan } from './clan.js';
-import { ask, busy, CHANNEL_ICONS, emptyState, escapeHtml as escape, icon, initTheme, kanDownloaden, kiesUit, toast, toonTekst } from './ui.js';
+import { ask, busy, CHANNEL_ICONS, emptyState, escapeHtml as escape, icon, initTheme, kanDownloaden, kiesUit, toast, toonTekst, zoekUit } from './ui.js';
 
 const state = {
   templates: [], guilds: [], backups: [], permissions: [],
@@ -1697,6 +1697,84 @@ $('undo').onclick = undo;
 $('redo').onclick = redo;
 $('runCheck').onclick = () => runCheck();
 $('save').onclick = save;
+
+/**
+ * Springen zonder te zoeken waar iets staat.
+ *
+ * Met acht schermen, je templates en je servers erbij is klikken langs de
+ * zijbalk de langste weg. Ctrl+K (of Cmd+K) opent een lijst waarin je typt.
+ */
+function paletKeuzes() {
+  const schermen = [
+    ['overzicht', 'Overzicht'],
+    ['templates', 'Templates'],
+    ['servers', 'Servers'],
+    ['uitrollen', 'Uitrollen'],
+    ['clan', 'Clan'],
+    ['geschiedenis', 'Geschiedenis'],
+    ['backups', 'Back-ups'],
+    ['instellingen', 'Instellingen'],
+  ];
+
+  const keuzes = schermen.map(([scherm, naam]) => ({
+    naam,
+    uitleg: 'Ga naar dit scherm',
+    doe: () => toonScherm(scherm),
+  }));
+
+  for (const template of state.templates) {
+    keuzes.push({
+      naam: template.id,
+      uitleg: 'Template openen',
+      doe: async () => {
+        await select(template.id);
+        toonScherm('bewerken');
+      },
+    });
+  }
+
+  for (const guild of state.guilds) {
+    keuzes.push({
+      naam: guild.name,
+      uitleg: 'Deze server uitrollen',
+      doe: () => {
+        toonScherm('uitrollen');
+        kiesAlleenServer(guild.id);
+      },
+    });
+  }
+
+  if (state.selected) {
+    keuzes.push({ naam: 'Preview draaien', uitleg: 'Voor "' + state.selected + '"', doe: () => preview() });
+  }
+
+  return keuzes;
+}
+
+async function palet() {
+  const keuze = await zoekUit({ title: 'Waar wil je heen?', items: paletKeuzes() });
+  if (keuze) await keuze.doe();
+}
+
+$('paletKnop').onclick = () => void palet();
+
+document.addEventListener('keydown', (gebeurtenis) => {
+  const metToets = gebeurtenis.metaKey || gebeurtenis.ctrlKey;
+  if (!metToets) return;
+
+  if (gebeurtenis.key === 'k' || gebeurtenis.key === 'K') {
+    gebeurtenis.preventDefault();
+    void palet();
+    return;
+  }
+
+  // Opslaan waar je het verwacht: in de editor. Zonder dit bood de browser aan
+  // om de hele pagina als bestand te bewaren.
+  if ((gebeurtenis.key === 's' || gebeurtenis.key === 'S') && state.selected && VIEW_VAN[state.scherm] === 'templates') {
+    gebeurtenis.preventDefault();
+    void save();
+  }
+});
 $('preview').onclick = () => preview();
 $('apply').onclick = () => apply();
 
