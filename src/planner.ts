@@ -51,6 +51,16 @@ export interface Plan {
   options: PlanOptions;
   actions: PlanAction[];
   warnings: string[];
+  /**
+   * Welk kanaal en welke categorie de planner bedoelde, per naam uit de template.
+   *
+   * De uitroller heeft namen nodig die hij niet uit een actie haalt: het
+   * meldkanaal van een AutoMod-regel, de kanalen bij een onboardingvraag, het
+   * systeem- en regelskanaal. Zocht hij die zelf op, dan koos hij bij twee
+   * kanalen met dezelfde naam een andere dan de planner - en zette hij de
+   * verwijzing op het kanaal dat de planner net had laten vallen.
+   */
+  gekozenIds: { kanalen: Record<string, string>; categorieen: Record<string, string> };
 }
 
 const normalize = (value: string) => value.trim().toLowerCase();
@@ -184,10 +194,12 @@ function planChannels(snapshot: GuildSnapshot, template: ServerTemplate, options
   actions: PlanAction[];
   keptChannelIds: Set<string>;
   keptCategoryIds: Set<string>;
+  gekozenIds: { kanalen: Record<string, string>; categorieen: Record<string, string> };
 } {
   const actions: PlanAction[] = [];
   const keptChannelIds = new Set<string>();
   const keptCategoryIds = new Set<string>();
+  const gekozenIds = { kanalen: {} as Record<string, string>, categorieen: {} as Record<string, string> };
 
   const rolIds = rolIdsVanTemplate(snapshot, template);
   const categoryByName = new Map(snapshot.categories.map((category) => [normalize(category.name), category]));
@@ -211,6 +223,7 @@ function planChannels(snapshot: GuildSnapshot, template: ServerTemplate, options
     }
 
     keptCategoryIds.add(existingCategory.id);
+    gekozenIds.categorieen[normalize(category.name)] = existingCategory.id;
     if (options.update && !rechtenGelijk(category.overwrites, existingCategory.overwrites, rolIds)) {
       actions.push({
         kind: 'update-category',
@@ -227,6 +240,7 @@ function planChannels(snapshot: GuildSnapshot, template: ServerTemplate, options
         continue;
       }
       keptChannelIds.add(existing.id);
+      gekozenIds.kanalen[normalize(channel.name)] = existing.id;
       if (!options.update) continue;
 
       // Een kanaal erft de rechten van zijn categorie zodra het er zelf geen
@@ -254,6 +268,7 @@ function planChannels(snapshot: GuildSnapshot, template: ServerTemplate, options
       continue;
     }
     keptChannelIds.add(existing.id);
+    gekozenIds.kanalen[normalize(channel.name)] = existing.id;
     if (!options.update) continue;
 
     const changes = channelChanges(channel, existing);
@@ -265,7 +280,7 @@ function planChannels(snapshot: GuildSnapshot, template: ServerTemplate, options
     actions.push({ kind: 'update-channel', channelId: existing.id, channel, categoryName: null, changes });
   }
 
-  return { actions, keptChannelIds, keptCategoryIds };
+  return { actions, keptChannelIds, keptCategoryIds, gekozenIds };
 }
 
 function planEmojis(snapshot: GuildSnapshot, template: ServerTemplate): PlanAction[] {
@@ -671,7 +686,7 @@ export function planSetup(snapshot: GuildSnapshot, template: ServerTemplate, opt
     }
   }
 
-  return { templateName: template.name, options, actions, warnings };
+  return { templateName: template.name, options, actions, warnings, gekozenIds: channelPlan.gekozenIds };
 }
 
 export function summarizePlan(plan: Plan): string {

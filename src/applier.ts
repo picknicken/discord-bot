@@ -118,10 +118,13 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
   /**
    * Namen -> echte kanaal-ids, bijgewerkt zodra er iets wordt aangemaakt.
    *
-   * Wat dit plan weggooit doet niet mee. Staan er twee kanalen met dezelfde naam
-   * - de ene uit de template, de andere blijven liggen van een eerdere uitrol -
-   * dan zou de laatste in de lijst winnen, en dat is willekeurig. Dan wees het
-   * regelskanaal naar het kanaal dat net weg zou gaan.
+   * Wat de planner al gekozen heeft gaat voor. Zocht de uitroller het zelf op,
+   * dan koos hij bij twee kanalen met dezelfde naam een andere dan de planner -
+   * en zette hij het regelskanaal op het kanaal dat net was weggevallen.
+   *
+   * De rest komt van de server, voor namen die in het plan niet voorkomen (het
+   * meldkanaal van een AutoMod-regel hoeft niet in de template te staan). Wat
+   * dit plan weggooit doet niet mee.
    */
   const weg = new Set(
     plan.actions.filter((actie) => actie.kind === 'delete-channel').map((actie) => actie.channelId),
@@ -133,6 +136,8 @@ export async function applyPlan(guild: Guild, template: ServerTemplate, plan: Pl
     if (channel.type === ChannelType.GuildCategory) categoryIds.set(normalize(channel.name), channel.id);
     else if (!channel.isThread()) channelIds.set(normalize(channel.name), channel.id);
   }
+  for (const [naam, id] of Object.entries(plan.gekozenIds?.categorieen ?? {})) categoryIds.set(naam, id);
+  for (const [naam, id] of Object.entries(plan.gekozenIds?.kanalen ?? {})) channelIds.set(naam, id);
 
   /**
    * Een weggegooid kanaal uit de naamlijst halen.
