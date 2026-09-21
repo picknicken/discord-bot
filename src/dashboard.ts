@@ -4,6 +4,7 @@ import { koppelBot } from './bot.js';
 import { zaaiTemplates } from './templates.js';
 import { authEnabled, createDashboard } from './dashboard/server.js';
 import { startAutomatischeSync } from './clan/synchroniseren.js';
+import { startDriftWacht } from './driftWacht.js';
 import { kiesIntents } from './util/intents.js';
 import { logger } from './util/logger.js';
 import { login } from './util/start.js';
@@ -63,6 +64,18 @@ client.once(Events.ClientReady, async (ready) => {
   // Ook hier, want wie alleen het dashboard draait heeft verder geen proces dat
   // de clanrangen bijhoudt.
   if (config.clanSyncMinuten > 0) startAutomatischeSync(ready, config.clanDir, config.clanSyncMinuten);
+
+  // En hetzelfde voor de controle of een server is afgedwaald: dit is het proces
+  // dat op een host dag en nacht draait.
+  if (config.driftCheckUren > 0) {
+    startDriftWacht(ready, {
+      historyDir: config.historyDir,
+      templatesDir: config.templatesDir,
+      toegestaneServers: config.toegestaneServers,
+      uren: config.driftCheckUren,
+    });
+    logger.info(`Elke ${config.driftCheckUren} uur wordt gekeken of een server is afgedwaald.`);
+  }
 
   const server = createDashboard(ready, { applicationOwners: owners });
 

@@ -657,6 +657,22 @@ van de server kan door niemand hernoemd worden, ook niet door een bot met alle r
 rollen lukken wel. Er is geen privileged intent nodig: de bot haalt alleen de leden op die
 gekoppeld zijn, op id.
 
+## Zelf kijken of een server afdwaalt
+
+Een server dwaalt af zonder dat iemand het merkt: een kanaal erbij, een recht eraf, een naam
+veranderd. Het dashboard laat dat zien zodra je kijkt — maar je kijkt pas als je al iets
+vermoedt.
+
+Dus kijkt de bot zelf. Standaard elk etmaal (`DRIFT_CHECK_UREN`, 0 is uit) vergelijkt hij elke
+server met de template die er het laatst echt op ging — uit het logboek, dus een preview telt
+niet mee. Wijkt er iets af, dan zegt hij dat in de server zelf: in het systeemkanaal, anders in
+het eerste kanaal waar hij mag praten, anders als DM naar de eigenaar.
+
+Alleen als er iets verandert. Dezelfde afwijking elke dag opnieuw melden is geen melding meer
+maar behang, dus hij onthoudt wat hij gemeld heeft in `drift-gemeld.json` naast het logboek. Gaat
+het aantal omhoog of omlaag, of ging er een andere template op, dan hoor je het. Klopt de server
+weer, dan hoor je dat ook — één keer.
+
 ## Hoe het werkt
 
 ```

@@ -4,6 +4,7 @@ import { koppelBot } from './bot.js';
 import { zaaiTemplates } from './templates.js';
 import { buildInviteUrl } from './botPermissions.js';
 import { startAutomatischeSync } from './clan/synchroniseren.js';
+import { startDriftWacht } from './driftWacht.js';
 import { kiesIntents } from './util/intents.js';
 import { logger } from './util/logger.js';
 import { login } from './util/start.js';
@@ -21,6 +22,7 @@ client.once(Events.ClientReady, (ready) => {
   logger.info(`Ingelogd als ${ready.user.tag} — actief in ${ready.guilds.cache.size} server(s)`);
   logger.info(`Invite-link met de juiste rechten: ${buildInviteUrl(ready.application.id)}`);
   volgClanrangen(ready);
+  volgAfwijkingen(ready);
 });
 
 koppelBot(client);
@@ -34,6 +36,23 @@ function volgClanrangen(ready: Client<true>): void {
   if (config.clanSyncMinuten <= 0) return;
   startAutomatischeSync(ready, config.clanDir, config.clanSyncMinuten);
   logger.info(`Clanrangen worden elke ${config.clanSyncMinuten} minuten bijgewerkt waar dat aanstaat.`);
+}
+
+/**
+ * Een server dwaalt af zonder dat iemand het merkt. Het dashboard laat het zien
+ * zodra je kijkt, maar je kijkt pas als je al iets vermoedt - dus kijkt de bot
+ * zelf, en zegt het in de server zodra er iets verandert.
+ */
+function volgAfwijkingen(ready: Client<true>): void {
+  if (config.driftCheckUren <= 0) return;
+
+  startDriftWacht(ready, {
+    historyDir: config.historyDir,
+    templatesDir: config.templatesDir,
+    toegestaneServers: config.toegestaneServers,
+    uren: config.driftCheckUren,
+  });
+  logger.info(`Elke ${config.driftCheckUren} uur wordt gekeken of een server is afgedwaald.`);
 }
 
 process.on('unhandledRejection', (reason) => logger.error('Onafgehandelde rejection', reason));
