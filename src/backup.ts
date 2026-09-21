@@ -18,6 +18,8 @@ export interface BackupEntry {
   createdAt: string;
   roles: number;
   channels: number;
+  /** Waarvoor hij gemaakt is: "voor-inrichten", "voor-leeghalen", "vanzelf". */
+  label: string;
 }
 
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
@@ -56,6 +58,7 @@ export async function listBackups(dir: string): Promise<BackupEntry[]> {
         guildId?: string;
         guildName?: string;
         createdAt?: string;
+        label?: string;
         template?: ServerTemplate;
       };
       entries.push({
@@ -63,6 +66,7 @@ export async function listBackups(dir: string): Promise<BackupEntry[]> {
         guildId: parsed.guildId ?? '',
         guildName: parsed.guildName ?? '(onbekend)',
         createdAt: parsed.createdAt ?? '',
+        label: parsed.label ?? 'auto',
         roles: parsed.template?.roles.length ?? 0,
         channels:
           (parsed.template?.categories ?? []).reduce((sum, category) => sum + category.channels.length, 0) +

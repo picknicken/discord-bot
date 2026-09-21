@@ -4,6 +4,7 @@ import { koppelBot } from './bot.js';
 import { zaaiTemplates } from './templates.js';
 import { authEnabled, createDashboard } from './dashboard/server.js';
 import { startAutomatischeSync } from './clan/synchroniseren.js';
+import { startBackupWacht } from './backupWacht.js';
 import { startDriftWacht } from './driftWacht.js';
 import { kiesIntents } from './util/intents.js';
 import { logger } from './util/logger.js';
@@ -75,6 +76,18 @@ client.once(Events.ClientReady, async (ready) => {
       uren: config.driftCheckUren,
     });
     logger.info(`Elke ${config.driftCheckUren} uur wordt gekeken of een server is afgedwaald.`);
+  }
+
+  // En af en toe een momentopname, ook als er niets gebeurt: anders heb je er
+  // alleen een van vlak voor de laatste uitrol, en die kan maanden oud zijn.
+  if (config.backupUren > 0) {
+    startBackupWacht(ready, {
+      backupsDir: config.backupsDir,
+      toegestaneServers: config.toegestaneServers,
+      uren: config.backupUren,
+      bewaar: config.backupBewaar,
+    });
+    logger.info(`Elke ${config.backupUren} uur een momentopname; de laatste ${config.backupBewaar} blijven staan.`);
   }
 
   const server = createDashboard(ready, { applicationOwners: owners });

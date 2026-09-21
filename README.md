@@ -657,6 +657,17 @@ van de server kan door niemand hernoemd worden, ook niet door een bot met alle r
 rollen lukken wel. Er is geen privileged intent nodig: de bot haalt alleen de leden op die
 gekoppeld zijn, op id.
 
+## Vanzelf een momentopname
+
+Er werd alleen een back-up gemaakt vlak voor een uitrol of een leeghaal. Gebeurt er een maand
+niets en gaat er dan iets mis, dan is je laatste momentopname een maand oud — of is er geen.
+
+Standaard maakt de bot er daarom elke week zelf een van elke server (`BACKUP_UREN`, 0 is uit).
+De laatste acht per server blijven staan (`BACKUP_BEWAAR`); wat daarvoor zit gaat weg, anders
+loopt een volume vol met bestanden die niemand ooit opent. Opgeruimd wordt alleen wat vanzelf
+gemaakt is — een back-up van vlak voor een uitrol blijft staan, want die heb je juist bewaard
+omdat er iets stond te gebeuren.
+
 ## Zelf kijken of een server afdwaalt
 
 Een server dwaalt af zonder dat iemand het merkt: een kanaal erbij, een recht eraf, een naam
