@@ -470,6 +470,11 @@
   }
   .node:hover { background: var(--surface-2); }
   .node.on { background: color-mix(in srgb, var(--accent) 13%, transparent); color: var(--text); font-weight: 500; }
+  /* Slepen om te ordenen; de pijltjesknoppen blijven, want op een telefoon
+     werkt dit niet. */
+  .node[draggable="true"] { cursor: grab; }
+  .node[draggable="true"]:active { cursor: grabbing; }
+  .node.sleepdoel { outline: 2px dashed var(--accent); outline-offset: -2px; background: var(--surface-2); }
   .node .icon { color: var(--muted); }
   .node.on .icon { color: var(--accent); }
   .node .tools { display: none; gap: 1px; }
