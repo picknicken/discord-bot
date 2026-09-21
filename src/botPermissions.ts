@@ -13,13 +13,20 @@ export const REQUIRED_PERMISSIONS = [
   PermissionFlagsBits.ManageGuild,
 ] as const;
 
-/** Nodig om te kunnen terugkoppelen: berichten, embeds en het export-bestand. */
+/**
+ * Nodig om te kunnen terugkoppelen: berichten, embeds en het export-bestand.
+ *
+ * Auditlog hoort hier ook bij. Zonder dat recht kan de bot wel zeggen dát een
+ * server is afgeweken, maar niet hoe het zo gekomen is - en dat is meestal
+ * precies de vraag.
+ */
 export const RECOMMENDED_PERMISSIONS = [
   PermissionFlagsBits.ViewChannel,
   PermissionFlagsBits.SendMessages,
   PermissionFlagsBits.EmbedLinks,
   PermissionFlagsBits.AttachFiles,
   PermissionFlagsBits.ReadMessageHistory,
+  PermissionFlagsBits.ViewAuditLog,
 ] as const;
 
 /**

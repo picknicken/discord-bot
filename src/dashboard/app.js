@@ -925,7 +925,12 @@ function renderServerDetail() {
     '<section class="panel"><div class="phead">' + icon('archive') +
     '<h2 class="grow">Back-ups</h2></div><div class="pbody">' +
     (backups.length ? backups.map(backupRij).join('') : '<p class="hint">Nog geen back-ups van deze server.</p>') +
-    '</div></section></div>';
+    '</div></section></div>' +
+    '<section class="panel" style="margin-top:14px"><div class="phead">' + icon('history') +
+    '<h2 class="grow">Wie heeft wat veranderd</h2></div>' +
+    '<div class="pbody" id="wijzigingenLijst">' + busy('Auditlog lezen…') + '</div></section>';
+
+  void laadWijzigingen(guild.id);
 
   for (const knop of $('serverDetail').querySelectorAll('[data-backup]')) {
     knop.onclick = () => restoreBackup(knop.dataset.backup);
@@ -949,6 +954,63 @@ function renderServerDetail() {
 
   for (const knop of $('serverDetail').querySelectorAll('[data-doe]')) {
     knop.onclick = () => void doe[knop.dataset.doe]();
+  }
+}
+
+const WIJZIGING_ICOON = {
+  kanaal: 'hash',
+  rol: 'shield',
+  rechten: 'shield',
+  server: 'server',
+  automod: 'alert',
+  emoji: 'zap',
+};
+
+const WIJZIGING_TEKEN = { erbij: '+', weg: '-', anders: '~' };
+
+/**
+ * Wat er recent in de server is veranderd, en door wie.
+ *
+ * Dat een server afwijkt van zijn template zegt wát er anders is, niet hoe het
+ * zo gekomen is - en meestal is dat juist de vraag: is dit expres gebeurd?
+ */
+async function laadWijzigingen(guildId) {
+  const doel = $('wijzigingenLijst');
+  if (!doel) return;
+
+  try {
+    const data = await api('/wijzigingen/' + encodeURIComponent(guildId), { timeout: 20000 });
+
+    if (!data.mag) {
+      doel.innerHTML =
+        '<p class="hint">De bot mag het auditlog van deze server niet lezen. Geef hem het recht ' +
+        '<strong>Auditlog bekijken</strong>, dan staat hier wie wat veranderde.</p>';
+      return;
+    }
+
+    if (data.wijzigingen.length === 0) {
+      doel.innerHTML = '<p class="hint">Niets veranderd in de periode die Discord bewaart.</p>';
+      return;
+    }
+
+    doel.innerHTML =
+      '<div class="diff">' +
+      data.wijzigingen
+        .map(
+          (wijziging) =>
+            '<div class="diffrij ' +
+            (wijziging.wat === 'erbij' ? 'nieuw' : wijziging.wat === 'weg' ? 'weg' : 'anders') + '">' +
+            '<span class="teken">' + WIJZIGING_TEKEN[wijziging.wat] + '</span>' +
+            icon(WIJZIGING_ICOON[wijziging.soort] || 'info', 'sm') +
+            '<span class="grow truncate">' + escape(wijziging.naam) +
+            '<span class="waar"> · ' + escape(wijziging.soort) + '</span></span>' +
+            '<span class="detail truncate">' + escape(wijziging.door) + ' · ' +
+            escape(prettyStamp(wijziging.at)) + '</span></div>',
+        )
+        .join('') +
+      '</div>';
+  } catch (error) {
+    doel.innerHTML = '<p class="hint">' + escape(error.message) + '</p>';
   }
 }
 
