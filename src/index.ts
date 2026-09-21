@@ -4,6 +4,7 @@ import { koppelBot } from './bot.js';
 import { zaaiTemplates } from './templates.js';
 import { buildInviteUrl } from './botPermissions.js';
 import { startAutomatischeSync } from './clan/synchroniseren.js';
+import { startBackupWacht } from './backupWacht.js';
 import { startDriftWacht } from './driftWacht.js';
 import { kiesIntents } from './util/intents.js';
 import { logger } from './util/logger.js';
@@ -23,6 +24,7 @@ client.once(Events.ClientReady, (ready) => {
   logger.info(`Invite-link met de juiste rechten: ${buildInviteUrl(ready.application.id)}`);
   volgClanrangen(ready);
   volgAfwijkingen(ready);
+  maakMomentopnames(ready);
 });
 
 koppelBot(client);
@@ -53,6 +55,23 @@ function volgAfwijkingen(ready: Client<true>): void {
     uren: config.driftCheckUren,
   });
   logger.info(`Elke ${config.driftCheckUren} uur wordt gekeken of een server is afgedwaald.`);
+}
+
+/**
+ * Een momentopname ook als er niets gebeurt. Er werd er alleen een gemaakt vlak
+ * voor een uitrol; gebeurt er een maand niets en gaat er dan iets mis, dan is
+ * dat je laatste - of is er geen.
+ */
+function maakMomentopnames(ready: Client<true>): void {
+  if (config.backupUren <= 0) return;
+
+  startBackupWacht(ready, {
+    backupsDir: config.backupsDir,
+    toegestaneServers: config.toegestaneServers,
+    uren: config.backupUren,
+    bewaar: config.backupBewaar,
+  });
+  logger.info(`Elke ${config.backupUren} uur een momentopname; de laatste ${config.backupBewaar} blijven staan.`);
 }
 
 process.on('unhandledRejection', (reason) => logger.error('Onafgehandelde rejection', reason));

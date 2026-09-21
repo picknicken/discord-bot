@@ -80,6 +80,10 @@ export const config = {
   clanSyncMinuten: Math.max(0, Number(schoon(process.env.CLAN_SYNC_MINUTEN) || 60)),
   /** Hoe vaak de bot zelf kijkt of een server is afgedwaald. 0 is uit. */
   driftCheckUren: Math.max(0, Number(schoon(process.env.DRIFT_CHECK_UREN) || 24)),
+  /** Hoe vaak er vanzelf een momentopname wordt gemaakt. 0 is uit. */
+  backupUren: Math.max(0, Number(schoon(process.env.BACKUP_UREN) || 168)),
+  /** Hoeveel automatische momentopnames er per server bewaard blijven. */
+  backupBewaar: Math.max(1, Number(schoon(process.env.BACKUP_BEWAAR) || 8)),
   /**
    * Server-ids waar deze installatie iets mag. Leeg = geen beperking.
    * Vooral voor GitHub Actions: daar is het server-id een invoerveld.

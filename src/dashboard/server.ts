@@ -205,6 +205,8 @@ async function handle(
         },
         volume: process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DATA_DIR || null,
         driftCheckUren: config.driftCheckUren,
+        backupUren: config.backupUren,
+        backupBewaar: config.backupBewaar,
         inviteUrl: config.clientId ? buildInviteUrl(config.clientId) : null,
       },
     });

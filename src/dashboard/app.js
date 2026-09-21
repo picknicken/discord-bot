@@ -536,6 +536,15 @@ function renderInstellingen(instellingen) {
   const kijken =
     '<div class="rijen" style="margin-bottom:14px">' +
     rij(
+      'Vanzelf een momentopname',
+      instellingen.backupUren > 0
+        ? 'elke ' + instellingen.backupUren + ' uur, de laatste ' + instellingen.backupBewaar + ' blijven staan' +
+          '<br><small class="muted">Momentopnames van vlak voor een uitrol worden nooit opgeruimd. ' +
+          'Aanpassen: BACKUP_UREN (0 is uit) en BACKUP_BEWAAR.</small>'
+        : '<span class="muted">uit</span>' +
+          '<br><small class="muted">Aanzetten: BACKUP_UREN met het aantal uren erin.</small>',
+    ) +
+    rij(
       'Zelf kijken of een server afdwaalt',
       instellingen.driftCheckUren > 0
         ? 'elke ' + instellingen.driftCheckUren + ' uur' +
@@ -835,7 +844,10 @@ function renderBackups() {
     .slice(0, 15)
     .map((backup) =>
       '<div class="backup"><span class="grow"><strong>' + escape(backup.guildName) + '</strong>' +
-      '<div class="meta muted" style="font-size:11px">' + escape(backup.createdAt.slice(0, 16).replace('T', ' ')) +
+      // Waarvoor hij gemaakt is: vlak voor een uitrol is iets anders dan een
+      // wekelijkse momentopname, en dat bepaalt of je hem durft te gebruiken.
+      ' <span class="badge">' + escape(backup.label || 'auto') + '</span>' +
+      '<div class="meta muted" style="font-size:11px">' + escape(prettyStamp(backup.createdAt)) +
       ' · ' + backup.roles + ' rollen · ' + backup.channels + ' kanalen</div></span>' +
       '<a class="btn-sm" href="/api/backups/' + encodeURIComponent(backup.file) + '" download title="Opslaan op dit apparaat">' +
       icon('download', 'sm') + '</a>' +
