@@ -115,6 +115,7 @@ function toonScherm(naam) {
   $('meerKnop').setAttribute('aria-current', String(achterMeer));
 
   if (naam === 'overzicht' || naam === 'servers' || naam === 'server') void laadDrift();
+  if (naam === 'uitrollen') void laadGepland();
   if (naam === 'server') renderServerDetail();
 
   if (naam === 'controle') showTab('Check');
@@ -2099,6 +2100,95 @@ document.addEventListener('keydown', (gebeurtenis) => {
     void save();
   }
 });
+/**
+ * Uitrollen op een tijdstip.
+ *
+ * Dertig kanalen aanmaken om acht uur 's avonds terwijl iedereen online is, is
+ * onnodig: de bot werkt 's nachts net zo hard.
+ */
+function standaardTijdstip() {
+  const morgen = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  morgen.setHours(3, 0, 0, 0);
+
+  // Wat het invoerveld verwacht is lokale tijd zonder zone, dus niet toISOString.
+  const deel = (getal) => String(getal).padStart(2, '0');
+  return (
+    morgen.getFullYear() + '-' + deel(morgen.getMonth() + 1) + '-' + deel(morgen.getDate()) +
+    'T' + deel(morgen.getHours()) + ':' + deel(morgen.getMinutes())
+  );
+}
+
+async function planLater() {
+  if (!state.selected) return toast('Kies eerst een template.', 'bad');
+  if (selectedGuilds().length === 0) return toast('Vink minstens een server aan.', 'bad');
+  if (gekozenOnderdelen().length === 0) return toast('Vink minstens een onderdeel aan.', 'bad');
+
+  const wanneer = await ask({
+    title: 'Later uitrollen',
+    body:
+      '"' + state.selected + '" gaat naar ' + selectedGuilds().length + ' server(s).' +
+      ($('prune').checked ? '\n\nLET OP: prune staat aan — er worden dan kanalen verwijderd.' : '') +
+      '\n\nDe bot doet het op dit tijdstip, ook als je dashboard dichtstaat.',
+    confirmLabel: 'Inplannen',
+    danger: $('prune').checked,
+    input: { type: 'datetime-local', value: standaardTijdstip() },
+  });
+  if (!wanneer) return;
+
+  try {
+    await api('/gepland', {
+      method: 'POST',
+      body: JSON.stringify({ ...planBody(), wanneer: new Date(wanneer).toISOString() }),
+    });
+    toast('Ingepland', 'ok');
+    await laadGepland();
+  } catch (error) {
+    toast(error.message, 'bad', 6000);
+  }
+}
+
+async function laadGepland() {
+  const doel = $('geplandLijst');
+  if (!doel) return;
+
+  try {
+    const data = await api('/gepland');
+    if (data.gepland.length === 0) {
+      doel.innerHTML = '';
+      return;
+    }
+
+    doel.innerHTML =
+      '<div class="rijen" style="margin-top:14px">' +
+      data.gepland
+        .map(
+          (uitrol) =>
+            '<div class="backup"><span class="grow"><strong>' + escape(uitrol.templateId) + '</strong> op ' +
+            escape(uitrol.guildNamen.join(', ')) +
+            '<div class="meta muted" style="font-size:11px">' + escape(prettyStamp(uitrol.wanneer)) +
+            ' · door ' + escape(uitrol.door) + (uitrol.prune ? ' · mét verwijderen' : '') + '</div></span>' +
+            '<button class="btn-sm" data-annuleer="' + escape(uitrol.id) + '">Annuleren</button></div>',
+        )
+        .join('') +
+      '</div>';
+
+    for (const knop of doel.querySelectorAll('[data-annuleer]')) {
+      knop.onclick = async () => {
+        try {
+          await api('/gepland/' + encodeURIComponent(knop.dataset.annuleer), { method: 'DELETE' });
+          toast('Geannuleerd', 'ok');
+          await laadGepland();
+        } catch (error) {
+          toast(error.message, 'bad');
+        }
+      };
+    }
+  } catch {
+    doel.innerHTML = '';
+  }
+}
+
+$('later').onclick = () => planLater();
 $('preview').onclick = () => preview();
 $('apply').onclick = () => apply();
 

@@ -5,6 +5,7 @@ import { zaaiTemplates } from './templates.js';
 import { buildInviteUrl } from './botPermissions.js';
 import { startAutomatischeSync } from './clan/synchroniseren.js';
 import { startBackupWacht } from './backupWacht.js';
+import { startGeplandeUitrol } from './gepland.js';
 import { startDriftWacht } from './driftWacht.js';
 import { kiesIntents } from './util/intents.js';
 import { logger } from './util/logger.js';
@@ -25,6 +26,11 @@ client.once(Events.ClientReady, (ready) => {
   volgClanrangen(ready);
   volgAfwijkingen(ready);
   maakMomentopnames(ready);
+  startGeplandeUitrol(ready, {
+    templatesDir: config.templatesDir,
+    backupsDir: config.backupsDir,
+    historyDir: config.historyDir,
+  });
 });
 
 koppelBot(client);
