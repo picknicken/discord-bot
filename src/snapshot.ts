@@ -170,7 +170,7 @@ export interface SnapshotChannel {
  * Andersom staat het in de applier; deze kant is nodig om te kunnen zien of een
  * instelling al goed staat.
  */
-const VERIFICATIE = {
+export const VERIFICATIE = {
   [GuildVerificationLevel.None]: 'none',
   [GuildVerificationLevel.Low]: 'low',
   [GuildVerificationLevel.Medium]: 'medium',
@@ -178,13 +178,13 @@ const VERIFICATIE = {
   [GuildVerificationLevel.VeryHigh]: 'very_high',
 } as const satisfies Record<GuildVerificationLevel, NonNullable<GuildSettingsSpec['verificationLevel']>>;
 
-const INHOUDSFILTER = {
+export const INHOUDSFILTER = {
   [GuildExplicitContentFilter.Disabled]: 'disabled',
   [GuildExplicitContentFilter.MembersWithoutRoles]: 'members_without_roles',
   [GuildExplicitContentFilter.AllMembers]: 'all_members',
 } as const satisfies Record<GuildExplicitContentFilter, NonNullable<GuildSettingsSpec['explicitContentFilter']>>;
 
-const MELDINGEN = {
+export const MELDINGEN = {
   [GuildDefaultMessageNotifications.AllMessages]: 'all_messages',
   [GuildDefaultMessageNotifications.OnlyMentions]: 'only_mentions',
 } as const satisfies Record<

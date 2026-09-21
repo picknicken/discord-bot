@@ -2230,6 +2230,34 @@ $('download').onclick = () => {
 
 $('importTemplate').onclick = () => $('importFile').click();
 
+/**
+ * Een template van Discord zelf als beginpunt.
+ *
+ * Zo'n link maakt normaal een nieuwe server; hier wordt het een gewone template
+ * die je kunt bewerken, vergelijken en uitrollen op een server die al bestaat.
+ */
+$('importLink').onclick = async () => {
+  const link = await ask({
+    title: 'Template uit een discord.new-link',
+    body:
+      'Plak de link van een Discord-template. Die wordt hier een gewone template: te bewerken, te ' +
+      'vergelijken en uit te rollen op een server die al bestaat.',
+    confirmLabel: 'Ophalen',
+    input: { placeholder: 'https://discord.new/...' },
+  });
+  if (!link) return;
+
+  try {
+    const data = await api('/importeren', { method: 'POST', body: JSON.stringify({ link }), timeout: 30000 });
+    await refresh();
+    await select(data.id);
+    toonScherm('bewerken');
+    toast('Binnengehaald als "' + data.id + '"', 'ok');
+  } catch (error) {
+    toast(error.message, 'bad', 6000);
+  }
+};
+
 $('importFile').onchange = async () => {
   const bestand = $('importFile').files[0];
   if (!bestand) return;
