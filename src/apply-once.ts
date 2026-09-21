@@ -152,7 +152,7 @@ client.once(Events.ClientReady, async (ready) => {
       logger.warn(`Onbekende variabele: ${naam}`);
     }
     const plan = filterPlan(
-      planSetup(await snapshotGuildFresh(guild), template, {
+      planSetup(await snapshotGuildFresh(guild, template), template, {
         // Ook in een preview: anders kun je nooit zien wat prune zou weghalen
         // voordat je het doet. Uitvoeren gebeurt alleen met --apply.
         prune: options.prune,

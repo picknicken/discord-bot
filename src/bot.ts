@@ -3,6 +3,8 @@ import * as setup from './commands/setup.js';
 import * as clan from './commands/clan.js';
 import { config } from './config.js';
 import { KOPPEL_KNOP, KOPPEL_VENSTER, toonKoppelVenster, verwerkKoppelVenster } from './clan/knop.js';
+import { ROLMENU_KIES, ROLMENU_KNOP } from './rolmenu.js';
+import { kiesInRolmenu, klikRolmenu } from './rolmenuKlik.js';
 import { handleGuildCreate } from './events/guildCreate.js';
 import { handleGuildMemberAdd } from './events/guildMemberAdd.js';
 import { logger } from './util/logger.js';
@@ -51,6 +53,16 @@ export function koppelBot(client: Client): void {
     try {
       if (interaction.isButton() && interaction.customId === KOPPEL_KNOP) {
         await toonKoppelVenster(interaction);
+        return;
+      }
+
+      if (interaction.isButton() && interaction.customId.startsWith(ROLMENU_KNOP)) {
+        await klikRolmenu(interaction);
+        return;
+      }
+
+      if (interaction.isStringSelectMenu() && interaction.customId === ROLMENU_KIES) {
+        await kiesInRolmenu(interaction);
         return;
       }
 

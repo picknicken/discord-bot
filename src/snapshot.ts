@@ -13,7 +13,8 @@ import {
   type GuildBasedChannel,
   type GuildOnboarding,
 } from 'discord.js';
-import type { AutomodSpec, ChannelSpec, GuildSettingsSpec, OnboardingSpec } from './types.js';
+import { leesRolmenus, type GeplaatstRolmenu } from './rolmenu.js';
+import type { AutomodSpec, ChannelSpec, GuildSettingsSpec, OnboardingSpec, ServerTemplate } from './types.js';
 
 /**
  * Platte weergave van een bestaande server. De planner werkt hierop in plaats van op
@@ -32,6 +33,16 @@ export interface GuildSnapshot {
   settings: SnapshotSettings;
   /** Gevuld zodra de caller de onboarding heeft opgehaald. */
   onboarding: SnapshotOnboarding | null;
+  /** De rolmenu's die nu in de kanalen van de template staan. */
+  rolmenus: GeplaatstRolmenu[];
+  /**
+   * Is er naar de rolmenu's gekeken?
+   *
+   * Niet gekeken is iets anders dan niets gevonden. Zonder dit onderscheid zou de
+   * planner bij elke momentopname zonder template denken dat er nog geen enkel
+   * rolmenu staat, en ze allemaal opnieuw plaatsen.
+   */
+  rolmenusGelezen: boolean;
 }
 
 /**
@@ -309,7 +320,11 @@ function leesOnboarding(onboarding: GuildOnboarding): SnapshotOnboarding {
   };
 }
 
-export function snapshotGuild(guild: Guild, onboarding: GuildOnboarding | null = null): GuildSnapshot {
+export function snapshotGuild(
+  guild: Guild,
+  onboarding: GuildOnboarding | null = null,
+  rolmenus: GeplaatstRolmenu[] | null = null,
+): GuildSnapshot {
   const roles: SnapshotRole[] = guild.roles.cache.map((role) => ({
     id: role.id,
     name: role.name,
@@ -363,6 +378,8 @@ export function snapshotGuild(guild: Guild, onboarding: GuildOnboarding | null =
     automod: guild.autoModerationRules.cache.map(leesAutomod),
     settings: leesInstellingen(guild),
     onboarding: onboarding ? leesOnboarding(onboarding) : null,
+    rolmenus: rolmenus ?? [],
+    rolmenusGelezen: rolmenus !== null,
   };
 }
 
@@ -371,8 +388,19 @@ export function snapshotGuild(guild: Guild, onboarding: GuildOnboarding | null =
  * op: die staan niet standaard in de cache, en zonder die stap zou de planner ze
  * allemaal opnieuw aanmaken.
  */
-export async function snapshotGuildFresh(guild: Guild): Promise<GuildSnapshot> {
+export async function snapshotGuildFresh(
+  guild: Guild,
+  template: ServerTemplate | null = null,
+): Promise<GuildSnapshot> {
   await guild.autoModerationRules.fetch().catch(() => null);
   const onboarding = await guild.fetchOnboarding().catch(() => null);
-  return snapshotGuild(guild, onboarding);
+
+  // Rolmenu's staan in berichten, en alleen in de kanalen waar de template ze wil.
+  // Zonder template weten we niet waar we moeten kijken, en doen we dus niet
+  // alsof we gekeken hebben.
+  const rolmenus = template
+    ? await leesRolmenus(guild, template.roleMenus.map((menu) => menu.channel))
+    : null;
+
+  return snapshotGuild(guild, onboarding, rolmenus);
 }

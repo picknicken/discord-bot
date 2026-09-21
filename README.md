@@ -515,6 +515,46 @@ prima: dat veld wordt genegeerd.)
 De snelste manier aan een eigen template te komen: richt een server met de hand in en
 draai `/setup export`.
 
+### Rolmenu's: knoppen waarmee leden zichzelf een rol geven
+
+"Klik op 🎮 voor de gamer-rol" staat op half Discord, en daar had je tot nu toe een tweede bot
+voor nodig. Het staat nu in de template: welk kanaal, welke tekst, welke rollen.
+
+```json
+"roleMenus": [
+  {
+    "channel": "🎭│rollen",
+    "title": "Waar speel je op?",
+    "description": "Klik op een knop. Nog een keer klikken haalt de rol er weer af.",
+    "style": "buttons",
+    "options": [
+      { "role": "pc", "emoji": "🖥️" },
+      { "role": "console", "label": "Console", "emoji": "🎮" }
+    ]
+  }
+]
+```
+
+- `style` is `buttons` (tot 25 knoppen, vijf per rij) of `menu` (een keuzemenu; daar mag een
+  `description` per keuze bij). In een keuzemenu vink je aan wat je wil en uit wat je niet meer
+  wil; nul kiezen mag ook.
+- `label` is wat er op de knop komt; laat je hem weg, dan is het de naam van de rol.
+- De bot houdt het bericht bij. Staat het er al precies zo, dan gebeurt er niets. Is er iets
+  veranderd, dan wordt hetzelfde bericht bijgewerkt - niet een tweede geplaatst. Hij herkent
+  zijn eigen bericht aan de knoppen en aan de titel, dus twee menu's met dezelfde titel in
+  hetzelfde kanaal kan niet.
+- Wat er gebeurt als iemand klikt, ziet alleen hij: "Je hebt nu **PC**." Lukt het niet, dan
+  zegt hij waarom - meestal omdat de rol boven de rol van de bot staat, en dat is in tien
+  seconden op te lossen.
+- De controle slaat alarm als een rol in een menu Administrator, ManageGuild of iets anders
+  zwaars heeft: dat is geen rolmenu maar een deur die op een kier staat. Ook als niemand het
+  kanaal kan zien hoor je dat te weten.
+- In het dashboard staan de rolmenu's onder de kanalen in de structuurweergave: een menu
+  toevoegen, er rollen bij kiezen, en per rol wat erop komt te staan.
+
+Wat een export níet meeneemt zijn de rolmenu's: die staan in berichten en niet in de structuur
+van een server.
+
 ### Voortbouwen op een andere template
 
 Twee servers die op elkaar lijken hoef je niet twee keer te onderhouden. Met `basis` zegt een
@@ -791,6 +831,8 @@ assets/logo.png         avatar en applicatie-icoon
   types.ts              zod-schema en validatie van templates
   templates.ts          templates inlezen uit de map
   overerven.ts          een template die op een andere voortbouwt samenvoegen
+  rolmenu.ts            het bericht met rolknoppen bouwen, teruglezen en vergelijken
+  rolmenuKlik.ts        wat er gebeurt als iemand op zo'n knop klikt
   variabelen.ts         {{naam}} in een template invullen
   snapshot.ts           bestaande server -> platte structuur
   planner.ts            snapshot + template -> plan
@@ -948,6 +990,7 @@ npm run apply -- --guild 123456789 --template community --apply --alleen rollen
 | `emojis` | de emoji uit de template |
 | `instellingen` | serverinstellingen, het systeem- en regelskanaal, en community-modus |
 | `onboarding` | de vragen die nieuwe leden krijgen |
+| `rolmenus` | de berichten met knoppen waarmee leden zichzelf een rol geven |
 
 Meerdere tegelijk mag: `--alleen kanalen,categorieen`. Het plan wordt altijd volledig
 berekend en daarna gefilterd, zodat de volgorde klopt — community-modus gaat nog steeds

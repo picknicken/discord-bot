@@ -6,6 +6,7 @@ import type {
   SnapshotOnboarding,
   SnapshotOverwrite,
 } from './snapshot.js';
+import { rolmenuGelijk } from './rolmenu.js';
 import type {
   AutomodSpec,
   CategorySpec,
@@ -13,6 +14,7 @@ import type {
   EmojiSpec,
   OnboardingSpec,
   Overwrite,
+  RoleMenuSpec,
   RoleSpec,
   ServerTemplate,
 } from './types.js';
@@ -39,7 +41,13 @@ export type PlanAction =
   | { kind: 'order-roles'; count: number }
   | { kind: 'onboarding'; prompts: number }
   | { kind: 'guild-community' }
-  | { kind: 'guild-settings'; changes: string[] };
+  | { kind: 'guild-settings'; changes: string[] }
+  | {
+      kind: 'role-menu';
+      menu: RoleMenuSpec;
+      /** Het bericht dat er al staat en bijgewerkt kan worden; null = nieuw plaatsen. */
+      messageId: string | null;
+    };
 
 /** Deze kanaaltypes bestaan alleen op een Community-server. */
 const COMMUNITY_ONLY: readonly ChannelSpec['type'][] = ['announcement', 'forum', 'stage'];
@@ -662,6 +670,7 @@ export function planSetup(snapshot: GuildSnapshot, template: ServerTemplate, opt
   }
 
   actions.push(...planGuildSettings(snapshot, template, warnings));
+  actions.push(...planRolmenus(snapshot, template, warnings));
   actions.push(...verwijderingen);
 
   const totalChannels = template.categories.reduce((sum, category) => sum + category.channels.length, 0) +
@@ -687,6 +696,58 @@ export function planSetup(snapshot: GuildSnapshot, template: ServerTemplate, opt
   }
 
   return { templateName: template.name, options, actions, warnings, gekozenIds: channelPlan.gekozenIds };
+}
+
+/**
+ * De rolmenu's die geplaatst of bijgewerkt moeten worden.
+ *
+ * Staat het bericht er al precies zo, dan gebeurt er niets - anders zou elke
+ * uitrol een regel "rolmenu" opleveren en zou je nooit meer zien dat er verder
+ * niets te doen was.
+ *
+ * Is er niet naar de berichten gekeken (een momentopname zonder template), dan
+ * zeggen we dat, en plaatsen we niets. Gokken levert hier dubbele berichten op.
+ */
+function planRolmenus(snapshot: GuildSnapshot, template: ServerTemplate, warnings: string[]): PlanAction[] {
+  if (template.roleMenus.length === 0) return [];
+
+  if (!snapshot.rolmenusGelezen) {
+    warnings.push(
+      `${template.roleMenus.length} rolmenu('s) overgeslagen: er is niet gekeken welke berichten er al staan.`,
+    );
+    return [];
+  }
+
+  const rolIds = rolIdsVanTemplate(snapshot, template);
+  const rolNamen = new Map(template.roles.map((role) => [role.key, role.name]));
+  const acties: PlanAction[] = [];
+
+  for (const menu of template.roleMenus) {
+    // Een menu zonder rollen is een bericht met niets erin; dat plaatsen we niet.
+    if (menu.options.length === 0) continue;
+
+    // Hetzelfde kanaal en dezelfde titel: dat is dit menu, ook als de inhoud
+    // inmiddels afwijkt.
+    const staat = snapshot.rolmenus.find(
+      (gevonden) => normalize(gevonden.channelName) === normalize(menu.channel) && gevonden.title === menu.title,
+    );
+
+    if (
+      staat &&
+      rolmenuGelijk(
+        staat,
+        menu,
+        (key) => rolIds.get(key) ?? null,
+        (key) => rolNamen.get(key) ?? key,
+      )
+    ) {
+      continue;
+    }
+
+    acties.push({ kind: 'role-menu', menu, messageId: staat?.messageId ?? null });
+  }
+
+  return acties;
 }
 
 export function summarizePlan(plan: Plan): string {
@@ -715,6 +776,7 @@ export function summarizePlan(plan: Plan): string {
     onboarding: 'onboarding instellen',
     'guild-community': 'community-modus aanzetten',
     'guild-settings': 'serverinstellingen',
+    'role-menu': 'rolmenu plaatsen',
   };
 
   return [...counts.entries()].map(([kind, count]) => `${count}x ${labels[kind]}`).join(' · ');
@@ -742,6 +804,8 @@ export function actionLabel(action: PlanAction): string {
     case 'create-automod':
     case 'update-automod':
       return `${action.kind} "${action.rule.name}"`;
+    case 'role-menu':
+      return `role-menu "${action.menu.title}" in #${action.menu.channel}`;
     default:
       return action.kind;
   }
@@ -757,7 +821,7 @@ export function actionLabel(action: PlanAction): string {
  */
 export interface ActieRegel {
   teken: '+' | '~' | '-';
-  soort: 'rol' | 'categorie' | 'kanaal' | 'emoji' | 'automod' | 'volgorde' | 'onboarding' | 'instellingen';
+  soort: 'rol' | 'categorie' | 'kanaal' | 'emoji' | 'automod' | 'volgorde' | 'onboarding' | 'instellingen' | 'rolmenu';
   naam: string;
   /** Kanaaltype, voor het juiste icoontje. */
   type?: ChannelSpec['type'];
@@ -831,6 +895,13 @@ export function planRegels(plan: Plan): ActieRegel[] {
         };
       case 'guild-settings':
         return { teken: '~', soort: 'instellingen', naam: 'serverinstellingen', detail: action.changes.join(', ') };
+      case 'role-menu':
+        return {
+          teken: action.messageId === null ? '+' : '~',
+          soort: 'rolmenu',
+          naam: action.menu.title,
+          detail: `in #${action.menu.channel}, ${action.menu.options.length} rollen`,
+        };
     }
   });
 }
@@ -876,6 +947,8 @@ export function describeActions(plan: Plan, limit = 25): string[] {
         return '~ community-modus aanzetten (nodig voor forum- en announcementkanalen)';
       case 'guild-settings':
         return `~ serverinstellingen (${action.changes.join(', ')})`;
+      case 'role-menu':
+        return `${action.messageId === null ? '+' : '~'} rolmenu "${action.menu.title}" in #${action.menu.channel}`;
     }
   });
 

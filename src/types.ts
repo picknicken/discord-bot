@@ -146,6 +146,41 @@ export const onboardingSchema = z.object({
   prompts: z.array(onboardingPromptSchema).default([]),
 });
 
+export const roleMenuOptionSchema = z.object({
+  /** Rol-key uit `roles`. */
+  role: z.string().min(1),
+  /** Wat er op de knop staat; standaard de naam van de rol. */
+  label: z.string().min(1).max(80).optional(),
+  emoji: z.string().optional(),
+  /** Alleen bij stijl "menu": de regel onder de keuze. */
+  description: z.string().max(100).optional(),
+});
+
+/**
+ * Een bericht met knoppen waarmee leden zichzelf een rol geven.
+ *
+ * De bot houdt dit bericht bij: staat het er al, dan wordt het bijgewerkt en
+ * niet nog een keer geplaatst.
+ */
+export const roleMenuSchema = z.object({
+  /** Kanaalnaam uit deze template. */
+  channel: z.string().min(1),
+  title: z.string().min(1).max(256),
+  description: z.string().max(4000).default(''),
+  color: z
+    .string()
+    .regex(/^#?[0-9a-fA-F]{6}$/, 'Kleur moet een hexwaarde zijn zoals #5865F2')
+    .optional(),
+  /** Knoppen (tot 25) of een keuzemenu. */
+  style: z.enum(['buttons', 'menu']).default('buttons'),
+  /**
+   * Leeg mag: een rolmenu dat je net aangemaakt hebt heeft nog geen rollen, en
+   * dan hoort je hele template niet ongeldig te zijn. De controle zegt er wel
+   * iets van, en de bot plaatst een leeg menu niet.
+   */
+  options: z.array(roleMenuOptionSchema).max(25),
+});
+
 /** Variabelen die de template zelf opgeeft, om bij het uitrollen in te vullen. */
 export const variabeleSchema = z.object({
   beschrijving: z.string().max(200).optional(),
@@ -165,6 +200,8 @@ export const templateSchema = z.object({
   emojis: z.array(emojiSchema).default([]),
   automod: z.array(automodSchema).default([]),
   onboarding: onboardingSchema.optional(),
+  /** Berichten met knoppen waarmee leden zichzelf een rol geven. */
+  roleMenus: z.array(roleMenuSchema).default([]),
 });
 
 export type Overwrite = z.infer<typeof overwriteSchema>;
@@ -175,6 +212,8 @@ export type GuildSettingsSpec = z.infer<typeof guildSettingsSchema>;
 export type EmojiSpec = z.infer<typeof emojiSchema>;
 export type AutomodSpec = z.infer<typeof automodSchema>;
 export type OnboardingSpec = z.infer<typeof onboardingSchema>;
+export type RoleMenuSpec = z.infer<typeof roleMenuSchema>;
+export type RoleMenuOptionSpec = z.infer<typeof roleMenuOptionSchema>;
 export type ServerTemplate = z.infer<typeof templateSchema>;
 
 /** Parse + valideer, met een leesbare foutmelding in plaats van een zod-dump. */
@@ -243,6 +282,36 @@ function validateReferences(template: ServerTemplate): ServerTemplate {
     }
     if (rule.trigger === 'keyword_preset' && rule.presets.length === 0) {
       problems.push(`automod "${rule.name}": trigger "keyword_preset" heeft presets nodig`);
+    }
+  }
+
+  for (const menu of template.roleMenus) {
+    const waar = `rolmenu "${menu.title}"`;
+    checkChannel(waar, menu.channel);
+    checkRoles(waar, menu.options.map((optie) => optie.role));
+
+    if (menu.options.some((optie) => optie.role === '@everyone')) {
+      problems.push(`${waar}: @everyone heeft iedereen al, die hoort niet in een rolmenu`);
+    }
+
+    const dubbel = menu.options
+      .map((optie) => optie.role)
+      .filter((rol, index, alle) => alle.indexOf(rol) !== index);
+    if (dubbel.length > 0) {
+      problems.push(`${waar}: rol "${dubbel[0]}" staat er twee keer in`);
+    }
+  }
+
+  const perKanaal = new Map<string, string[]>();
+  for (const menu of template.roleMenus) {
+    perKanaal.set(menu.channel, [...(perKanaal.get(menu.channel) ?? []), menu.title]);
+  }
+  for (const [kanaal, titels] of perKanaal) {
+    const dubbel = titels.filter((titel, index) => titels.indexOf(titel) !== index);
+    if (dubbel.length > 0) {
+      // De titel is waaraan de bot zijn eigen bericht herkent; twee keer dezelfde
+      // titel in hetzelfde kanaal betekent dat hij ze door elkaar haalt.
+      problems.push(`rolmenu "${dubbel[0]}": staat twee keer in kanaal "${kanaal}"`);
     }
   }
 

@@ -165,7 +165,7 @@ async function maakPlan(interaction: ChatInputCommandInteraction, guild: Guild, 
     leesWaarden([interaction.options.getString('variabelen') ?? '']),
   );
 
-  const plan = planSetup(await snapshotGuildFresh(guild), geladen.template, {
+  const plan = planSetup(await snapshotGuildFresh(guild, geladen.template), geladen.template, {
     prune: interaction.options.getBoolean('prune') ?? false,
     update: interaction.options.getBoolean('update') ?? true,
   });

@@ -28,6 +28,8 @@ const emptyGuild: GuildSnapshot = {
   automod: [],
   settings: standaardInstellingen,
   onboarding: null,
+  rolmenus: [],
+  rolmenusGelezen: true,
 };
 
 const template = parseTemplate({

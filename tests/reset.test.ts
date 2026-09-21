@@ -26,6 +26,8 @@ const snapshot: GuildSnapshot = {
   automod: [snapshotAutomod('a1', 'Spam')],
   settings: standaardInstellingen,
   onboarding: null,
+  rolmenus: [],
+  rolmenusGelezen: true,
 };
 
 // De bot staat op 5: alles daaronder mag weg, alles daarboven niet.
