@@ -666,6 +666,14 @@ export function communityEdit(
   };
 }
 
+/** Waar de verwijzing terechtkomt, om na te kijken of hij is overgenomen. */
+const NA_VERWIJZING = {
+  systemChannel: (guild: Guild) => guild.systemChannelId,
+  afkChannel: (guild: Guild) => guild.afkChannelId,
+  rulesChannel: (guild: Guild) => guild.rulesChannelId,
+  publicUpdatesChannel: (guild: Guild) => guild.publicUpdatesChannelId,
+} as const;
+
 /** Zet community-modus aan. Kan pas als het regels- en updateskanaal bestaan. */
 async function enableCommunity(
   guild: Guild,
@@ -713,18 +721,45 @@ async function applyGuildSettings(
     community,
   );
 
-  await guild.edit({
+  const meldingsniveau = settings.defaultMessageNotifications
+    ? NOTIFICATION_LEVELS[settings.defaultMessageNotifications]
+    : undefined;
+
+  const na = await guild.edit({
     verificationLevel,
     explicitContentFilter,
-    defaultMessageNotifications: settings.defaultMessageNotifications
-      ? NOTIFICATION_LEVELS[settings.defaultMessageNotifications]
-      : undefined,
+    defaultMessageNotifications: meldingsniveau,
     afkTimeout: settings.afkTimeoutSeconds,
     description: settings.description,
     icon: settings.icon,
     banner: settings.banner,
     reason,
   });
+
+  /**
+   * Nakijken of Discord het ook echt heeft overgenomen.
+   *
+   * Hij antwoordt niet altijd met een fout als hij iets niet doet: soms komt er
+   * gewoon "gelukt" terug en blijft de instelling staan zoals hij stond. Dan
+   * meldt de bot dat het gezet is terwijl de preview daarna blijft zeggen dat
+   * het anders is, en zoek je het in de verkeerde hoek. Icoon en banner blijven
+   * hierbuiten: wat Discord daarvan maakt is niet te vergelijken met een pad.
+   */
+  const blijftAnders = [
+    verificationLevel !== undefined && na.verificationLevel !== verificationLevel ? 'verificatieniveau' : '',
+    explicitContentFilter !== undefined && na.explicitContentFilter !== explicitContentFilter
+      ? 'inhoudsfilter'
+      : '',
+    meldingsniveau !== undefined && na.defaultMessageNotifications !== meldingsniveau ? 'meldingen' : '',
+    settings.afkTimeoutSeconds !== undefined && na.afkTimeout !== settings.afkTimeoutSeconds ? 'afk-tijd' : '',
+    settings.description !== undefined && (na.description ?? '') !== settings.description ? 'omschrijving' : '',
+  ].filter(Boolean);
+
+  if (blijftAnders.length > 0) {
+    const wat = `Discord nam niet over: ${blijftAnders.join(', ')}. Het verzoek ging goed, maar de server bleef staan zoals hij stond.`;
+    meldingen.push(wat);
+    logger.warn(wat);
+  }
 
   // Kanaalverwijzingen pas hierna: de kanalen moeten bestaan. Verse lijst, want
   // een kanaal dat we net maakten moet Discord ook echt kennen.
@@ -761,7 +796,14 @@ async function applyGuildSettings(
     }
 
     try {
-      await guild.edit({ [veld]: id, reason });
+      const bijgewerkt = await guild.edit({ [veld]: id, reason });
+      if (NA_VERWIJZING[veld](bijgewerkt) !== id) {
+        const uitleg =
+          `${wat} niet overgenomen ("${naam}"): Discord meldde geen fout, maar de instelling veranderde niet. ` +
+          'Staat er een tweede kanaal met dezelfde naam, of mag @everyone dit kanaal niet zien?';
+        meldingen.push(uitleg);
+        logger.warn(uitleg);
+      }
     } catch (error) {
       const uitleg = error instanceof Error ? error.message : String(error);
       meldingen.push(`${wat} niet gezet ("${naam}"): ${uitleg}`);
