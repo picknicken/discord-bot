@@ -49,7 +49,9 @@ describe('het plan als losse regels', () => {
     const weg = regels.filter((regel) => regel.teken === '-');
 
     expect(weg).toHaveLength(1);
-    expect(weg[0]).toMatchObject({ naam: 'oude-troep', prune: true, soort: 'kanaal' });
+    // De categorie hoort erbij: "#algemeen verdwijnt" is iets anders als je weet
+    // dat het om een oude zone gaat en niet om je eigen gesprekskanaal.
+    expect(weg[0]).toMatchObject({ naam: 'oude-troep', prune: true, soort: 'kanaal', onder: 'Info' });
   });
 
   it('gooit zonder prune niets weg', () => {

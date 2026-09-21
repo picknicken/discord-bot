@@ -1276,17 +1276,91 @@ function diffRegel(regel) {
   );
 }
 
+/**
+ * Lange lijsten klappen in. Bij dertig regels scroll je anders langs je eigen
+ * plan heen; de eerste tien zeggen meestal al waar het over gaat.
+ */
+const TOON = 10;
+
+function diffBlok(regels) {
+  if (regels.length <= TOON + 2) return regels.map(diffRegel).join('');
+
+  return (
+    regels.slice(0, TOON).map(diffRegel).join('') +
+    '<details class="meer"><summary>nog ' + (regels.length - TOON) + ' regels</summary>' +
+    regels.slice(TOON).map(diffRegel).join('') +
+    '</details>'
+  );
+}
+
 function diffLijst(regels) {
   const weg = regels.filter((regel) => regel.teken === '-');
   const rest = regels.filter((regel) => regel.teken !== '-');
 
   return (
     '<div class="diff">' +
-    rest.map(diffRegel).join('') +
+    diffBlok(rest) +
     (weg.length
       ? '<div class="diffkop">' + weg.length + ' worden verwijderd — dit kun je niet terugdraaien</div>' +
-        weg.map(diffRegel).join('')
+        diffBlok(weg)
       : '') +
+    '</div>'
+  );
+}
+
+/**
+ * Waarschuwingen als losse regels.
+ *
+ * Aan elkaar geplakt in één kader lees je ze als een lap tekst en zie je de
+ * tweede niet meer - terwijl er juist dingen tussen staan als "er staan twee
+ * kanalen met dezelfde naam", die om een besluit vragen.
+ */
+function waarschuwingen(lijst) {
+  if (!lijst || lijst.length === 0) return '';
+
+  const rij = (regel) => '<div class="waarschuwingsrij">' + icon('alert', 'sm') + '<span>' + escape(regel) + '</span></div>';
+  const kop = 4;
+
+  // Een server waar de bot te weinig rechten heeft levert een regel per rol op.
+  // Dan is de lijst zelf het probleem niet meer; de eerste paar zeggen genoeg.
+  const inhoud =
+    lijst.length <= kop + 2
+      ? lijst.map(rij).join('')
+      : lijst.slice(0, kop).map(rij).join('') +
+        '<details class="meer"><summary>nog ' + (lijst.length - kop) + ' waarschuwingen</summary>' +
+        lijst.slice(kop).map(rij).join('') +
+        '</details>';
+
+  return '<div class="waarschuwingen">' + inhoud + '</div>';
+}
+
+/**
+ * Waar het getoonde plan bij hoorde.
+ *
+ * Vink je daarna prune aan of een server uit, dan blijft dat plan gewoon staan
+ * alsof het nog klopt. Dus onthouden we waar het bij hoort, en zeggen we het
+ * zodra dat niet meer zo is.
+ */
+let planSleutel = null;
+
+const planSleutelNu = () => JSON.stringify(planBody());
+
+function markeerVerouderd() {
+  $('planResult').classList.toggle('verouderd', planSleutel !== null && planSleutel !== planSleutelNu());
+}
+
+const verouderdBalk =
+  '<div class="verouderdbalk">' +
+  '<span class="grow">Je hebt iets gewijzigd — dit plan is van daarvoor.</span>' +
+  '<button class="btn-sm" data-doe="preview">Opnieuw berekenen</button></div>';
+
+function planKaart(plan) {
+  return (
+    '<div class="planblok"><div class="spread"><strong>' + escape(plan.guildName) + '</strong>' +
+    '<span class="badge">' + plan.count + ' acties</span></div>' +
+    '<div class="note ok" style="margin-top:6px">' + escape(plan.summary) + '</div>' +
+    waarschuwingen(plan.warnings) +
+    (plan.regels && plan.regels.length ? diffLijst(plan.regels) : '') +
     '</div>'
   );
 }
@@ -1296,63 +1370,115 @@ async function preview() {
   if (selectedGuilds().length === 0) return toast('Vink minstens een server aan.', 'bad');
   if (gekozenOnderdelen().length === 0) return toast('Vink minstens een onderdeel aan.', 'bad');
 
+  planSleutel = null;
+  $('planResult').classList.remove('verouderd');
   $('planResult').innerHTML = busy('Plan berekenen…');
   try {
+    const sleutel = planSleutelNu();
     const data = await api('/plan', { method: 'POST', body: JSON.stringify(planBody()) });
-    $('planResult').innerHTML = data.plans
-      .map((plan) =>
-        '<div style="margin-top:14px"><div class="spread"><strong>' + escape(plan.guildName) + '</strong>' +
-        '<span class="badge">' + plan.count + ' acties</span></div>' +
-        '<div class="note ok" style="margin-top:6px">' + escape(plan.summary) + '</div>' +
-        (plan.warnings.length ? '<div class="note warn" style="margin-top:6px">' + escape(plan.warnings.join('\n')) + '</div>' : '') +
-        (plan.regels && plan.regels.length ? diffLijst(plan.regels) : '') + '</div>')
-      .join('');
+    const totaal = data.plans.reduce((som, plan) => som + plan.count, 0);
+
+    // De knop hoort onder wat je net gelezen hebt. Hij stond bovenaan bij
+    // Preview, dus moest je terugscrollen naar een knop die het plan opnieuw
+    // uitrekende in plaats van dit plan toe te passen.
+    $('planResult').innerHTML =
+      verouderdBalk +
+      data.plans.map(planKaart).join('') +
+      (totaal > 0
+        ? '<div class="planvoet"><button class="btn-primary" data-doe="apply">' +
+          icon('zap', 'sm') + 'Dit toepassen</button></div>'
+        : '');
+    planSleutel = sleutel;
   } catch (error) {
     $('planResult').innerHTML = '<div class="note bad" style="margin-top:12px">' + escape(error.message) + '</div>';
   }
 }
 
-async function apply() {
+/**
+ * Nog een keer kijken, met precies wat er net is toegepast.
+ *
+ * Een lijst van wat er gedaan is zegt niet of het nu klopt. "Geen wijzigingen
+ * nodig" zegt dat wel - en dat is het enige waar je op af kunt gaan.
+ */
+async function naControle(body) {
+  const blok = document.createElement('div');
+  blok.className = 'nacontrole';
+  blok.innerHTML = busy('Nakijken…');
+  $('planResult').appendChild(blok);
+
+  try {
+    const data = await api('/plan', { method: 'POST', body: JSON.stringify(body) });
+    const open = data.plans.reduce((som, plan) => som + plan.count, 0);
+
+    blok.innerHTML =
+      open === 0
+        ? '<div class="note ok">' + icon('check', 'sm') + ' Nagekeken: de server staat nu zoals de template het beschrijft.</div>'
+        : '<div class="note warn">Nagekeken: er blijven ' + open + ' acties over.</div>' +
+          data.plans.filter((plan) => plan.count > 0).map(planKaart).join('');
+  } catch (error) {
+    blok.innerHTML = '<div class="note warn">Nakijken lukte niet: ' + escape(error.message) + '</div>';
+  }
+}
+
+/**
+ * @param {string[] | null} alleen  Alleen deze servers; anders wat er aangevinkt staat.
+ * @param {boolean} opnieuw  Een herkansing voor servers waar iets misging.
+ */
+async function apply(alleen = null, opnieuw = false) {
   if (!state.selected) return toast('Kies eerst een template.', 'bad');
-  const targets = state.guilds.filter((guild) => selectedGuilds().includes(guild.id));
+  const ids = alleen ?? selectedGuilds();
+  const targets = state.guilds.filter((guild) => ids.includes(guild.id));
   if (targets.length === 0) return toast('Vink minstens een server aan.', 'bad');
   if (gekozenOnderdelen().length === 0) return toast('Vink minstens een onderdeel aan.', 'bad');
 
   const names = targets.map((guild) => guild.name);
-  const requireText = targets.length === 1 ? names[0] : 'TOEPASSEN';
+
+  // De naam overtypen is een rem op iets wat je niet terugdraait. Bij één
+  // server zonder verwijderen valt er niets te verliezen, en op een telefoon is
+  // een servernaam met emoji overtypen een straf.
+  const streng = $('prune').checked || targets.length > 1;
+  const requireText = streng ? (targets.length === 1 ? names[0] : 'TOEPASSEN') : null;
 
   const confirmed = await ask({
-    title: 'Template toepassen?',
+    title: opnieuw ? 'Opnieuw proberen?' : 'Template toepassen?',
     body:
       ($('prune').checked ? 'LET OP: kanalen die niet in de template staan worden VERWIJDERD.\n\n' : '') +
       (gekozenOnderdelen().length < state.onderdelen.length
         ? 'Alleen deze onderdelen: ' + gekozenOnderdelen().join(', ') + '.\n\n'
         : '') +
       '"' + state.selected + '" gaat naar:\n· ' + names.join('\n· ') +
-      '\n\nVan elke server wordt eerst een back-up gemaakt.\n\nTyp ter bevestiging: ' + requireText,
-    confirmLabel: 'Toepassen',
+      '\n\nVan elke server wordt eerst een back-up gemaakt.' +
+      (requireText ? '\n\nTyp ter bevestiging: ' + requireText : ''),
+    confirmLabel: opnieuw ? 'Opnieuw' : 'Toepassen',
     danger: $('prune').checked,
     requireText,
   });
   if (!confirmed) return;
 
+  const body = { ...planBody(), guildIds: ids };
+  planSleutel = null;
+  $('planResult').classList.remove('verouderd');
   $('planResult').innerHTML = busy('Toepassen…');
+
   try {
     // Elke rol en elk kanaal is een apart verzoek aan Discord; een volle
     // template haalt de standaarddeadline niet. Dan lijkt het mislukt terwijl
     // hij gewoon nog bezig is.
-    const data = await api('/apply', {
-      method: 'POST',
-      body: JSON.stringify(planBody()),
-      timeout: 5 * 60 * 1000,
-    });
+    const data = await api('/apply', { method: 'POST', body: JSON.stringify(body), timeout: 5 * 60 * 1000 });
+
     $('planResult').innerHTML = data.results
       .map((result) =>
-        '<div style="margin-top:14px"><strong>' + escape(result.guildName) + '</strong>' +
+        '<div class="planblok"><strong>' + escape(result.guildName) + '</strong>' +
         '<div class="note ' + (result.failed ? 'warn' : 'ok') + '" style="margin-top:6px">' +
         escape(result.note || result.applied + ' acties gelukt, ' + result.failed + ' mislukt') +
         (result.backup ? ' · back-up gemaakt' : '') + '</div>' +
         (result.errors.length ? '<pre class="actions">' + escape(result.errors.join('\n')) + '</pre>' : '') +
+        // Alles overnieuw doen om twee mislukte acties is zonde van de tijd, en
+        // het plan wordt toch opnieuw uitgerekend: wat al klopt blijft met rust.
+        (result.failed
+          ? '<div class="planvoet"><button class="btn-sm" data-doe="opnieuw" data-guild="' +
+            escape(result.guildId) + '">' + icon('refresh', 'sm') + 'Alleen deze opnieuw</button></div>'
+          : '') +
         '</div>')
       .join('');
 
@@ -1360,6 +1486,8 @@ async function apply() {
     tekenWizard();
     toast(data.failed ? data.applied + ' gelukt, ' + data.failed + ' mislukt' : 'Uitgerold: ' + data.applied + ' acties',
       data.failed ? 'bad' : 'ok');
+
+    await naControle(body);
     await refresh();
     if (state.session?.authEnabled) await checkSession();
   } catch (error) {
@@ -1497,8 +1625,22 @@ $('undo').onclick = undo;
 $('redo').onclick = redo;
 $('runCheck').onclick = () => runCheck();
 $('save').onclick = save;
-$('preview').onclick = preview;
-$('apply').onclick = apply;
+$('preview').onclick = () => preview();
+$('apply').onclick = () => apply();
+
+// De knoppen in het plan worden telkens opnieuw getekend; daarom hier, op het
+// vak eromheen, in plaats van op elke knop apart.
+$('planResult').addEventListener('click', (gebeurtenis) => {
+  const knop = gebeurtenis.target.closest('[data-doe]');
+  if (!knop) return;
+  if (knop.dataset.doe === 'preview') void preview();
+  if (knop.dataset.doe === 'apply') void apply();
+  if (knop.dataset.doe === 'opnieuw') void apply([knop.dataset.guild], true);
+});
+
+// Verandert er iets aan de keuzes, dan klopt een plan dat er al staat niet meer.
+$('scherm-uitrollen').addEventListener('change', markeerVerouderd);
+$('scherm-uitrollen').addEventListener('input', markeerVerouderd);
 $('editor').oninput = () => setDirty(true);
 
 $('revert').onclick = () => {
