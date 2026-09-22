@@ -7,6 +7,7 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { ROLMENU_KNOP } from './rolmenu.js';
+import { kiesTaal, t, type Taal } from './taal.js';
 import { logger } from './util/logger.js';
 
 /**
@@ -25,13 +26,12 @@ import { logger } from './util/logger.js';
 export function waaromNiet(
   rol: { position: number; managed: boolean; name: string },
   ik: { hoogstePositie: number; magRollenBeheren: boolean } | null,
+  taal: Taal = 'nl',
 ): string | null {
-  if (!ik) return 'Ik kan mezelf niet vinden in deze server.';
-  if (!ik.magRollenBeheren) return 'Ik mag hier geen rollen beheren. Vraag een beheerder om "Rollen beheren".';
-  if (rol.managed) return `@${rol.name} hoort bij een bot of een boost; die kan niemand zelf aan- of uitzetten.`;
-  if (rol.position >= ik.hoogstePositie) {
-    return `@${rol.name} staat boven mijn eigen rol. Sleep mijn rol erboven, dan kan ik hem uitdelen.`;
-  }
+  if (!ik) return t(taal, 'rolmenu.ikweg');
+  if (!ik.magRollenBeheren) return t(taal, 'rolmenu.geenrechten');
+  if (rol.managed) return t(taal, 'rolmenu.managed', { rol: rol.name });
+  if (rol.position >= ik.hoogstePositie) return t(taal, 'rolmenu.boven', { rol: rol.name });
   return null;
 }
 
@@ -69,14 +69,16 @@ function overMij(member: GuildMember | null) {
 export async function klikRolmenu(interaction: ButtonInteraction): Promise<void> {
   if (!interaction.inCachedGuild()) return;
 
+  // Alleen hij ziet dit antwoord, dus zijn eigen taal.
+  const taal = kiesTaal(interaction.locale);
   const roleId = interaction.customId.slice(ROLMENU_KNOP.length);
   const rol = interaction.guild.roles.cache.get(roleId);
   if (!rol) {
-    await meld(interaction, 'Die rol bestaat niet meer. Vraag een beheerder om dit menu bij te werken.');
+    await meld(interaction, t(taal, 'rolmenu.rolweg'));
     return;
   }
 
-  const nee = waaromNiet(rol, overMij(interaction.guild.members.me));
+  const nee = waaromNiet(rol, overMij(interaction.guild.members.me), taal);
   if (nee) {
     await meld(interaction, nee);
     return;
@@ -88,11 +90,11 @@ export async function klikRolmenu(interaction: ButtonInteraction): Promise<void>
     else await interaction.member.roles.add(rol, 'Rolmenu');
   } catch (error) {
     logger.warn(`Rolmenu: ${rol.name} ${heeft ? 'weghalen' : 'geven'} mislukt`, error);
-    await meld(interaction, `Het lukte niet om **${rol.name}** ${heeft ? 'weg te halen' : 'te geven'}.`);
+    await meld(interaction, t(taal, heeft ? 'rolmenu.halenmislukt' : 'rolmenu.gevenmislukt', { rol: rol.name }));
     return;
   }
 
-  await meld(interaction, heeft ? `**${rol.name}** is eraf gehaald.` : `Je hebt nu **${rol.name}**.`);
+  await meld(interaction, t(taal, heeft ? 'rolmenu.eraf' : 'rolmenu.erbij', { rol: rol.name }));
 }
 
 /**
@@ -105,6 +107,7 @@ export async function klikRolmenu(interaction: ButtonInteraction): Promise<void>
 export async function kiesInRolmenu(interaction: StringSelectMenuInteraction): Promise<void> {
   if (!interaction.inCachedGuild()) return;
 
+  const taal = kiesTaal(interaction.locale);
   const alle = interaction.component.options.map((optie) => optie.value);
   const { erbij, eraf } = watVerandert(alle, interaction.values, [...interaction.member.roles.cache.keys()]);
 
@@ -115,7 +118,7 @@ export async function kiesInRolmenu(interaction: StringSelectMenuInteraction): P
   const teHalen = rollen(eraf);
 
   for (const rol of [...teGeven, ...teHalen]) {
-    const nee = waaromNiet(rol, overMij(interaction.guild.members.me));
+    const nee = waaromNiet(rol, overMij(interaction.guild.members.me), taal);
     if (nee) {
       await meld(interaction, nee);
       return;
@@ -127,14 +130,14 @@ export async function kiesInRolmenu(interaction: StringSelectMenuInteraction): P
     if (teHalen.length > 0) await interaction.member.roles.remove(teHalen, 'Rolmenu');
   } catch (error) {
     logger.warn('Rolmenu: rollen bijwerken mislukt', error);
-    await meld(interaction, 'Het lukte niet om je rollen bij te werken.');
+    await meld(interaction, t(taal, 'rolmenu.bijwerkenmislukt'));
     return;
   }
 
   const delen = [
-    teGeven.length > 0 ? `${noem(teGeven)} erbij` : '',
-    teHalen.length > 0 ? `${noem(teHalen)} eraf` : '',
+    teGeven.length > 0 ? t(taal, 'rolmenu.waterbij', { rollen: noem(teGeven) }) : '',
+    teHalen.length > 0 ? t(taal, 'rolmenu.wateraf', { rollen: noem(teHalen) }) : '',
   ].filter(Boolean);
 
-  await meld(interaction, delen.length > 0 ? `${delen.join(', ')}.` : 'Er is niets veranderd.');
+  await meld(interaction, delen.length > 0 ? `${delen.join(', ')}.` : t(taal, 'rolmenu.niets'));
 }

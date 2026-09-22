@@ -7,6 +7,7 @@ import {
   type Guild,
 } from 'discord.js';
 import { config } from '../config.js';
+import { kiesTaal, t, type Taal } from '../taal.js';
 import { serverToegestaan } from '../toegestaan.js';
 import { netteRang } from '../clan/wiseoldman.js';
 import { leesDossier, ontkoppel, type ClanDossier } from '../clan/opslag.js';
@@ -28,45 +29,112 @@ import { logger } from '../util/logger.js';
 export const data = new SlashCommandBuilder()
   .setName('clan')
   .setDescription('Koppel je OSRS-naam en krijg de rol die bij je clanrang hoort')
+  .setDescriptionLocalizations({
+    'en-US': 'Link your OSRS name and get the role that matches your clan rank',
+    'en-GB': 'Link your OSRS name and get the role that matches your clan rank',
+  })
   .setDMPermission(false)
   .addSubcommand((sub) =>
     sub
       .setName('koppel')
+      // Wie Discord in het Engels heeft staan typt /clan link. Hetzelfde
+      // commando, andere naam - dat scheelt een lid dat niet weet wat
+      // "koppel" betekent en er dus vanaf ziet.
+      .setNameLocalizations({ 'en-US': 'link', 'en-GB': 'link' })
       .setDescription('Geef je OSRS-naam op en krijg je clanrol')
+      .setDescriptionLocalizations({
+        'en-US': 'Enter your OSRS name and get your clan role',
+        'en-GB': 'Enter your OSRS name and get your clan role',
+      })
       .addStringOption((option) =>
-        option.setName('rsn').setDescription('Je OSRS-naam').setRequired(true).setMaxLength(12),
+        option
+          .setName('rsn')
+          .setDescription('Je OSRS-naam')
+          .setDescriptionLocalizations({ 'en-US': 'Your OSRS name', 'en-GB': 'Your OSRS name' })
+          .setRequired(true)
+          .setMaxLength(12),
       ),
   )
-  .addSubcommand((sub) => sub.setName('mij').setDescription('Werk je eigen clanrol nu bij'))
-  .addSubcommand((sub) => sub.setName('ontkoppel').setDescription('Haal je OSRS-naam hier weg'))
-  .addSubcommand((sub) => sub.setName('status').setDescription('Welke clans hier meetellen'))
+  .addSubcommand((sub) =>
+    sub
+      .setName('mij')
+      .setNameLocalizations({ 'en-US': 'me', 'en-GB': 'me' })
+      .setDescription('Werk je eigen clanrol nu bij')
+      .setDescriptionLocalizations({
+        'en-US': 'Update your own clan role now',
+        'en-GB': 'Update your own clan role now',
+      }),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('ontkoppel')
+      .setNameLocalizations({ 'en-US': 'unlink', 'en-GB': 'unlink' })
+      .setDescription('Haal je OSRS-naam hier weg')
+      .setDescriptionLocalizations({
+        'en-US': 'Remove your OSRS name from this server',
+        'en-GB': 'Remove your OSRS name from this server',
+      }),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('status')
+      .setDescription('Welke clans hier meetellen')
+      .setDescriptionLocalizations({ 'en-US': 'Which clans count here', 'en-GB': 'Which clans count here' }),
+  )
   .addSubcommand((sub) =>
     sub
       .setName('wie')
+      .setNameLocalizations({ 'en-US': 'who', 'en-GB': 'who' })
       .setDescription('Beheer: welke OSRS-naam hoort bij dit lid')
-      .addUserOption((option) => option.setName('lid').setDescription('Welk lid').setRequired(true)),
+      .setDescriptionLocalizations({
+        'en-US': 'Admin: which OSRS name belongs to this member',
+        'en-GB': 'Admin: which OSRS name belongs to this member',
+      })
+      .addUserOption((option) =>
+        option
+          .setName('lid')
+          .setNameLocalizations({ 'en-US': 'member', 'en-GB': 'member' })
+          .setDescription('Welk lid')
+          .setDescriptionLocalizations({ 'en-US': 'Which member', 'en-GB': 'Which member' })
+          .setRequired(true),
+      ),
   )
   .addSubcommand((sub) =>
-    sub.setName('sync').setDescription('Beheer: werk de clanrollen van iedereen bij'),
+    sub
+      .setName('sync')
+      .setDescription('Beheer: werk de clanrollen van iedereen bij')
+      .setDescriptionLocalizations({
+        'en-US': "Admin: update everyone's clan roles",
+        'en-GB': "Admin: update everyone's clan roles",
+      }),
   )
   .addSubcommand((sub) =>
     sub
       .setName('knop')
-      .setDescription('Beheer: zet hier een knop neer waarmee leden hun OSRS-naam koppelen'),
+      .setNameLocalizations({ 'en-US': 'button', 'en-GB': 'button' })
+      .setDescription('Beheer: zet hier een knop neer waarmee leden hun OSRS-naam koppelen')
+      .setDescriptionLocalizations({
+        'en-US': 'Admin: put a button here for members to link their OSRS name',
+        'en-GB': 'Admin: put a button here for members to link their OSRS name',
+      }),
   );
 
 /** De subcommando's die iets over andere mensen zeggen of doen. */
 const ALLEEN_BEHEER = new Set(['wie', 'sync', 'knop']);
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  // De taal van degene die het commando typt. Bijna alles hier is ephemeral, dus
+  // hij is de enige die het antwoord leest.
+  const taal = kiesTaal(interaction.locale);
+
   if (!interaction.inGuild() || !interaction.guild) {
-    await interaction.reply({ content: 'Dit commando werkt alleen in een server.', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: t(taal, 'cmd.alleen.server'), flags: MessageFlags.Ephemeral });
     return;
   }
 
   if (!serverToegestaan(interaction.guildId, config.toegestaneServers)) {
     await interaction.reply({
-      content: 'Deze server staat niet in de lijst met servers waar deze bot iets mag.',
+      content: t(taal, 'server.niet.toegestaan'),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -76,7 +144,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   if (ALLEEN_BEHEER.has(subcommand) && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageRoles)) {
     await interaction.reply({
-      content: 'Hier heb je het recht "Rollen beheren" voor nodig.',
+      content: t(taal, 'recht.rollen'),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -98,7 +166,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     case 'knop':
       return handleKnop(interaction);
     default:
-      await interaction.reply({ content: 'Onbekend subcommando.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: t(taal, 'cmd.onbekend'), flags: MessageFlags.Ephemeral });
   }
 }
 
@@ -116,6 +184,7 @@ async function handleKoppel(interaction: ChatInputCommandInteraction): Promise<v
     discordId: interaction.user.id,
     rsn,
     door: 'zelf',
+    taal: kiesTaal(interaction.locale),
   });
 
   await interaction.editReply(uitkomst.bericht);
@@ -123,31 +192,35 @@ async function handleKoppel(interaction: ChatInputCommandInteraction): Promise<v
 
 async function handleMij(interaction: ChatInputCommandInteraction): Promise<void> {
   const guild = interaction.guild as Guild;
+  const taal = kiesTaal(interaction.locale);
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const dossier = await leesDossier(config.clanDir, guild.id);
   const eigen = dossier.koppelingen[interaction.user.id];
 
   if (!eigen) {
-    await interaction.editReply('Je hebt nog geen OSRS-naam gekoppeld. Doe `/clan koppel rsn:jouwnaam`.');
+    await interaction.editReply(t(taal, 'mij.geenkoppeling'));
     return;
   }
 
   if (dossier.instellingen.clans.length === 0) {
-    await interaction.editReply('Er is voor deze server nog geen clan gekozen.');
+    await interaction.editReply(t(taal, 'clan.nietgekozen'));
     return;
   }
 
-  await interaction.editReply((await werkBij(config.clanDir, guild, interaction.user.id, eigen.rsn)).bericht);
+  await interaction.editReply(
+    (await werkBij(config.clanDir, guild, interaction.user.id, eigen.rsn, taal)).bericht,
+  );
 }
 
 async function handleOntkoppel(interaction: ChatInputCommandInteraction): Promise<void> {
   const guild = interaction.guild as Guild;
+  const taal = kiesTaal(interaction.locale);
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const dossier = await leesDossier(config.clanDir, guild.id);
   if (!dossier.koppelingen[interaction.user.id]) {
-    await interaction.editReply('Er stond hier geen OSRS-naam van jou.');
+    await interaction.editReply(t(taal, 'ontkoppel.niets'));
     return;
   }
 
@@ -157,44 +230,46 @@ async function handleOntkoppel(interaction: ChatInputCommandInteraction): Promis
   await ontkoppel(config.clanDir, guild.id, interaction.user.id);
 
   await interaction.editReply(
-    afgenomen > 0 ? `Koppeling weg, en ${afgenomen} clanrol(len) afgenomen.` : 'Koppeling weg.',
+    afgenomen > 0 ? t(taal, 'ontkoppel.weg.rollen', { aantal: afgenomen }) : t(taal, 'ontkoppel.weg'),
   );
 }
 
 async function handleStatus(interaction: ChatInputCommandInteraction): Promise<void> {
   const guild = interaction.guild as Guild;
+  const taal = kiesTaal(interaction.locale);
   const dossier = await leesDossier(config.clanDir, guild.id);
   const eigen = dossier.koppelingen[interaction.user.id];
 
   const clans = dossier.instellingen.clans;
 
   const embed = new EmbedBuilder()
-    .setTitle('Clanrangen')
+    .setTitle(t(taal, 'status.titel'))
     .setColor(clans.length > 0 ? 0x5865f2 : 0x949ba4)
     .addFields(
       {
-        name: 'Clans die hier meetellen',
+        name: t(taal, 'status.clans'),
         value:
           clans.length > 0
             ? clans
                 .map((clan) => `• ${clan.naam || `clan ${clan.groupId}`} — wiseoldman.net/groups/${clan.groupId}`)
                 .join('\n')
-            : 'nog geen',
+            : t(taal, 'status.nogeen'),
       },
-      { name: 'Gekoppelde leden', value: String(Object.keys(dossier.koppelingen).length), inline: true },
+      { name: t(taal, 'status.leden'), value: String(Object.keys(dossier.koppelingen).length), inline: true },
       {
-        name: 'Jij',
-        value: eigen ? beschrijfKoppeling(eigen.rsn, eigen.gezien) : 'nog niet gekoppeld (`/clan koppel`)',
+        name: t(taal, 'status.jij'),
+        value: eigen ? beschrijfKoppeling(eigen.rsn, eigen.gezien, taal) : t(taal, 'status.nietgekoppeld'),
       },
     );
 
-  if (dossier.laatsteSync) embed.setFooter({ text: `Laatst bijgewerkt: ${dossier.laatsteSync}` });
+  if (dossier.laatsteSync) embed.setFooter({ text: t(taal, 'status.voet', { tijd: dossier.laatsteSync }) });
 
   await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }
 
 async function handleWie(interaction: ChatInputCommandInteraction): Promise<void> {
   const guild = interaction.guild as Guild;
+  const taal = kiesTaal(interaction.locale);
   const lid = interaction.options.getUser('lid', true);
 
   const dossier = await leesDossier(config.clanDir, guild.id);
@@ -202,16 +277,22 @@ async function handleWie(interaction: ChatInputCommandInteraction): Promise<void
 
   await interaction.reply({
     content: koppeling
-      ? `<@${lid.id}> is ${beschrijfKoppeling(koppeling.rsn, koppeling.gezien)}` +
-        (koppeling.gezienOp ? ` (gezien op ${koppeling.gezienOp.slice(0, 10)})` : '') +
-        `. Gekoppeld door ${koppeling.door}.`
-      : `<@${lid.id}> heeft hier geen OSRS-naam gekoppeld.`,
+      ? t(taal, 'wie.gekoppeld', {
+          id: lid.id,
+          wat: beschrijfKoppeling(koppeling.rsn, koppeling.gezien, taal),
+          gezien: koppeling.gezienOp
+            ? t(taal, 'wie.gezienop', { datum: koppeling.gezienOp.slice(0, 10) })
+            : '',
+          door: koppeling.door,
+        })
+      : t(taal, 'wie.niets', { id: lid.id }),
     flags: MessageFlags.Ephemeral,
   });
 }
 
 async function handleSync(interaction: ChatInputCommandInteraction): Promise<void> {
   const guild = interaction.guild as Guild;
+  const taal = kiesTaal(interaction.locale);
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
@@ -222,15 +303,18 @@ async function handleSync(interaction: ChatInputCommandInteraction): Promise<voi
 
     const regels = [
       uitkomst.groepen
-        .map((groep) => `**${groep.naam}** — ${groep.leden.length} leden opgehaald.`)
+        .map((groep) => t(taal, 'sync.groep', { clan: groep.naam, aantal: groep.leden.length }))
         .join('\n'),
-      `${uitkomst.aangepast} lid/leden bijgewerkt, ${uitkomst.plan.ongewijzigd} stonden al goed.`,
+      t(taal, 'sync.bijgewerkt', {
+        aantal: uitkomst.aangepast,
+        ongewijzigd: uitkomst.plan.ongewijzigd,
+      }),
     ];
 
-    if (uitkomst.mislukt > 0) regels.push(`${uitkomst.mislukt} mislukt.`);
+    if (uitkomst.mislukt > 0) regels.push(t(taal, 'sync.mislukt', { aantal: uitkomst.mislukt }));
 
     const zonder = uitkomst.plan.ongekoppeld.reduce((som, regel) => som + regel.leden.length, 0);
-    if (zonder > 0) regels.push(`${zonder} clanleden hebben hier nog geen Discord-koppeling.`);
+    if (zonder > 0) regels.push(t(taal, 'sync.ongekoppeld', { aantal: zonder }));
 
     for (const fout of uitkomst.fouten.slice(0, 5)) regels.push(`• ${fout}`);
     for (const waarschuwing of uitkomst.plan.waarschuwingen.slice(0, 5)) regels.push(`⚠ ${waarschuwing}`);
@@ -238,7 +322,7 @@ async function handleSync(interaction: ChatInputCommandInteraction): Promise<voi
     await interaction.editReply(regels.join('\n'));
   } catch (error) {
     await interaction.editReply(
-      error instanceof Error ? `Dat lukte niet: ${error.message}` : 'Dat lukte niet.',
+      error instanceof Error ? t(taal, 'sync.fout', { fout: error.message }) : t(taal, 'sync.fout.kaal'),
     );
   }
 }
@@ -249,11 +333,12 @@ async function handleSync(interaction: ChatInputCommandInteraction): Promise<voi
  */
 async function handleKnop(interaction: ChatInputCommandInteraction): Promise<void> {
   const guild = interaction.guild as Guild;
+  const taal = kiesTaal(interaction.locale);
   const dossier = await leesDossier(config.clanDir, guild.id);
 
   if (dossier.instellingen.clans.length === 0) {
     await interaction.reply({
-      content: 'Kies eerst een clan in het dashboard, anders valt er nog niets te koppelen.',
+      content: t(taal, 'knop.geenclan'),
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -261,22 +346,31 @@ async function handleKnop(interaction: ChatInputCommandInteraction): Promise<voi
 
   if (!interaction.channel?.isSendable()) {
     await interaction.reply({
-      content: 'Hier kan de bot geen bericht plaatsen. Probeer het in een ander kanaal.',
+      content: t(taal, 'knop.geenkanaal'),
       flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
-  await interaction.channel.send(koppelBericht(dossier));
-  await interaction.reply({ content: 'De knop staat er. Hij blijft werken, ook voor wie later komt.', flags: MessageFlags.Ephemeral });
+  // Het bericht blijft staan en wordt door iedereen gelezen, dus dat volgt de
+  // taal van de server - ook als de beheerder die het neerzet iets anders heeft.
+  await interaction.channel.send(koppelBericht(dossier, false, kiesTaal(guild.preferredLocale)));
+  await interaction.reply({ content: t(taal, 'knop.geplaatst'), flags: MessageFlags.Ephemeral });
 }
 
 // --- gedeeld ---------------------------------------------------------------
 
 /** "Tess — Corporal in Mijn Clan", of gewoon de naam als er nog niets gezien is. */
-function beschrijfKoppeling(rsn: string, gezien: Array<{ clan: string; rang: string }>): string {
-  if (gezien.length === 0) return `**${rsn}** — clan nog onbekend`;
-  return `**${rsn}** — ${gezien.map((plek) => `${netteRang(plek.rang)} in ${plek.clan}`).join(', ')}`;
+function beschrijfKoppeling(
+  rsn: string,
+  gezien: Array<{ clan: string; rang: string }>,
+  taal: Taal,
+): string {
+  if (gezien.length === 0) return t(taal, 'koppeling.onbekend', { rsn });
+  return (
+    `**${rsn}** — ` +
+    gezien.map((plek) => t(taal, 'koppeling.rang', { rang: netteRang(plek.rang), clan: plek.clan })).join(', ')
+  );
 }
 
 /**

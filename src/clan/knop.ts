@@ -14,6 +14,7 @@ import {
 } from 'discord.js';
 import { koppelEnMeld } from './koppelen.js';
 import { leesDossier, type ClanDossier } from './opslag.js';
+import { kiesTaal, t, type Taal } from '../taal.js';
 import { logger } from '../util/logger.js';
 
 /**
@@ -33,9 +34,13 @@ export const KOPPEL_KNOP = 'clan-koppel';
 export const KOPPEL_VENSTER = 'clan-koppel-venster';
 const NAAM_VELD = 'rsn';
 
-export function koppelKnopRij(label = 'Koppel je OSRS-naam'): ActionRowBuilder<ButtonBuilder> {
+export function koppelKnopRij(taal: Taal = 'nl'): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(KOPPEL_KNOP).setLabel(label).setStyle(ButtonStyle.Primary).setEmoji('🎣'),
+    new ButtonBuilder()
+      .setCustomId(KOPPEL_KNOP)
+      .setLabel(t(taal, 'knop.label'))
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('🎣'),
   );
 }
 
@@ -43,33 +48,33 @@ export function koppelKnopRij(label = 'Koppel je OSRS-naam'): ActionRowBuilder<B
  * Het bericht met de knop. Dezelfde tekst voor een nieuw lid als voor de
  * knop die een beheerder ergens vastzet met `/clan knop`.
  */
-export function koppelBericht(dossier: ClanDossier, welkom = false): BaseMessageOptions {
+export function koppelBericht(dossier: ClanDossier, welkom = false, taal: Taal = 'nl'): BaseMessageOptions {
   const clans = dossier.instellingen.clans.map((clan) => clan.naam || `clan ${clan.groupId}`);
-  const namen = clans.length > 0 ? clans.map((naam) => `**${naam}**`).join(' of ') : 'onze clan';
+  const namen =
+    clans.length > 0 ? clans.map((naam) => `**${naam}**`).join(t(taal, 'knop.of')) : t(taal, 'knop.onzeclan');
 
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
-    .setTitle(welkom ? 'Welkom! Zit je in de clan?' : 'Koppel je OSRS-naam')
-    .setDescription(
-      `Zit je in ${namen}? Koppel dan je OSRS-naam, dan krijg je meteen de rol die bij je rang hoort.\n\n` +
-        'Zit je er niet in? Koppel hem gerust — je krijgt er geen rol van, maar dan weten we wel wie je ' +
-        'bent in het spel, en zodra je lid wordt telt hij vanzelf mee.',
-    )
-    .setFooter({ text: 'Alleen jij ziet het antwoord.' });
+    .setTitle(welkom ? t(taal, 'knop.titel.welkom') : t(taal, 'knop.titel'))
+    .setDescription(t(taal, 'knop.uitleg', { clans: namen }))
+    .setFooter({ text: t(taal, 'knop.voet') });
 
-  return { embeds: [embed], components: [koppelKnopRij()] };
+  return { embeds: [embed], components: [koppelKnopRij(taal)] };
 }
 
 /** De knop is aangeklikt: een venstertje met één veld erin. */
 export async function toonKoppelVenster(interaction: ButtonInteraction): Promise<void> {
-  const venster = new ModalBuilder().setCustomId(KOPPEL_VENSTER).setTitle('Koppel je OSRS-naam');
+  // De taal van degene die klikt, niet die van de server: dit venster ziet hij
+  // alleen zelf.
+  const taal = kiesTaal(interaction.locale);
+  const venster = new ModalBuilder().setCustomId(KOPPEL_VENSTER).setTitle(t(taal, 'knop.titel'));
 
   venster.addComponents(
     new ActionRowBuilder<TextInputBuilder>().addComponents(
       new TextInputBuilder()
         .setCustomId(NAAM_VELD)
-        .setLabel('Je naam in Old School RuneScape')
-        .setPlaceholder('bijvoorbeeld: Sparc Mac')
+        .setLabel(t(taal, 'venster.veld'))
+        .setPlaceholder(t(taal, 'venster.voorbeeld'))
         .setStyle(TextInputStyle.Short)
         .setMaxLength(12)
         .setRequired(true),
@@ -84,8 +89,10 @@ export async function verwerkKoppelVenster(
   interaction: ModalSubmitInteraction,
   clanDir: string,
 ): Promise<void> {
+  const taal = kiesTaal(interaction.locale);
+
   if (!interaction.inGuild() || !interaction.guild) {
-    await interaction.reply({ content: 'Dit werkt alleen in een server.', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: t(taal, 'alleen.server'), flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -101,12 +108,13 @@ export async function verwerkKoppelVenster(
       discordId: interaction.user.id,
       rsn,
       door: 'zelf',
+      taal,
     });
 
     await interaction.editReply(uitkomst.bericht);
   } catch (error) {
     logger.error(`Koppelen via de knop mislukte voor ${interaction.user.id}`, error);
-    await interaction.editReply('Er ging iets mis bij het koppelen. Probeer het zo nog eens.');
+    await interaction.editReply(t(taal, 'koppel.mislukt'));
   }
 }
 

@@ -92,6 +92,26 @@ Wat je daarbij moet weten:
 - Wil je dit zelf in de hand houden, zet dan `COMMANDS_AANMELDEN=uit`; dan meldt de bot niets
   meer uit zichzelf aan.
 
+### Nederlands of Engels
+
+De bot praat met leden, en die spreken lang niet allemaal Nederlands. Hij kijkt daarom in welke
+taal Discord staat en antwoordt daarin — Nederlands of Engels, er is niets in te stellen.
+
+- **Bij een klik of een commando** telt de taal van die persoon zelf. Jij krijgt Nederlands, je
+  Engelse clangenoot krijgt Engels, in dezelfde server en op hetzelfde moment.
+- **Bij een bericht dat in een kanaal blijft staan** — het welkomstbericht, de koppelknop, een
+  rolmenu, het bericht bij binnenkomst van de bot — telt de taal van de **server**. Dat leest
+  iedereen mee, dus daar hoort één taal te staan.
+- **Alles wat geen Nederlands is, krijgt Engels.** Wie Duits of Frans in Discord heeft staan
+  begrijpt het Engels wel, en het Nederlands vrijwel zeker niet.
+
+De commando's zelf zijn ook vertaald: wie Discord in het Engels heeft staan typt `/clan link`,
+`/clan me`, `/clan unlink`, `/clan who` en `/clan button` — hetzelfde commando, andere naam. Dat
+hoef je nergens aan te melden; de bot doet dat zelf bij het opstarten.
+
+Wat (nog) Nederlands blijft: het dashboard, en wat `/setup` terugmeldt over een plan
+("+ rol @Lid"). Dat is beheerderswerk; de teksten die een gewoon lid tegenkomt zijn vertaald.
+
 ## Rechten bij het joinen
 
 Een bot kan zichzelf **geen** rechten geven: Discord legt ze vast op het moment van de
@@ -849,6 +869,7 @@ src/
 assets/logo.png         avatar en applicatie-icoon
   types.ts              zod-schema en validatie van templates
   commandos.ts          de slash-commando's aanmelden, en alleen als er iets veranderd is
+  taal.ts               alle teksten voor leden, in het Nederlands en het Engels
   templates.ts          templates inlezen uit de map
   overerven.ts          een template die op een andere voortbouwt samenvoegen
   rolmenu.ts            het bericht met rolknoppen bouwen, teruglezen en vergelijken

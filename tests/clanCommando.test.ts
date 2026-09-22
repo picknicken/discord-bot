@@ -79,6 +79,8 @@ function interactie(opties: {
   subcommand: string;
   rsn?: string;
   userId?: string;
+  /** De taal waarin Discord deze gebruiker heeft staan. */
+  locale?: string;
 }) {
   const antwoorden: string[] = [];
 
@@ -86,6 +88,7 @@ function interactie(opties: {
     antwoorden,
     interaction: {
       inGuild: () => true,
+      locale: opties.locale ?? 'nl',
       guild: stubGuild(opties.guildId ?? '987654321'),
       guildId: opties.guildId ?? '987654321',
       user: { id: opties.userId ?? '111111111', username: 'tessa' },
@@ -150,6 +153,19 @@ describe('/clan', () => {
     const { interaction, antwoorden } = interactie({ subcommand: 'mij', userId: '222222222' });
     await execute(interaction);
     expect(antwoorden[0]).toMatch(/nog geen OSRS-naam gekoppeld/);
+  });
+
+  it('antwoordt in het Engels aan een Engelse gebruiker', async () => {
+    const { interaction, antwoorden } = interactie({
+      subcommand: 'mij',
+      userId: '222222222',
+      locale: 'en-US',
+    });
+    await execute(interaction);
+
+    expect(antwoorden[0]).toMatch(/have not linked an OSRS name/);
+    // En de tip wijst naar de Engelse naam van het commando.
+    expect(antwoorden[0]).toContain('/clan link');
   });
 
   it('haalt de koppeling weg bij /clan ontkoppel', async () => {

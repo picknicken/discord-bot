@@ -69,6 +69,11 @@ describe('de knop zelf', () => {
     expect(rij.components[0]?.label).toBe('Koppel je OSRS-naam');
   });
 
+  it('zet er een Engels label op voor een Engelse server', async () => {
+    const rij = koppelKnopRij('en').toJSON() as { components: Array<{ label: string }> };
+    expect(rij.components[0]?.label).toBe('Link your OSRS name');
+  });
+
   it('noemt de clans bij naam in het bericht', async () => {
     await kiesClan();
     const bericht = koppelBericht(await leesDossier(clanDir, GUILD_ID), true) as {
@@ -85,6 +90,7 @@ describe('de knop zelf', () => {
     let getoond: { data: { custom_id: string } } | null = null;
 
     await toonKoppelVenster({
+      locale: 'nl',
       showModal: async (venster: { data: { custom_id: string } }) => {
         getoond = venster;
       },
@@ -112,6 +118,7 @@ describe('het ingevulde venster', () => {
       antwoorden,
       interactie: {
         inGuild: () => true,
+        locale: 'nl',
         user: { id: discordId },
         fields: { getTextInputValue: () => rsn },
         guild: {
@@ -154,6 +161,7 @@ describe('het ingevulde venster', () => {
     await verwerkKoppelVenster(
       {
         inGuild: () => false,
+        locale: 'nl',
         reply: async (bericht: { content: string }) => void antwoorden.push(bericht.content),
       } as never,
       clanDir,

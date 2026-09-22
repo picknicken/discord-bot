@@ -25,6 +25,25 @@ const lijst = (waarde: unknown): Record<string, unknown>[] =>
   Array.isArray(waarde) ? (waarde as Record<string, unknown>[]) : [];
 
 /**
+ * De vertalingen van een naam of omschrijving, in een vaste volgorde.
+ *
+ * Deze tellen mee: zonder dit zou het toevoegen van Engelse commandonamen geen
+ * verschil zijn, en bleef /clan koppel bij Discord staan terwijl wij al lang
+ * /clan link bedoelden. Leeg en "helemaal niet opgegeven" zijn hetzelfde, want
+ * zo geeft Discord het ook terug.
+ */
+function vertalingen(waarde: unknown): Record<string, string> | null {
+  if (typeof waarde !== 'object' || waarde === null || Array.isArray(waarde)) return null;
+
+  const talen = Object.entries(waarde as Record<string, unknown>)
+    .filter(([, tekst]) => typeof tekst === 'string' && tekst !== '')
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  if (talen.length === 0) return null;
+  return Object.fromEntries(talen) as Record<string, string>;
+}
+
+/**
  * Alleen de velden waar wij iets over te zeggen hebben.
  *
  * Discord stuurt van alles terug wat wij nooit verstuurd hebben (id, versie,
@@ -45,6 +64,8 @@ function netteOptie(optie: Record<string, unknown>): Record<string, unknown> {
     min_length: optie['min_length'] ?? null,
     max_length: optie['max_length'] ?? null,
     options: lijst(optie['options']).map(netteOptie),
+    name_localizations: vertalingen(optie['name_localizations']),
+    description_localizations: vertalingen(optie['description_localizations']),
   };
 }
 
@@ -56,6 +77,8 @@ export function netjes(command: CommandoJSON): Record<string, unknown> {
     default_member_permissions: command['default_member_permissions'] ?? null,
     nsfw: command['nsfw'] ?? false,
     options: lijst(command['options']).map(netteOptie),
+    name_localizations: vertalingen(command['name_localizations']),
+    description_localizations: vertalingen(command['description_localizations']),
   };
 }
 
@@ -130,7 +153,10 @@ export async function meldCommandosAan(
   onze: readonly CommandoJSON[],
   opties: { altijd?: boolean } = {},
 ): Promise<Uitkomst> {
-  const bijDiscord = ((await koppeling.get(route)) ?? []) as CommandoJSON[];
+  // Mét de vertalingen erbij: zonder dat vraagteken laat Discord ze weg, en dan
+  // lijkt elke vertaalde naam een verschil dat er niet is - of erger, een
+  // verschil dat er wél is maar dat we niet zien.
+  const bijDiscord = ((await koppeling.get(`${route}?with_localizations=true`)) ?? []) as CommandoJSON[];
 
   if (!opties.altijd && zelfde(onze, bijDiscord)) {
     return { aangemeld: false, commandos: bijDiscord, uitleg: 'stonden al goed' };

@@ -22,51 +22,94 @@ import { leesWaarden } from '../variabelen.js';
 import { serverToegestaan } from '../toegestaan.js';
 import { logger } from '../util/logger.js';
 
+/** Dezelfde omschrijving in het Engels, voor wie Discord zo heeft staan. */
+const en = (tekst: string) => ({ 'en-US': tekst, 'en-GB': tekst });
+
 export const data = new SlashCommandBuilder()
   .setName('setup')
   .setDescription('Richt deze server automatisch in vanuit een template')
+  .setDescriptionLocalizations(en('Set this server up automatically from a template'))
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .setDMPermission(false)
-  .addSubcommand((sub) => sub.setName('list').setDescription('Toon alle beschikbare templates'))
+  .addSubcommand((sub) =>
+    sub
+      .setName('list')
+      .setDescription('Toon alle beschikbare templates')
+      .setDescriptionLocalizations(en('Show every available template')),
+  )
   .addSubcommand((sub) =>
     sub
       .setName('preview')
       .setDescription('Laat zien wat er zou gebeuren, zonder iets te wijzigen')
+      .setDescriptionLocalizations(en('Show what would happen, without changing anything'))
       .addStringOption((option) =>
-        option.setName('template').setDescription('Welke template').setRequired(true).setAutocomplete(true),
+        option
+          .setName('template')
+          .setDescription('Welke template')
+          .setDescriptionLocalizations(en('Which template'))
+          .setRequired(true)
+          .setAutocomplete(true),
       )
       .addBooleanOption((option) =>
-        option.setName('prune').setDescription('Kanalen verwijderen die niet in de template staan'),
+        option
+          .setName('prune')
+          .setDescription('Kanalen verwijderen die niet in de template staan')
+          .setDescriptionLocalizations(en('Delete channels that are not in the template')),
       )
       .addStringOption((option) =>
-        option.setName('variabelen').setDescription('Waarden invullen, bijv: clan=Bloody Mayhem'),
+        option
+          .setName('variabelen')
+          .setNameLocalizations(en('variables'))
+          .setDescription('Waarden invullen, bijv: clan=Bloody Mayhem')
+          .setDescriptionLocalizations(en('Fill in values, e.g. clan=Bloody Mayhem')),
       ),
   )
   .addSubcommand((sub) =>
     sub
       .setName('apply')
       .setDescription('Voer de template uit op deze server')
+      .setDescriptionLocalizations(en('Carry out the template on this server'))
       .addStringOption((option) =>
-        option.setName('template').setDescription('Welke template').setRequired(true).setAutocomplete(true),
+        option
+          .setName('template')
+          .setDescription('Welke template')
+          .setDescriptionLocalizations(en('Which template'))
+          .setRequired(true)
+          .setAutocomplete(true),
       )
       .addStringOption((option) =>
         option
           .setName('bevestig')
+          .setNameLocalizations(en('confirm'))
           .setDescription('Typ de servernaam exact over om te bevestigen')
+          .setDescriptionLocalizations(en('Type the server name exactly to confirm'))
           .setRequired(true),
       )
       .addBooleanOption((option) =>
-        option.setName('prune').setDescription('Kanalen verwijderen die niet in de template staan'),
+        option
+          .setName('prune')
+          .setDescription('Kanalen verwijderen die niet in de template staan')
+          .setDescriptionLocalizations(en('Delete channels that are not in the template')),
       )
       .addBooleanOption((option) =>
-        option.setName('update').setDescription('Bestaande rollen/kanalen bijwerken (standaard: aan)'),
+        option
+          .setName('update')
+          .setDescription('Bestaande rollen/kanalen bijwerken (standaard: aan)')
+          .setDescriptionLocalizations(en('Update existing roles/channels (default: on)')),
       )
       .addStringOption((option) =>
-        option.setName('variabelen').setDescription('Waarden invullen, bijv: clan=Bloody Mayhem'),
+        option
+          .setName('variabelen')
+          .setNameLocalizations(en('variables'))
+          .setDescription('Waarden invullen, bijv: clan=Bloody Mayhem')
+          .setDescriptionLocalizations(en('Fill in values, e.g. clan=Bloody Mayhem')),
       ),
   )
   .addSubcommand((sub) =>
-    sub.setName('export').setDescription('Exporteer de huidige server als template-bestand'),
+    sub
+      .setName('export')
+      .setDescription('Exporteer de huidige server als template-bestand')
+      .setDescriptionLocalizations(en('Export the current server as a template file')),
   );
 
 export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
