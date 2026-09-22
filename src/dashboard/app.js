@@ -267,6 +267,54 @@ async function refresh() {
   $('demoBalk').hidden = !state.guilds.some((guild) => guild.id.length < 5);
 }
 
+/**
+ * Zelf bijblijven.
+ *
+ * Tot nu toe werd het scherm alleen bijgewerkt na iets wat jij deed en wat lukte.
+ * Ging het mis, of gebeurde er iets buiten dit tabblad om - een uitrol die
+ * vannacht klaarstond, een tweede tabblad, een herstart van de bot - dan bleef je
+ * naar de oude stand kijken zonder dat iets dat verried. De enige uitweg was de
+ * pagina herladen, en dat moet je maar net bedenken.
+ *
+ * Dus kijkt hij zelf, rustig aan: elke twintig seconden, en meteen als je terugkomt
+ * op dit tabblad. Niet terwijl je in een veld staat te typen of een venster open
+ * hebt - dan zou je je eigen werk onder je handen weg zien schuiven.
+ */
+const VERVERS_MS = 20000;
+
+function magVerversen() {
+  if (document.hidden) return false;
+  if (document.querySelector('dialog[open]')) return false;
+
+  const actief = document.activeElement;
+  const typt = actief && (actief.tagName === 'INPUT' || actief.tagName === 'TEXTAREA' || actief.isContentEditable);
+  return !typt;
+}
+
+/** Is de bot er nog? Tijdens een herstart of een nieuwe versie even niet. */
+function toonVerbinding(bereikbaar) {
+  const balk = $('verbindingBalk');
+  if (balk) balk.hidden = bereikbaar;
+}
+
+async function verversStil() {
+  if (!magVerversen()) return;
+
+  try {
+    await refresh();
+    toonVerbinding(true);
+  } catch {
+    // Geen toast: dit gebeurt op de achtergrond en meestal is hij een paar
+    // seconden later gewoon weer terug.
+    toonVerbinding(false);
+  }
+}
+
+setInterval(verversStil, VERVERS_MS);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) verversStil();
+});
+
 // --- overzicht en servers ---------------------------------------------------
 
 /** Wat er aan de hand is, in de volgorde waarin het je zou moeten opvallen. */
@@ -494,23 +542,41 @@ function renderServerKaarten() {
 
 // --- instellingen -----------------------------------------------------------
 
-/** Wat Discord op dit moment van onze commando's weet. */
-async function laadCommandos() {
+/**
+ * Wat Discord op dit moment van onze commando's weet.
+ *
+ * Dit is een vraag aan Discord zelf, geen lokaal lijstje. Het instellingenscherm
+ * wordt bij elke verversing opnieuw getekend, dus zonder rem zou dat elke twintig
+ * seconden een verzoek naar Discord zijn voor een antwoord dat bijna nooit
+ * verandert.
+ */
+let commandoStand = '';
+let commandosGehaald = 0;
+
+async function laadCommandos(altijd = false) {
   const doel = $('commandoStand');
   if (!doel) return;
+
+  // Eerst neerzetten wat we de vorige keer te horen kregen, zodat er niet elke
+  // verversing "laden…" staat te knipperen.
+  if (commandoStand) doel.innerHTML = commandoStand;
+  if (!altijd && commandoStand && Date.now() - commandosGehaald < 60000) return;
+  commandosGehaald = Date.now();
 
   try {
     const data = await api('/commands');
     const namen = data.commandos.map((commando) => '<code>/' + escape(commando.naam) + '</code>').join(' ');
 
-    doel.innerHTML = data.commandos.length
+    commandoStand = data.commandos.length
       ? namen + ' ' + (data.gelijk
           ? '<span class="badge ok">bijgewerkt</span>'
           : '<span class="badge warn">wijkt af van deze versie</span>')
       : '<span class="badge warn">Discord kent er nog geen</span>';
   } catch (error) {
-    doel.innerHTML = '<span class="muted">' + escape(error.message) + '</span>';
+    commandoStand = '<span class="muted">' + escape(error.message) + '</span>';
   }
+
+  doel.innerHTML = commandoStand;
 }
 
 const rij = (wat, waarde) => '<div class="rij"><span class="wat">' + escape(wat) + '</span><span class="waarde">' + waarde + '</span></div>';
@@ -638,7 +704,7 @@ function renderInstellingen(instellingen) {
     try {
       const data = await api('/commands', { method: 'POST' });
       toast('Aangemeld bij Discord — ' + data.uitleg, 'ok');
-      await laadCommandos();
+      await laadCommandos(true);
     } catch (error) {
       toast(error.message, 'bad');
     } finally {
