@@ -80,6 +80,14 @@ export const config = {
   clanSyncMinuten: Math.max(0, Number(schoon(process.env.CLAN_SYNC_MINUTEN) || 60)),
   /** Hoe vaak de bot zelf kijkt of een server is afgedwaald. 0 is uit. */
   driftCheckUren: Math.max(0, Number(schoon(process.env.DRIFT_CHECK_UREN) || 24)),
+  /**
+   * Meldt de bot zijn slash-commando's zelf aan bij het opstarten?
+   *
+   * Aan, want anders sta je na elke wijziging een workflow te starten en merk je
+   * pas in Discord dat je het vergeten bent. Uit te zetten met COMMANDS_AANMELDEN=uit
+   * voor wie dat liever met de hand doet.
+   */
+  commandosAanmelden: (schoon(process.env.COMMANDS_AANMELDEN) || 'aan').toLowerCase() !== 'uit',
   /** Hoe vaak er vanzelf een momentopname wordt gemaakt. 0 is uit. */
   backupUren: Math.max(0, Number(schoon(process.env.BACKUP_UREN) || 168)),
   /** Hoeveel automatische momentopnames er per server bewaard blijven. */

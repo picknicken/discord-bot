@@ -41,6 +41,16 @@ const client = {
     displayAvatarURL: () => '/logo.png',
   },
   guilds: { cache: demoGuilds() },
+  application: { id: config.clientId },
+  // Een Discord dat de commando's kent die deze versie van de bot heeft. Zo laat
+  // het instellingenscherm in de demo hetzelfde zien als straks in het echt.
+  rest: {
+    get: async () => {
+      const { COMMANDS } = await import('./bot.js');
+      return COMMANDS.map((command) => command.data.toJSON());
+    },
+    put: async () => [],
+  },
   // Een nagemaakte discord.new-template, zodat ook dat scherm zonder Discord
   // werkt. Elke code levert dezelfde op.
   fetchGuildTemplate: async (code: string) => ({

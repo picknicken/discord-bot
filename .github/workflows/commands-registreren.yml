@@ -1,7 +1,9 @@
 # De slash-commando's bij Discord aanmelden, vanaf je telefoon.
 #
-# Nodig na elke wijziging aan een commando, en de eerste keer dat /clan erbij
-# komt: tot dit gedraaid heeft bestaat het commando niet in Discord.
+# Normaal hoef je dit niet: de bot meldt zijn commando's zelf aan zodra hij
+# opstart, en alleen als er iets veranderd is. Dit is er voor twee gevallen:
+# meteen zichtbaar maken in één server (globaal duurt tot een uur), en de
+# kopieën die daardoor in die server ontstaan weer weghalen.
 #
 # Vooraf eenmalig, onder Settings -> Secrets and variables -> Actions:
 #   DISCORD_TOKEN      de token van je bot
@@ -14,8 +16,17 @@ name: Commands registreren
 on:
   workflow_dispatch:
     inputs:
+      modus:
+        description: "Waar de commando's heen moeten"
+        required: true
+        default: overal
+        type: choice
+        options:
+          - overal
+          - alleen in deze server (meteen zichtbaar)
+          - uit deze server weghalen
       guild_id:
-        description: 'Testserver-id — daar staan ze meteen klaar. Leeg = overal, maar dat kan een uur duren.'
+        description: 'Server-id — alleen nodig bij de twee keuzes hierboven die over één server gaan'
         required: false
         default: ''
         type: string
@@ -47,14 +58,36 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+      - name: Kijk of de keuze klopt
+        env:
+          MODUS: ${{ inputs.modus }}
+          GUILD_ID: ${{ inputs.guild_id }}
+        run: |
+          if [ "$MODUS" != "overal" ] && [ -z "$GUILD_ID" ]; then
+            echo "::error::Deze keuze gaat over één server; vul het server-id in."
+            exit 1
+          fi
+
       - name: Commands aanmelden
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
-          # Een server-id hier betekent: alleen in die server, en meteen
-          # zichtbaar. Leeg betekent globaal, en dat kan tot een uur duren.
-          DISCORD_DEV_GUILD_ID: ${{ inputs.guild_id }}
+          MODUS: ${{ inputs.modus }}
+          GUILD_ID: ${{ inputs.guild_id }}
         run: |
+          # Een server-id betekent: die ene server. Leeg betekent overal, en dat
+          # kan tot een uur duren voor Discord het laat zien.
+          if [ "$MODUS" = "overal" ]; then
+            export DISCORD_DEV_GUILD_ID=""
+            export COMMANDS_MODUS="overal"
+          elif [ "$MODUS" = "uit deze server weghalen" ]; then
+            export DISCORD_DEV_GUILD_ID="$GUILD_ID"
+            export COMMANDS_MODUS="weghalen"
+          else
+            export DISCORD_DEV_GUILD_ID="$GUILD_ID"
+            export COMMANDS_MODUS="server"
+          fi
+
           {
             echo "## Commands geregistreerd"
             echo ""
@@ -62,9 +95,15 @@ jobs:
             node dist/deploy-commands.js
             echo '```'
             echo ""
-            if [ -n "$DISCORD_DEV_GUILD_ID" ]; then
-              echo "Alleen in server \`$DISCORD_DEV_GUILD_ID\`, en daar meteen zichtbaar."
-            else
-              echo "Overal waar de bot in zit. Het kan tot een uur duren voor Discord ze toont."
-            fi
+            case "$MODUS" in
+              overal)
+                echo "Overal waar de bot in zit. Het kan tot een uur duren voor Discord ze toont."
+                ;;
+              "uit deze server weghalen")
+                echo "De eigen kopieën in \`$GUILD_ID\` zijn weg; daar gelden nu weer de globale commando's."
+                ;;
+              *)
+                echo "Alleen in server \`$GUILD_ID\`, en daar meteen zichtbaar. Dit zijn kopieën naast de globale."
+                ;;
+            esac
           } >> "$GITHUB_STEP_SUMMARY"

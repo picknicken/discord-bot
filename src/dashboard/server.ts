@@ -23,7 +23,16 @@ import { leesGepland, nieuweUitrol, schrijfGepland } from '../gepland.js';
 import { templateCode, uitDiscordTemplate } from '../importeren.js';
 import { describeActions, planRegels, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
-import { listTemplateIds, loadTemplateMet, ruweTemplate, templateUitJson } from '../templates.js';
+import { listTemplateIds, loadTemplateMet, templateUitJson } from '../templates.js';
+import { COMMANDS } from '../bot.js';
+import {
+  koppelingVan,
+  meldCommandosAan,
+  overal,
+  watVerandert,
+  zelfde,
+  type CommandoJSON,
+} from '../commandos.js';
 import { alleenVerschil, basisVan, eersteVerschil, gelijk, type Ruw } from '../overerven.js';
 import { auditSummary, countBySeverity, lintTemplate } from '../lint.js';
 import { PERMISSION_CATALOGUE } from '../permissionCatalogue.js';
@@ -215,6 +224,54 @@ async function handle(
         inviteUrl: config.clientId ? buildInviteUrl(config.clientId) : null,
       },
     });
+  }
+
+  /**
+   * De slash-commando's: wat kent Discord ervan, en kloppen ze nog?
+   *
+   * De bot meldt ze bij elke start zelf aan, maar dat zie je nergens. En als het
+   * een keer misgaat - Discord plat, een rate limit - blijf je met een bot zitten
+   * waar /setup niet bestaat, zonder knop om het opnieuw te proberen.
+   */
+  if (resource === 'commands') {
+    const onze = COMMANDS.map((command) => command.data.toJSON() as CommandoJSON);
+    const koppeling = koppelingVan(client);
+    const route = overal(client.application.id);
+
+    if (method === 'GET') {
+      try {
+        const bijDiscord = ((await koppeling.get(route)) ?? []) as CommandoJSON[];
+        return send(response, 200, {
+          commandos: bijDiscord.map((command) => ({
+            naam: command.name,
+            uitleg: String(command['description'] ?? ''),
+            subs: (Array.isArray(command['options']) ? (command['options'] as { name: string }[]) : []).map(
+              (optie) => optie.name,
+            ),
+          })),
+          gelijk: zelfde(onze, bijDiscord),
+          verschil: watVerandert(onze, bijDiscord),
+        });
+      } catch (error) {
+        return send(response, 502, { error: `Discord antwoordde niet: ${message(error)}` });
+      }
+    }
+
+    if (method === 'POST') {
+      if (config.demo) return send(response, 400, { error: 'In demo-modus wordt er niets naar Discord gestuurd.' });
+
+      try {
+        const uitkomst = await meldCommandosAan(koppeling, route, onze, { altijd: true });
+        logger.info(`Dashboard meldt de commando's opnieuw aan (${uitkomst.uitleg})`);
+        return send(response, 200, {
+          aangemeld: true,
+          uitleg: uitkomst.uitleg,
+          commandos: uitkomst.commandos.map((command) => command.name),
+        });
+      } catch (error) {
+        return send(response, 502, { error: `Aanmelden mislukt: ${message(error)}` });
+      }
+    }
   }
 
   /**

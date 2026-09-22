@@ -52,7 +52,6 @@ Het commando is standaard alleen beschikbaar voor leden met **Server beheren**.
 npm install
 cp .env.example .env      # vul DISCORD_TOKEN en DISCORD_CLIENT_ID in
 npm run configure-install # zet de rechten die de bot bij elke join krijgt
-npm run deploy            # registreert de slash commands
 npm run dev               # of: npm run build && npm start
 ```
 
@@ -68,6 +67,30 @@ npm run dev               # of: npm run build && npm start
 5. Zet de rol van de bot in de rollenlijst **boven** de rollen die hij moet beheren —
    Discord staat niet toe dat een bot rollen aanmaakt of aanpast boven zijn eigen rol.
    De bot waarschuwt hier zelf voor als hij een server binnenkomt.
+
+### Slash-commando's
+
+`/setup` en `/clan` bestaan pas in Discord als ze daar aangemeld zijn. **Dat doet de bot zelf,
+bij elke keer dat hij opstart** — en alleen als er iets veranderd is, want Discord staat maar
+tweehonderd wijzigingen per dag toe. Je hoeft er dus niets voor te doen: rolt er een nieuwe
+versie uit met een commando erbij, dan staat het er na de herstart.
+
+Wat je daarbij moet weten:
+
+- **In een nieuwe server** verschijnen ze vanzelf, maar Discord kan er tot een uur over doen.
+  Zie je ze daarna nog steeds niet, dan is de bot waarschijnlijk toegevoegd **zonder de scope
+  `applications.commands`** — dan mag hij wel praten, maar horen zijn commando's er niet bij.
+  Opnieuw toevoegen met de link uit het dashboard (*Instellingen → Uitnodigen*) of
+  `npm run invite` zet dat recht zonder hem eruit te gooien.
+- **In het dashboard** staat onder *Instellingen* welke commando's Discord nu kent, en of die
+  nog kloppen met deze versie. Er staat een knop naast om ze meteen opnieuw aan te melden,
+  voor als het een keer is misgegaan.
+- **Meteen zichtbaar** in één server kan met **Actions → Commands registreren**, keuze *alleen
+  in deze server*. Dat maakt kopieën náást de globale commando's; die haal je later weg met de
+  keuze *uit deze server weghalen*. Op een computer: `npm run deploy`, met
+  `DISCORD_DEV_GUILD_ID` erbij voor één server en `COMMANDS_MODUS=weghalen` om op te ruimen.
+- Wil je dit zelf in de hand houden, zet dan `COMMANDS_AANMELDEN=uit`; dan meldt de bot niets
+  meer uit zichzelf aan.
 
 ## Rechten bij het joinen
 
@@ -619,10 +642,6 @@ Milan     — (staat er niet in) ->   (geen rol)
 
 ### Instellen
 
-Eerst eenmalig `/clan` aanmelden bij Discord: `npm run deploy` (met `DISCORD_DEV_GUILD_ID` op
-je testserver staat het commando daar meteen klaar), of **Actions → Commands registreren**.
-Zonder die stap bestaat `/clan` niet in Discord.
-
 Daarna, in het dashboard → **Clan**. Per server:
 
 1. **Clans die meetellen** — zoek je clan op naam en klik **Laat meetellen**. Alleen de clans
@@ -829,6 +848,7 @@ src/
   util/intents.ts       welke intents de bot mag vragen, volgens het portal
 assets/logo.png         avatar en applicatie-icoon
   types.ts              zod-schema en validatie van templates
+  commandos.ts          de slash-commando's aanmelden, en alleen als er iets veranderd is
   templates.ts          templates inlezen uit de map
   overerven.ts          een template die op een andere voortbouwt samenvoegen
   rolmenu.ts            het bericht met rolknoppen bouwen, teruglezen en vergelijken
@@ -961,11 +981,9 @@ uit te voeren. De log toont regel voor regel wat er gebeurde.
 Handig voor een eerste test, en voor een server inrichten terwijl je onderweg bent. Het is
 geen vervanging van het dashboard: bewerken doe je daar, uitvoeren kan hier.
 
-**Commando's aanmelden bij Discord** gaat net zo: **Actions → Commands registreren → Run
-workflow**. Vul je testserver-id in, dan staan `/setup` en `/clan` daar meteen klaar; laat je
-het leeg, dan gelden ze overal maar kan het tot een uur duren. Dit is nodig zodra er een
-commando bijkomt of verandert — tot dat moment bestaat `/clan` niet in Discord. Op een
-computer doet `npm run deploy` hetzelfde.
+**Commando's aanmelden bij Discord** hoeft meestal niet meer (zie hieronder), maar kan hier
+nog: **Actions → Commands registreren → Run workflow**, met een keuze voor `overal`, `alleen in
+deze server` of `uit deze server weghalen`. Op een computer doet `npm run deploy` hetzelfde.
 
 Hetzelfde commando werkt ook gewoon in een terminal:
 

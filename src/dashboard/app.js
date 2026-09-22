@@ -494,6 +494,25 @@ function renderServerKaarten() {
 
 // --- instellingen -----------------------------------------------------------
 
+/** Wat Discord op dit moment van onze commando's weet. */
+async function laadCommandos() {
+  const doel = $('commandoStand');
+  if (!doel) return;
+
+  try {
+    const data = await api('/commands');
+    const namen = data.commandos.map((commando) => '<code>/' + escape(commando.naam) + '</code>').join(' ');
+
+    doel.innerHTML = data.commandos.length
+      ? namen + ' ' + (data.gelijk
+          ? '<span class="badge ok">bijgewerkt</span>'
+          : '<span class="badge warn">wijkt af van deze versie</span>')
+      : '<span class="badge warn">Discord kent er nog geen</span>';
+  } catch (error) {
+    doel.innerHTML = '<span class="muted">' + escape(error.message) + '</span>';
+  }
+}
+
 const rij = (wat, waarde) => '<div class="rij"><span class="wat">' + escape(wat) + '</span><span class="waarde">' + waarde + '</span></div>';
 const mono = (waarde) => '<code>' + escape(waarde) + '</code>';
 const jaNee = (waarde, ja, nee) =>
@@ -583,6 +602,19 @@ function renderInstellingen(instellingen) {
     ) +
     '</div>';
 
+  // De commando's staan hier omdat dit precies de vraag is die je stelt als je de
+  // bot net in een nieuwe server hebt gezet en je /setup niet ziet.
+  const commandos =
+    '<div class="rijen" style="margin-bottom:14px">' +
+    rij(
+      'Slash-commando\u2019s',
+      '<span id="commandoStand" class="muted">laden\u2026</span>' +
+        '<br><small class="muted">De bot meldt ze bij elke start zelf aan bij Discord. ' +
+        'In een server waar hij al zit kan het tot een uur duren voor je ze ziet.</small>' +
+        '<br><button class="btn-sm" id="commandoKnop" style="margin-top:8px">Nu opnieuw aanmelden</button>',
+    ) +
+    '</div>';
+
   const thema =
     '<div class="rijen">' +
     rij('Thema', '<button class="btn-sm" id="themaKnop">Wisselen tussen licht en donker</button>') +
@@ -595,9 +627,24 @@ function renderInstellingen(instellingen) {
       : '') +
     '</div>';
 
-  doel.innerHTML = bot + inloggen + grens + kijken + mappen + thema;
+  doel.innerHTML = bot + inloggen + grens + kijken + mappen + commandos + thema;
   const knop = $('themaKnop');
   if (knop) knop.onclick = () => $('themeToggle').click();
+
+  laadCommandos();
+  $('commandoKnop').onclick = async () => {
+    const knopje = $('commandoKnop');
+    knopje.disabled = true;
+    try {
+      const data = await api('/commands', { method: 'POST' });
+      toast('Aangemeld bij Discord — ' + data.uitleg, 'ok');
+      await laadCommandos();
+    } catch (error) {
+      toast(error.message, 'bad');
+    } finally {
+      knopje.disabled = false;
+    }
+  };
 }
 
 // --- leeghalen --------------------------------------------------------------

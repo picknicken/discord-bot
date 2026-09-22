@@ -2,6 +2,7 @@ import { Events, MessageFlags, type AutocompleteInteraction, type ChatInputComma
 import * as setup from './commands/setup.js';
 import * as clan from './commands/clan.js';
 import { config } from './config.js';
+import { zorgVoorCommandos, type CommandoJSON } from './commandos.js';
 import { KOPPEL_KNOP, KOPPEL_VENSTER, toonKoppelVenster, verwerkKoppelVenster } from './clan/knop.js';
 import { ROLMENU_KIES, ROLMENU_KNOP } from './rolmenu.js';
 import { kiesInRolmenu, klikRolmenu } from './rolmenuKlik.js';
@@ -30,6 +31,14 @@ export const COMMANDS: Array<{
  * dus gewoon mee — anders zou dat stilletjes wegvallen.
  */
 export function koppelBot(client: Client): void {
+  // Zodra de bot binnen is: kijken of Discord dezelfde commando's kent als deze
+  // versie. Eerder was dat handwerk, en dan bestaat /setup in een nieuwe server
+  // gewoon niet zonder dat iets je dat vertelt.
+  client.once(Events.ClientReady, async (ready) => {
+    if (!config.commandosAanmelden) return;
+    await zorgVoorCommandos(ready, COMMANDS.map((command) => command.data.toJSON() as CommandoJSON));
+  });
+
   client.on(Events.GuildCreate, async (guild) => {
     try {
       await handleGuildCreate(guild);
