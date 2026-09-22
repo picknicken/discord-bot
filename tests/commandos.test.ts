@@ -68,6 +68,69 @@ describe('staat het al goed bij Discord?', () => {
   });
 });
 
+describe('vertaalde namen', () => {
+  const vertaald: CommandoJSON = {
+    ...setup,
+    options: [
+      {
+        name: 'preview',
+        description: 'Laat zien wat er zou gebeuren',
+        type: 1,
+        name_localizations: { 'en-US': 'preview' },
+        options: [{ name: 'template', description: 'welke', type: 3, required: true }],
+      },
+    ],
+  };
+
+  it('ziet het als er vertalingen bij komen', () => {
+    // Anders blijft /clan koppel bij Discord staan terwijl wij /clan link
+    // bedoelen, en merkt niemand dat de vertaling nooit is aangekomen.
+    expect(zelfde([vertaald], [vanDiscord()])).toBe(false);
+  });
+
+  it('trekt zich niets aan van de volgorde van de talen', () => {
+    const anders: CommandoJSON = {
+      ...vertaald,
+      options: [
+        {
+          ...(vertaald['options'] as Record<string, unknown>[])[0],
+          name_localizations: { 'en-GB': 'preview', 'en-US': 'preview' },
+        },
+      ],
+    };
+    const zelfdeAndersOm: CommandoJSON = {
+      ...vertaald,
+      options: [
+        {
+          ...(vertaald['options'] as Record<string, unknown>[])[0],
+          name_localizations: { 'en-US': 'preview', 'en-GB': 'preview' },
+        },
+      ],
+    };
+
+    expect(zelfde([anders], [zelfdeAndersOm])).toBe(true);
+  });
+
+  it('ziet geen vertalingen en een lege lijst als hetzelfde', () => {
+    const leeg: CommandoJSON = { ...setup, description_localizations: {} };
+    expect(zelfde([leeg], [vanDiscord()])).toBe(true);
+  });
+
+  it('vraagt de vertalingen op bij Discord', async () => {
+    const gevraagd: string[] = [];
+    const koppeling: CommandoKoppeling = {
+      get: async (route) => {
+        gevraagd.push(route);
+        return [vanDiscord()];
+      },
+      put: async () => [],
+    };
+
+    await meldCommandosAan(koppeling, '/commands', [setup]);
+    expect(gevraagd[0]).toContain('with_localizations=true');
+  });
+});
+
 describe('wat er verandert', () => {
   it('noemt wat nieuw is, wat anders is en wat weggaat', () => {
     const verschil = watVerandert(

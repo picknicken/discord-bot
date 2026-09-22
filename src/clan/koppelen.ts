@@ -2,6 +2,7 @@ import type { Guild } from 'discord.js';
 import { geldigeNaam, haalSpelerClans, netteRang, normaliseerNaam, WomFout } from './wiseoldman.js';
 import { alGekoppeldAan, koppel, leesDossier } from './opslag.js';
 import { synchroniseerServer } from './synchroniseren.js';
+import { t, type Taal } from '../taal.js';
 import { logger } from '../util/logger.js';
 
 /**
@@ -20,6 +21,8 @@ export interface KoppelVerzoek {
   rsn: string;
   /** Wie de koppeling maakte: "zelf" of de naam van een beheerder. */
   door: string;
+  /** De taal van degene die het vraagt; niet die van de server. */
+  taal: Taal;
 }
 
 export interface KoppelUitkomst {
@@ -32,12 +35,12 @@ export interface KoppelUitkomst {
 }
 
 export async function koppelEnMeld(verzoek: KoppelVerzoek): Promise<KoppelUitkomst> {
-  const { clanDir, guild, discordId, door } = verzoek;
+  const { clanDir, guild, discordId, door, taal } = verzoek;
   const rsn = verzoek.rsn.trim();
 
   if (!geldigeNaam(rsn)) {
     return {
-      bericht: `"${rsn}" kan geen OSRS-naam zijn: maximaal 12 tekens, alleen letters, cijfers, spaties en streepjes.`,
+      bericht: t(taal, 'naam.ongeldig', { rsn }),
       gekoppeld: false,
       inClan: false,
     };
@@ -50,7 +53,7 @@ export async function koppelEnMeld(verzoek: KoppelVerzoek): Promise<KoppelUitkom
     // Twee mensen op dezelfde naam betekent dat de een de rol van de ander
     // krijgt. Dat moet een beheerder oplossen, niet een van de twee.
     return {
-      bericht: `"${rsn}" staat al gekoppeld aan <@${bezet}>. Klopt dat niet? Vraag een beheerder om het recht te zetten.`,
+      bericht: t(taal, 'naam.bezet', { rsn, wie: bezet }),
       gekoppeld: false,
       inClan: false,
     };
@@ -60,13 +63,13 @@ export async function koppelEnMeld(verzoek: KoppelVerzoek): Promise<KoppelUitkom
 
   if (dossier.instellingen.clans.length === 0) {
     return {
-      bericht: `Genoteerd: **${rsn}**. Er is voor deze server nog geen clan gekozen, dus er is nog geen rol aan te geven.`,
+      bericht: t(taal, 'koppel.geenclan', { rsn }),
       gekoppeld: true,
       inClan: false,
     };
   }
 
-  return { ...(await werkBij(clanDir, guild, discordId, rsn)), gekoppeld: true };
+  return { ...(await werkBij(clanDir, guild, discordId, rsn, taal)), gekoppeld: true };
 }
 
 /** Eén lid bijwerken en er een leesbare zin over teruggeven. */
@@ -75,6 +78,7 @@ export async function werkBij(
   guild: Guild,
   discordId: string,
   rsn: string,
+  taal: Taal,
 ): Promise<{ bericht: string; inClan: boolean }> {
   let uitkomst;
   try {
@@ -84,7 +88,7 @@ export async function werkBij(
     });
   } catch (error) {
     if (error instanceof WomFout) {
-      return { bericht: `Genoteerd, maar WiseOldMan antwoordde niet: ${error.message}`, inClan: false };
+      return { bericht: t(taal, 'koppel.womstil', { fout: error.message }), inClan: false };
     }
     throw error;
   }
@@ -101,7 +105,7 @@ export async function werkBij(
 
   if (staatIn.length === 0) {
     return {
-      bericht: await buitenDeClans(rsn, uitkomst.groepen.map((groep) => groep.naam)),
+      bericht: await buitenDeClans(rsn, uitkomst.groepen.map((groep) => groep.naam), taal),
       inClan: false,
     };
   }
@@ -109,9 +113,12 @@ export async function werkBij(
   // "Tess staat in Mijn Clan als Captain." — eerst waar je staat, dan pas wat
   // dat voor je rollen betekent.
   const regels = [
-    `**${rsn}** staat in ` +
-      staatIn.map((plek) => `**${plek.clan}** als **${netteRang(plek.rang)}**`).join(' en ') +
-      '.',
+    t(taal, 'staat.in', {
+      rsn,
+      plekken: staatIn
+        .map((plek) => t(taal, 'staat.plek', { clan: plek.clan, rang: netteRang(plek.rang) }))
+        .join(t(taal, 'staat.en')),
+    }),
   ];
 
   const wissel = uitkomst.plan.wissels[0];
@@ -129,13 +136,13 @@ export async function werkBij(
       .filter(Boolean);
 
     regels.push(
-      rollenVoorHem.length > 0
-        ? 'Je rol klopte al.'
-        : 'Aan deze clan hangt hier nog geen Discord-rol. Een beheerder koppelt die in het dashboard, onder Clan.',
+      rollenVoorHem.length > 0 ? t(taal, 'rol.klopte') : t(taal, 'rol.geenrol'),
     );
   }
 
-  if (uitkomst.mislukt > 0) regels.push(`Let op: ${uitkomst.fouten[0] ?? 'aanpassen mislukte'}`);
+  if (uitkomst.mislukt > 0) {
+    regels.push(t(taal, 'let.op', { fout: uitkomst.fouten[0] ?? t(taal, 'aanpassen.mislukt') }));
+  }
 
   return { bericht: regels.join('\n'), inClan: true };
 }
@@ -146,8 +153,11 @@ export async function werkBij(
  * "je zit in een clan die hier niet meetelt". De naam blijft gekoppeld — dan
  * weet je later alsnog wie wie is, en telt hij vanzelf mee zodra hij lid wordt.
  */
-async function buitenDeClans(rsn: string, gekozen: string[]): Promise<string> {
-  const waar = gekozen.length === 1 ? gekozen[0] : `een van deze clans: ${gekozen.join(', ')}`;
+async function buitenDeClans(rsn: string, gekozen: string[], taal: Taal): Promise<string> {
+  const waar =
+    gekozen.length === 1
+      ? t(taal, 'buiten.een', { clan: gekozen[0] ?? '' })
+      : t(taal, 'buiten.meer', { clans: gekozen.join(', ') });
 
   let elders: Awaited<ReturnType<typeof haalSpelerClans>> = [];
   try {
@@ -160,18 +170,16 @@ async function buitenDeClans(rsn: string, gekozen: string[]): Promise<string> {
 
   const buiten = elders.filter((clan) => !gekozen.some((naam) => normaliseerNaam(naam) === normaliseerNaam(clan.naam)));
 
-  const staart = ' Je naam blijft gekoppeld, dus zodra je lid wordt telt hij vanzelf mee.';
+  const staart = t(taal, 'buiten.staart');
 
   if (buiten.length > 0) {
-    return (
-      `**${rsn}** staat niet in ${waar}, maar wel in ` +
-      `${buiten.map((clan) => `**${clan.naam}**`).join(', ')}. Die telt hier niet mee.` + staart
-    );
+    return t(taal, 'buiten.elders', {
+      rsn,
+      waar,
+      elders: buiten.map((clan) => `**${clan.naam}**`).join(', '),
+      staart,
+    });
   }
 
-  return (
-    `**${rsn}** staat niet in ${waar}. Klopt je naam precies? ` +
-    'Is dat zo, dan staat hij nog niet in de ledenlijst op WiseOldMan — die wordt door de clan zelf bijgehouden.' +
-    staart
-  );
+  return t(taal, 'buiten.nergens', { rsn, waar, staart });
 }

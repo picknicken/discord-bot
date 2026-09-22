@@ -1,6 +1,7 @@
 import { EmbedBuilder, PermissionFlagsBits, type Guild, type GuildMember } from 'discord.js';
 import { config } from '../config.js';
 import { buildInviteUrl, missingPermissions, rolesAboveBot } from '../botPermissions.js';
+import { kiesTaal, t, type Taal } from '../taal.js';
 import { meldInServer } from '../util/melden.js';
 import { logger } from '../util/logger.js';
 
@@ -23,12 +24,16 @@ export async function handleGuildCreate(guild: Guild): Promise<void> {
           : ' — geen Administrator; community-modus en bijzondere rolrechten worden overgeslagen'),
   );
 
+  // De taal van de server waar hij net is binnengekomen; dit bericht blijft staan
+  // en is voor iedereen die het kanaal leest.
+  const taal = kiesTaal(guild.preferredLocale);
+
   const embed =
     missing.length > 0
-      ? incompleteEmbed(missing, inviteUrl)
+      ? incompleteEmbed(missing, inviteUrl, taal)
       : me.permissions.has(PermissionFlagsBits.Administrator)
-        ? readyEmbed(guild, me)
-        : zonderAdminEmbed(guild, me, inviteUrl);
+        ? readyEmbed(guild, me, taal)
+        : zonderAdminEmbed(guild, me, inviteUrl, taal);
 
   await meldInServer(guild, me, embed);
 }
@@ -39,83 +44,59 @@ export async function handleGuildCreate(guild: Guild): Promise<void> {
  * bot kan geen recht uitdelen dat hij zelf niet heeft, en community-modus
  * aanzetten kan met niets minder.
  */
-function zonderAdminEmbed(guild: Guild, me: GuildMember, inviteUrl: string): EmbedBuilder {
+function zonderAdminEmbed(guild: Guild, me: GuildMember, inviteUrl: string, taal: Taal): EmbedBuilder {
   const embed = new EmbedBuilder()
-    .setTitle('Bijna klaar — ik mis Administrator')
+    .setTitle(t(taal, 'join.geenadmin.titel'))
     .setColor(0xfee75c)
     .setDescription(
-      [
-        'Kanalen en categorieen kan ik aanmaken. Twee dingen lukken zonder **Administrator** niet:',
-        '',
-        '• **Community-modus aanzetten.** Discord staat dat alleen toe met Administrator. ' +
-          'Zonder community-modus bestaan forum-, aankondigings- en stagekanalen niet.',
-        '• **Rollen met rechten die ik zelf niet heb.** Een rol met Kicken of Administrator ' +
-          'erin maak ik dan aan zonder die rechten.',
-        '',
-        'Ik stop daar niet voor: ik richt de rest gewoon in en zeg daarna precies wat er is ' +
-        'overgeslagen. Maar compleet wordt het pas hiermee:',
-        `[voeg me opnieuw toe, met Administrator](${inviteUrl})`,
-        '',
-        'Ik hoef daarvoor niet weg. Het kan ook met de hand: Serverinstellingen → Rollen → ' +
-          `${me.roles.botRole?.name ?? me.user.username} → Administrator aan.`,
-      ].join('\n'),
+      t(taal, 'join.geenadmin.tekst', {
+        invite: inviteUrl,
+        rol: me.roles.botRole?.name ?? me.user.username,
+      }),
     );
 
   const blocked = rolesAboveBot(guild, me);
   if (blocked > 0) {
     embed.addFields({
-      name: 'Let op: rolvolgorde',
-      value:
-        `Er ${blocked === 1 ? 'staat 1 rol' : `staan ${blocked} rollen`} boven mijn eigen rol. ` +
-        'Die kan ik niet beheren, ook niet met Administrator.',
+      name: t(taal, 'join.volgorde.naam'),
+      value: telRollen(blocked, taal) + t(taal, 'join.volgorde.geenadmin'),
     });
   }
 
   return embed;
 }
 
-function readyEmbed(guild: Guild, me: GuildMember): EmbedBuilder {
+/** "Er staan 3 rollen boven mijn eigen rol. " — of de Engelse variant. */
+function telRollen(aantal: number, taal: Taal): string {
+  return aantal === 1 ? t(taal, 'join.volgorde.een') : t(taal, 'join.volgorde.meer', { aantal });
+}
+
+function readyEmbed(guild: Guild, me: GuildMember, taal: Taal): EmbedBuilder {
   const embed = new EmbedBuilder()
-    .setTitle('Klaar om deze server in te richten')
+    .setTitle(t(taal, 'join.klaar.titel'))
     .setColor(0x57f287)
-    .setDescription(
-      [
-        'Ik heb alle rechten die ik nodig heb.',
-        '',
-        '`/setup list` — welke templates er zijn',
-        '`/setup preview` — laat zien wat er zou gebeuren, zonder iets te wijzigen',
-        '`/setup apply` — voert het plan uit',
-        '`/setup export` — deze server opslaan als template',
-      ].join('\n'),
-    );
+    .setDescription(t(taal, 'join.klaar.tekst'));
 
   const blocked = rolesAboveBot(guild, me);
   if (blocked > 0) {
     embed.addFields({
-      name: 'Let op: rolvolgorde',
-      value:
-        `Er ${blocked === 1 ? 'staat 1 rol' : `staan ${blocked} rollen`} boven mijn eigen rol. ` +
-        'Discord laat me die niet beheren. Sleep mijn rol in Serverinstellingen → Rollen naar boven ' +
-        'als een template rollen op dat niveau moet aanmaken.',
+      name: t(taal, 'join.volgorde.naam'),
+      value: telRollen(blocked, taal) + t(taal, 'join.volgorde.klaar'),
     });
   }
 
-  embed.setFooter({ text: 'Begin met /setup preview — daar verandert nog niets van.' });
+  embed.setFooter({ text: t(taal, 'join.klaar.voet') });
   return embed;
 }
 
-function incompleteEmbed(missing: string[], inviteUrl: string): EmbedBuilder {
+function incompleteEmbed(missing: string[], inviteUrl: string, taal: Taal): EmbedBuilder {
   return new EmbedBuilder()
-    .setTitle('Ik mis nog rechten')
+    .setTitle(t(taal, 'join.mist.titel'))
     .setColor(0xed4245)
     .setDescription(
-      [
-        `Zonder ${missing.map((name) => `**${name}**`).join(', ')} kan ik geen templates uitvoeren.`,
-        '',
-        'Een bot kan zichzelf geen rechten geven, maar dit lost het in een klik op:',
-        `[voeg me opnieuw toe met de juiste rechten](${inviteUrl})`,
-        '',
-        'Ik hoef daarvoor niet weg — opnieuw autoriseren werkt mijn bestaande rol bij.',
-      ].join('\n'),
+      t(taal, 'join.mist.tekst', {
+        rechten: missing.map((name) => `**${name}**`).join(', '),
+        invite: inviteUrl,
+      }),
     );
 }

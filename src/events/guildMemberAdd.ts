@@ -1,6 +1,7 @@
 import { PermissionFlagsBits, type GuildMember, type TextChannel } from 'discord.js';
 import { config } from '../config.js';
 import { koppelBericht, welkomAan } from '../clan/knop.js';
+import { kiesTaal } from '../taal.js';
 import { eersteSchrijfbareKanaal } from '../util/melden.js';
 import { logger } from '../util/logger.js';
 
@@ -20,7 +21,9 @@ export async function handleGuildMemberAdd(member: GuildMember): Promise<void> {
   // Al gekoppeld? Dan is hij hier eerder geweest en hoeft hij niets te doen.
   if (dossier.koppelingen[member.id]) return;
 
-  const bericht = koppelBericht(dossier, true);
+  // Dit bericht blijft in een kanaal staan, dus de taal van de server telt -
+  // niet die van het lid dat toevallig net binnenkomt.
+  const bericht = koppelBericht(dossier, true, kiesTaal(member.guild.preferredLocale));
   const kanaal = welkomKanaal(member, dossier.instellingen.welkomKanaal);
 
   if (kanaal) {

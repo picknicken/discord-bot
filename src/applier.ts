@@ -21,6 +21,7 @@ import { toBitfield, toNames } from './permissions.js';
 import { grantableBits, veiligeBits } from './haalbaar.js';
 import { actionLabel, type Plan } from './planner.js';
 import { bouwRolmenu, optieLabel } from './rolmenu.js';
+import { kiesTaal } from './taal.js';
 import type { AutomodSpec, ChannelSpec, Overwrite, RoleMenuSpec, ServerTemplate } from './types.js';
 
 /**
@@ -528,7 +529,8 @@ async function zetRolmenu(
     return `rolmenu "${menu.title}": geen van de rollen bestaat, er is niets geplaatst.`;
   }
 
-  const bericht = bouwRolmenu(menu, opties);
+  // Een rolmenu blijft in het kanaal staan, dus de taal van de server telt.
+  const bericht = bouwRolmenu(menu, opties, kiesTaal(guild.preferredLocale));
   const bestaand = messageId ? await kanaal.messages.fetch(messageId).catch(() => null) : null;
 
   if (bestaand) await bestaand.edit(bericht);

@@ -10,6 +10,7 @@ import {
   type Guild,
   type Message,
 } from 'discord.js';
+import { t, type Taal } from './taal.js';
 import type { RoleMenuSpec } from './types.js';
 
 /**
@@ -82,7 +83,11 @@ export const optieLabel = (label: string | undefined, rolNaam: string): string =
  * aangemaakt moet worden) kan dit bericht niet bouwen, en dat is precies waarom
  * dit pas gebeurt nadat de rollen bestaan.
  */
-export function bouwRolmenu(menu: RoleMenuSpec, opties: readonly RolmenuOptie[]): BaseMessageOptions {
+export function bouwRolmenu(
+  menu: RoleMenuSpec,
+  opties: readonly RolmenuOptie[],
+  taal: Taal = 'nl',
+): BaseMessageOptions {
   const embed = new EmbedBuilder().setTitle(menu.title);
   if (menu.description !== '') embed.setDescription(menu.description);
   const kleur = kleurGetal(menu.color);
@@ -91,7 +96,7 @@ export function bouwRolmenu(menu: RoleMenuSpec, opties: readonly RolmenuOptie[])
   if (menu.style === 'menu') {
     const kiezer = new StringSelectMenuBuilder()
       .setCustomId(ROLMENU_KIES)
-      .setPlaceholder('Kies je rollen')
+      .setPlaceholder(t(taal, 'rolmenu.kiezen'))
       // Nul mogen kiezen is hoe je ze allemaal weer uitzet.
       .setMinValues(0)
       .setMaxValues(opties.length)

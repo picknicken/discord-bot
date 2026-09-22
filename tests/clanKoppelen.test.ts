@@ -102,8 +102,8 @@ async function kiesClan() {
   );
 }
 
-const vraag = (rsn: string, discordId = '111111111') =>
-  koppelEnMeld({ clanDir, guild: stubGuild(), discordId, rsn, door: 'zelf' });
+const vraag = (rsn: string, discordId = '111111111', taal: 'nl' | 'en' = 'nl') =>
+  koppelEnMeld({ clanDir, guild: stubGuild(), discordId, rsn, door: 'zelf', taal });
 
 describe('koppelen', () => {
   it('geeft de rol die bij de rang hoort', async () => {
@@ -113,6 +113,16 @@ describe('koppelen', () => {
     expect(uitkomst.inClan).toBe(true);
     expect(uitkomst.bericht).toMatch(/staat in \*\*Mijn Clan\*\* als \*\*Captain\*\*/);
     expect(gedaan).toEqual(['erbij:role-captain']);
+  });
+
+  it('antwoordt in het Engels aan wie Discord in het Engels heeft staan', async () => {
+    // Een bevriende server met Engelse leden krijgt anders "staat in ... als ..."
+    // te zien, en doet er niets mee.
+    await kiesClan();
+    const uitkomst = await vraag('Tess', '333333333', 'en');
+
+    expect(uitkomst.bericht).toMatch(/is in \*\*Mijn Clan\*\* as \*\*Captain\*\*/);
+    expect(uitkomst.bericht).not.toMatch(/staat in/);
   });
 
   it('noemt de rang ook als er niets te veranderen valt', async () => {
@@ -195,6 +205,7 @@ describe('koppelen', () => {
       discordId: '777777777',
       rsn: 'Bram',
       door: 'zelf',
+    taal: 'nl',
     });
 
     expect(uitkomst.gekoppeld).toBe(true);
