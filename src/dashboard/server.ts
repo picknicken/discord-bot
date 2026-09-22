@@ -446,11 +446,27 @@ async function handle(
     if (method === 'GET') return send(response, 200, { templates: await describeTemplates() });
 
     if (method === 'POST') {
-      const body = await readJson<{ id?: string; from?: string; variant?: boolean }>(request);
+      const body = await readJson<{ id?: string; from?: string; variant?: boolean; json?: string }>(request);
       const newId = slug(body.id ?? '');
       if (!newId) return send(response, 400, { error: 'Geef een naam op (letters, cijfers, streepjes).' });
       if ((await listTemplateIds(config.templatesDir)).includes(newId)) {
         return send(response, 400, { error: `"${newId}" bestaat al.` });
+      }
+
+      // Inhoud meegestuurd (een import, of een server die je opslaat als
+      // template): eerst kijken of het klopt, en pas dan aanmaken. Anders houd je
+      // bij een afgekeurd bestand een lege template over met de naam die je net
+      // bedacht had - en dat is precies het moment waarop je denkt dat het gelukt is.
+      if (typeof body.json === 'string' && body.json.trim() !== '') {
+        try {
+          const template = await templateUitJson(config.templatesDir, body.json);
+          if (erft(body.json)) await writeRuw(newId, body.json);
+          else await writeTemplate(newId, template);
+
+          return send(response, 200, { id: newId, json: body.json, template });
+        } catch (error) {
+          return send(response, 400, { error: message(error) });
+        }
       }
 
       // Een variant is geen kopie: hij bewaart alleen dat hij op de ander

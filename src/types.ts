@@ -53,8 +53,15 @@ export const channelSchema = z.object({
   topic: z.string().max(1024).optional(),
   nsfw: z.boolean().default(false),
   slowmodeSeconds: z.number().int().min(0).max(21600).default(0),
-  /** Alleen voor voice/stage; 0 = geen limiet. */
-  userLimit: z.number().int().min(0).max(99).optional(),
+  /**
+   * Alleen voor voice/stage; 0 = geen limiet.
+   *
+   * Een spraakkanaal houdt het bij 99, maar een stagekanaal mag er tienduizend
+   * hebben - dat is ook wat Discord teruggeeft als je zo'n server uitleest. Stond
+   * dat hier op 99, dan maakte onze eigen export een template die onze eigen
+   * controle afkeurde.
+   */
+  userLimit: z.number().int().min(0).max(10000).optional(),
   overwrites: z.array(overwriteSchema).default([]),
   /** Alleen forum. */
   tags: z.array(forumTagSchema).default([]),
@@ -62,6 +69,15 @@ export const channelSchema = z.object({
   autoArchiveMinutes: z
     .union([z.literal(60), z.literal(1440), z.literal(4320), z.literal(10080)])
     .optional(),
+}).superRefine((channel, ctx) => {
+  const grens = channel.type === 'stage' ? 10000 : 99;
+  if (channel.userLimit !== undefined && channel.userLimit > grens) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['userLimit'],
+      message: `Een ${channel.type === 'voice' ? 'spraakkanaal' : 'kanaal van dit type'} kan er hoogstens ${grens} aan; alleen een stagekanaal mag hoger.`,
+    });
+  }
 });
 
 export const categorySchema = z.object({
