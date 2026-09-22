@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { Server } from 'node:http';
@@ -222,5 +222,39 @@ describe('een template met een basis', () => {
       'welkom',
       'memes',
     ]);
+  });
+});
+
+describe('een template met inhoud aanmaken', () => {
+  const bestaat = (id: string) => existsSync(path.join(werkmap, `${id}.json`));
+
+  it('maakt hem aan met de meegestuurde inhoud', async () => {
+    const json = JSON.stringify({ name: 'Uit een bestand', roles: [{ key: 'lid', name: 'Lid' }] });
+    const { status, data } = await haal('/templates', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: 'geimporteerd', json }),
+    });
+
+    expect(status).toBe(200);
+    expect(data.template.roles).toHaveLength(1);
+    expect(lees('geimporteerd').name).toBe('Uit een bestand');
+  });
+
+  it('laat geen lege template achter als de inhoud afgekeurd wordt', async () => {
+    const json = JSON.stringify({
+      name: 'Kapot',
+      uncategorizedChannels: [{ name: 'praat', type: 'voice', userLimit: 500 }],
+    });
+    const { status, data } = await haal('/templates', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: 'afgekeurd', json }),
+    });
+
+    expect(status).toBe(400);
+    // De reden staat erbij, niet alleen "ongeldig".
+    expect(data.error).toContain('userLimit');
+    expect(bestaat('afgekeurd')).toBe(false);
   });
 });

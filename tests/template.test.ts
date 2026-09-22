@@ -125,6 +125,28 @@ describe('permissies', () => {
   });
 });
 
+describe('hoeveel mensen er in een kanaal passen', () => {
+  const metLimiet = (type: string, userLimit: number) =>
+    parseTemplate({
+      name: 'Test',
+      uncategorizedChannels: [{ name: 'kanaal', type, userLimit }],
+    });
+
+  it('laat een stagekanaal er tienduizend toe', () => {
+    // Zo geeft Discord het ook terug, en onze eigen export schreef het zo op:
+    // stond de grens hier op 99, dan keurde onze controle onze eigen export af.
+    expect(metLimiet('stage', 10000).uncategorizedChannels[0]?.userLimit).toBe(10000);
+  });
+
+  it('houdt een spraakkanaal op 99', () => {
+    expect(() => metLimiet('voice', 100)).toThrow(/hoogstens 99/);
+  });
+
+  it('laat een gewoon spraakkanaal met een limiet met rust', () => {
+    expect(metLimiet('voice', 25).uncategorizedChannels[0]?.userLimit).toBe(25);
+  });
+});
+
 describe('meegeleverde templates', () => {
   it('zijn allemaal geldig', async () => {
     const templates = await loadAllTemplates('./templates');

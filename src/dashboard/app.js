@@ -2412,6 +2412,23 @@ $('delTemplate').onclick = async () => {
   toast('"' + removed + '" verwijderd', 'ok');
 };
 
+/**
+ * Een afkeuring met meer dan één regel.
+ *
+ * "Template is ongeldig" in een toastje zegt niets: de reden staat op de regels
+ * eronder, en precies die vielen weg. Nu staat er wát er mis is, en waar.
+ */
+function toonFout(titel, bericht) {
+  const regels = String(bericht).split('\n');
+  if (regels.length === 1) return toast(regels[0], 'bad', 6000);
+
+  toonTekst({
+    title: titel,
+    tekst: regels.join('\n'),
+    hint: 'Pas het bestand aan en probeer het opnieuw. Er is niets aangemaakt.',
+  });
+}
+
 /** Een bestaande server uitlezen en als nieuwe template opslaan. */
 async function exportGuild(guildId) {
   if (!guildId) return toast('Vink eerst een server aan.', 'bad');
@@ -2425,13 +2442,17 @@ async function exportGuild(guildId) {
   if (!name) return;
 
   try {
-    const created = await api('/templates', { method: 'POST', body: JSON.stringify({ id: name }) });
-    await api('/templates/' + created.id, { method: 'PUT', body: JSON.stringify({ json: exported.json }) });
+    // In één keer: aanmaken gebeurt pas als de inhoud goedgekeurd is, zodat er
+    // bij een afkeuring geen lege template achterblijft.
+    const created = await api('/templates', {
+      method: 'POST',
+      body: JSON.stringify({ id: name, json: exported.json }),
+    });
     await refresh();
     await select(created.id);
     toast('Opgeslagen als "' + created.id + '"', 'ok');
   } catch (error) {
-    toast(error.message, 'bad');
+    toonFout('Deze server kan niet als template opgeslagen worden', error.message);
   }
 }
 
@@ -2489,13 +2510,12 @@ $('importFile').onchange = async () => {
   if (!naam) return;
 
   try {
-    const gemaakt = await api('/templates', { method: 'POST', body: JSON.stringify({ id: naam }) });
-    await api('/templates/' + gemaakt.id, { method: 'PUT', body: JSON.stringify({ json: inhoud }) });
+    const gemaakt = await api('/templates', { method: 'POST', body: JSON.stringify({ id: naam, json: inhoud }) });
     await refresh();
     await select(gemaakt.id);
     toast('Geïmporteerd als "' + gemaakt.id + '"', 'ok');
   } catch (error) {
-    toast(error.message.split('\n')[0], 'bad', 6000);
+    toonFout('Dit bestand kan niet als template gebruikt worden', error.message);
   }
 };
 
