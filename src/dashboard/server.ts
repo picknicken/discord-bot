@@ -25,6 +25,7 @@ import { describeActions, planRegels, planSetup, summarizePlan } from '../planne
 import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadTemplateMet, templateUitJson } from '../templates.js';
 import { COMMANDS } from '../bot.js';
+import { instellingenVan, zetServerInstellingen } from '../serverInstellingen.js';
 import {
   koppelingVan,
   meldCommandosAan,
@@ -324,6 +325,34 @@ async function handle(
     if (!guild) return send(response, 404, { error: 'Server niet gevonden.' });
 
     return send(response, 200, await opruimlijst(guild));
+  }
+
+  /**
+   * Wat deze server anders wil dan de rest.
+   *
+   * Voor nu: of de bot erin mag zeggen dat de server afwijkt van zijn template.
+   * Op een server die je aan het verbouwen bent is dat elke dag hetzelfde
+   * verhaal over dingen die je zelf anders hebt bedoeld.
+   */
+  if (resource === 'serverinstellingen' && id !== undefined) {
+    const nee = weigering(id);
+    if (nee) return send(response, 403, { error: nee });
+
+    if (method === 'GET') {
+      return send(response, 200, { instellingen: await instellingenVan(config.historyDir, id) });
+    }
+
+    if (method === 'PUT') {
+      const body = await readJson<{ driftMelden?: boolean }>(request);
+      const instellingen = await zetServerInstellingen(config.historyDir, id, {
+        ...(typeof body.driftMelden === 'boolean' ? { driftMelden: body.driftMelden } : {}),
+      });
+
+      logger.info(
+        `Dashboard zet het melden van afwijkingen in ${id} ${instellingen.driftMelden ? 'aan' : 'uit'}`,
+      );
+      return send(response, 200, { instellingen, saved: true });
+    }
   }
 
   /**

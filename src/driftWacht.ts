@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { EmbedBuilder, type Client, type Guild } from 'discord.js';
 import { driftVanServer, type DriftStatus } from './drift.js';
+import { leesServerInstellingen, STANDAARD } from './serverInstellingen.js';
 import { readSetups } from './setupLog.js';
 import { serverToegestaan } from './toegestaan.js';
 import { logger } from './util/logger.js';
@@ -86,9 +87,14 @@ async function ronde(
 
   const runs = await readSetups(opties.historyDir, 500);
   const geheugen = await leesGeheugen(opties.historyDir);
+  const perServer = await leesServerInstellingen(opties.historyDir);
   let veranderd = false;
 
   for (const guild of servers) {
+    // Servers waar je het melden hebt uitgezet slaan we helemaal over: dan hoeft
+    // er ook geen verse momentopname voor opgehaald te worden.
+    if ((perServer[guild.id] ?? STANDAARD).driftMelden === false) continue;
+
     const status = await driftVanServer(guild, runs, opties.templatesDir).catch(() => null);
     if (!status || status.count === null || status.template === null) continue;
 
