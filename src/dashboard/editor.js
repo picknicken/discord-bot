@@ -815,6 +815,12 @@ function serverProps(template) {
     '<p class="hint">Dit geldt voor de server als geheel. Leeg laten betekent: laat staan wat er staat.</p>' +
     field('Naam van de template', text('templateName', template.name)) +
     field('Omschrijving', text('templateDescription', template.description || ''), 'Alleen voor jezelf, in de lijst') +
+    field(
+      'Blijf hier vanaf',
+      text('templateNegeer', (template.negeer || []).join(', ')),
+      'Namen met komma\u2019s, bijvoorbeeld: Tickets, ticket-*. Die worden niet bijgewerkt en niet ' +
+        'verwijderd, ook niet met prune aan. De naam van een categorie dekt alles wat erin staat.',
+    ) +
     '<h4>Veiligheid</h4>' +
     field('Verificatieniveau', keuzeveld('verificationLevel', guild.verificationLevel)) +
     field('Scannen op aanstootgevende media', keuzeveld('explicitContentFilter', guild.explicitContentFilter)) +
@@ -1310,10 +1316,7 @@ function bind(container) {
     veld.onchange = () => {
       const naam = veld.dataset.guild;
 
-      // De naam en omschrijving van de template zelf staan niet onder guild.
-      if (naam === 'templateName') ctx.template.name = veld.value;
-      else if (naam === 'templateDescription') ctx.template.description = veld.value;
-      else if (veld.type === 'checkbox') {
+      if (veld.type === 'checkbox') {
         if (veld.checked) ctx.template.guild.community = true;
         else delete ctx.template.guild.community;
       } else if (veld.value === '') {
@@ -1330,14 +1333,36 @@ function bind(container) {
 
   for (const input of container.querySelectorAll('[data-edit]')) {
     input.onchange = () => {
+      const name = input.dataset.edit;
+
+      /**
+       * De template zelf. Dit stond bij de guild-velden, maar die velden dragen
+       * data-edit en kwamen hier terecht - waar dit scherm ze aanzag voor een
+       * kanaal en stukliep op "Cannot read properties of undefined". Je kon de
+       * naam van een template dus niet aanpassen zonder de JSON open te doen.
+       */
+      if (selection.type === 'server') {
+        if (name === 'templateName') ctx.template.name = input.value;
+        else if (name === 'templateDescription') ctx.template.description = input.value;
+        else if (name === 'templateNegeer') {
+          const namen = input.value
+            .split(',')
+            .map((stuk) => stuk.trim())
+            .filter(Boolean);
+          if (namen.length > 0) ctx.template.negeer = namen;
+          else delete ctx.template.negeer;
+        }
+
+        changed();
+        return;
+      }
+
       const target =
         selection.type === 'role'
           ? ctx.template.roles[selection.index]
           : selection.type === 'category'
             ? ctx.template.categories[selection.index]
             : currentChannel();
-
-      const name = input.dataset.edit;
       if (input.type === 'checkbox') target[name] = input.checked;
       else if (input.type === 'number') target[name] = Number(input.value);
       else if (name === 'tags') {

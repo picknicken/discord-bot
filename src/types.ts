@@ -218,6 +218,16 @@ export const templateSchema = z.object({
   onboarding: onboardingSchema.optional(),
   /** Berichten met knoppen waarmee leden zichzelf een rol geven. */
   roleMenus: z.array(roleMenuSchema).default([]),
+  /**
+   * Kanalen en categorieen waar de bot vanaf blijft, op naam.
+   *
+   * Voor alles wat niet van jou is maar wel in je server staat: de kanalen van
+   * een ticketbot, een kanaal dat iemand anders beheert. Ze worden niet
+   * bijgewerkt en niet verwijderd, ook niet met prune aan. Een `*` mag:
+   * "ticket-*" vangt ze allemaal, en de naam van een categorie dekt alles wat
+   * erin staat.
+   */
+  negeer: z.array(z.string().min(1)).default([]),
 });
 
 export type Overwrite = z.infer<typeof overwriteSchema>;

@@ -558,6 +558,34 @@ prima: dat veld wordt genegeerd.)
 De snelste manier aan een eigen template te komen: richt een server met de hand in en
 draai `/setup export`.
 
+### Kanalen waar de bot vanaf blijft
+
+Niet alles in je server is van jou. Een ticketbot maakt kanalen aan die niemand van tevoren kan
+opschrijven — `ticket-0042` bestaat vanmiddag en morgen niet meer. Zet je zo'n kanaal niet in je
+template, dan is het bij een uitrol met `--prune` "niet in de template, dus weg", en dat zijn de
+openstaande tickets van je leden.
+
+```json
+"negeer": ["Tickets", "ticket-*", "🎫│support"]
+```
+
+- De naam van een **categorie** dekt alles wat erin staat. Dat is meestal wat je wil: de kanalen
+  van een ticketbot hebben geen vaste naam, maar staan wel altijd op dezelfde plek.
+- Een `*` staat voor "wat dan ook": `ticket-*` vangt ze allemaal. De rest van de naam is gewone
+  tekst, dus een kanaal dat `c++` heet geeft geen gedoe.
+- Wat genegeerd wordt, wordt **niet bijgewerkt en niet verwijderd** — ook niet met prune aan, en
+  het telt ook niet mee als afwijking. Aanmaken mag hij nog wel: de template blijft de baas over
+  wat er hoort te zijn. Staat de categorie `Tickets` in je template, dan maakt hij die gewoon aan
+  als hij ontbreekt, en blijft hij van de inhoud af.
+- In de preview staat wat er is overgeslagen: *"2 dingen blijven met rust omdat de template ze
+  negeert: stof, Archief."* Stille overslaan is hoe je later niet meer begrijpt waarom een kanaal
+  niet bijgewerkt wordt.
+
+In het dashboard staat dit onder **Serverinstellingen → Blijf hier vanaf**, als namen met komma's.
+
+Let op: **leeghalen kent geen template, en dus ook geen negeer-lijst.** Dat commando haalt alles
+weg wat de bot mag weghalen; daar is de getypte bevestiging de rem.
+
 ### Rolmenu's: knoppen waarmee leden zichzelf een rol geven
 
 "Klik op 🎮 voor de gamer-rol" staat op half Discord, en daar had je tot nu toe een tweede bot
@@ -872,6 +900,7 @@ assets/logo.png         avatar en applicatie-icoon
   taal.ts               alle teksten voor leden, in het Nederlands en het Engels
   templates.ts          templates inlezen uit de map
   overerven.ts          een template die op een andere voortbouwt samenvoegen
+  negeren.ts            wat de bot met rust laat: namen, sterren en wat erin staat
   rolmenu.ts            het bericht met rolknoppen bouwen, teruglezen en vergelijken
   rolmenuKlik.ts        wat er gebeurt als iemand op zo'n knop klikt
   variabelen.ts         {{naam}} in een template invullen
