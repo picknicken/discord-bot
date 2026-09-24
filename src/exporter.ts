@@ -180,8 +180,10 @@ export function exportGuild(
     description: `Geexporteerd uit "${guild.name}" op ${new Date().toISOString().slice(0, 10)}`,
     variables: {},
     // Rolmenu's staan in berichten en niet in de structuur van de server; die
-    // leest een export dus niet mee.
+    // leest een export dus niet mee. En wat er genegeerd moet worden is een
+    // keuze en niet iets wat in een server te zien is.
     roleMenus: [],
+    negeer: [],
     guild: {
       description: guild.description ?? undefined,
       systemChannel: channelName(guild.systemChannelId),

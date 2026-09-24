@@ -6,6 +6,7 @@ import type {
   SnapshotOnboarding,
   SnapshotOverwrite,
 } from './snapshot.js';
+import { beschrijfGenegeerd, genegeerdeIds, raaktGenegeerd } from './negeren.js';
 import { rolmenuGelijk } from './rolmenu.js';
 import type {
   AutomodSpec,
@@ -672,6 +673,24 @@ export function planSetup(snapshot: GuildSnapshot, template: ServerTemplate, opt
   actions.push(...planGuildSettings(snapshot, template, warnings));
   actions.push(...planRolmenus(snapshot, template, warnings));
   actions.push(...verwijderingen);
+
+  /**
+   * En dan alles eruit wat met rust moet blijven.
+   *
+   * Dit gebeurt op het eind en niet ergens halverwege, want dat is het enige
+   * punt waar alle acties bij elkaar staan. Aanmaken blijft overeind: de
+   * template mag nog steeds zeggen wat er hoort te zijn. Bijwerken en
+   * verwijderen niet - dat is precies wat "blijf hier vanaf" betekent, en het
+   * scheelt de openstaande tickets van je leden bij een uitrol met prune aan.
+   */
+  const genegeerd = genegeerdeIds(snapshot, template.negeer);
+  if (genegeerd.size > 0) {
+    const overgeslagen = actions.filter((action) => raaktGenegeerd(action, genegeerd));
+    if (overgeslagen.length > 0) {
+      actions = actions.filter((action) => !overgeslagen.includes(action));
+      warnings.push(beschrijfGenegeerd(overgeslagen));
+    }
+  }
 
   const totalChannels = template.categories.reduce((sum, category) => sum + category.channels.length, 0) +
     template.uncategorizedChannels.length;

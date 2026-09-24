@@ -496,6 +496,7 @@ async function handle(
             emojis: [],
             automod: [],
             roleMenus: [],
+            negeer: [],
           };
 
       await writeTemplate(newId, source);
@@ -591,6 +592,12 @@ async function handle(
         name: huidig.name,
         description: huidig.description,
         variables: huidig.variables,
+        // Wat niet uit een server te lezen valt, blijft van de template: de
+        // rolmenu's staan in berichten en de negeer-lijst is een keuze van jou.
+        // Die bij het overnemen weggooien zou betekenen dat je ze na elke
+        // aanpassing opnieuw moet invoeren - en dat merk je pas als het te laat is.
+        roleMenus: huidig.roleMenus,
+        negeer: huidig.negeer,
         guild: { ...uitServer.guild, icon: huidig.guild.icon, banner: huidig.guild.banner },
       });
 
