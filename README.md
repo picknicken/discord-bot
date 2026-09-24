@@ -849,6 +849,13 @@ maar behang, dus hij onthoudt wat hij gemeld heeft in `drift-gemeld.json` naast 
 het aantal omhoog of omlaag, of ging er een andere template op, dan hoor je het. Klopt de server
 weer, dan hoor je dat ook — één keer.
 
+**Per server uit te zetten.** Op een server die je aan het verbouwen bent klopt dat bericht juist
+niet: je hoort dan elke keer wat er "nog niet" staat, terwijl je het zelf anders hebt bedoeld. In
+het dashboard, onder **Servers → die server → Deze server**, zet je het melden voor die ene server
+uit. Het getal blijft gewoon in het dashboard staan — hij zegt er alleen niets meer over, en haalt
+voor zo'n server ook geen verse momentopname meer op. De keuze staat in `server-instellingen.json`
+naast het logboek; wat er niet in staat meldt gewoon.
+
 ## Hoe het werkt
 
 ```
@@ -917,6 +924,7 @@ assets/logo.png         avatar en applicatie-icoon
   uitvoeren.ts          de volgorde van een uitrol, op één plek
   gepland.ts            uitrollen op een tijdstip, ook na een herstart
   drift.ts              wijkt een server af van wat er het laatst op ging?
+  serverInstellingen.ts wat je per server anders wil, zoals het melden uitzetten
   driftWacht.ts         daar vanzelf over melden in de server
   backupWacht.ts        vanzelf een momentopname, en oude opruimen
   auditlog.ts           wie heeft er met de hand iets veranderd

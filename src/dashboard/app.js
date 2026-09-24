@@ -989,6 +989,37 @@ function openServer(guildId) {
   toonScherm('server');
 }
 
+/** De schakelaar per server ophalen en aanzetten zodra we weten hoe hij staat. */
+async function laadServerInstellingen(guildId) {
+  const vinkje = $('driftMelden');
+  if (!vinkje) return;
+
+  try {
+    const data = await api('/serverinstellingen/' + guildId);
+    vinkje.checked = data.instellingen.driftMelden;
+    vinkje.disabled = false;
+  } catch (error) {
+    toast(error.message, 'bad');
+    return;
+  }
+
+  vinkje.onchange = async () => {
+    vinkje.disabled = true;
+    try {
+      await api('/serverinstellingen/' + guildId, {
+        method: 'PUT',
+        body: JSON.stringify({ driftMelden: vinkje.checked }),
+      });
+      toast(vinkje.checked ? 'Hij meldt afwijkingen weer in deze server' : 'Hij zegt er niets meer over', 'ok');
+    } catch (error) {
+      vinkje.checked = !vinkje.checked;
+      toast(error.message, 'bad');
+    } finally {
+      vinkje.disabled = false;
+    }
+  };
+}
+
 function renderServerDetail() {
   const guild = state.guilds.find((kandidaat) => kandidaat.id === state.serverId);
   if (!guild) {
@@ -1064,10 +1095,20 @@ function renderServerDetail() {
     '<div class="pbody" id="wijzigingenLijst">' + busy('Auditlog lezen…') + '</div></section>' +
     '<section class="panel" style="margin-top:14px"><div class="phead">' + icon('trash') +
     '<h2 class="grow">Blijven liggen</h2></div>' +
-    '<div class="pbody" id="opruimLijst">' + busy('Nakijken…') + '</div></section>';
+    '<div class="pbody" id="opruimLijst">' + busy('Nakijken…') + '</div></section>' +
+    // Op een server die je aan het verbouwen bent is dat dagelijkse bericht over
+    // "wat er nog niet staat" precies verkeerd: je hebt het zelf anders bedoeld.
+    '<section class="panel" style="margin-top:14px"><div class="phead">' + icon('shield') +
+    '<h2 class="grow">Deze server</h2></div><div class="pbody">' +
+    '<label class="check"><input type="checkbox" id="driftMelden" disabled>' +
+    '<span>Zeg het in de server als hij afwijkt van zijn template' +
+    '<br><small class="muted">De bot post dan een bericht zodra het aantal verschillen verandert. ' +
+    'Uit betekent: alleen hier te zien, hij zegt er niets meer over.</small></span></label>' +
+    '</div></section>';
 
   void laadWijzigingen(guild.id);
   void laadOpruimen(guild.id);
+  void laadServerInstellingen(guild.id);
 
   for (const knop of $('serverDetail').querySelectorAll('[data-backup]')) {
     knop.onclick = () => restoreBackup(knop.dataset.backup);
