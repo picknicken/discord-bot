@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readdir, readFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { basisVan, bouwOp, type Ruw } from './overerven.js';
 import { parseTemplate, type ServerTemplate } from './types.js';
@@ -189,4 +189,31 @@ export async function loadAllTemplates(dir: string): Promise<TemplateEntry[]> {
     loaded.push({ id, template: await loadTemplate(dir, id) });
   }
   return loaded;
+}
+
+/**
+ * Een naam voor een geexporteerde server die als bestandsnaam kan. Een servernaam
+ * met alleen emoji of andere tekens houdt niets over; dan wordt het het server-id.
+ */
+export function exportId(serverNaam: string, serverId: string): string {
+  const slug = serverNaam
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || `server-${serverId}`;
+}
+
+/**
+ * Bewaart een export in de templates-map, zodat hij meteen in `/setup list`, de
+ * keuzelijst en het dashboard staat. Een bestaande template met dezelfde naam
+ * blijft staan: dan krijgt de nieuwe een volgnummer.
+ */
+export async function bewaarExport(dir: string, basis: string, template: ServerTemplate): Promise<string> {
+  await mkdir(dir, { recursive: true });
+  const bestaand = new Set(await listTemplateIds(dir));
+  let id = basis;
+  for (let n = 2; bestaand.has(id); n++) id = `${basis}-${n}`;
+  await writeFile(path.join(dir, `${id}.json`), `${JSON.stringify(template, null, 2)}\n`, 'utf8');
+  return id;
 }

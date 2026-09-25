@@ -14,7 +14,7 @@ import { applyPlan } from '../applier.js';
 import { exportGuildFresh } from '../exporter.js';
 import { describeActions, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
-import { listTemplateIds, loadAllTemplates, loadTemplateMet } from '../templates.js';
+import { bewaarExport, exportId, listTemplateIds, loadAllTemplates, loadTemplateMet } from '../templates.js';
 import { maakHaalbaar } from '../haalbaar.js';
 import { backupGuild } from '../backup.js';
 import { logSetup } from '../setupLog.js';
@@ -334,13 +334,22 @@ async function handleExport(interaction: ChatInputCommandInteraction, guild: Gui
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const template = await exportGuildFresh(guild);
-  const json = JSON.stringify(template, null, 2);
-  const file = new AttachmentBuilder(Buffer.from(json, 'utf8'), {
-    name: `${guild.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.json`,
+  const basis = exportId(guild.name, guild.id);
+  const file = new AttachmentBuilder(Buffer.from(JSON.stringify(template, null, 2), 'utf8'), {
+    name: `${basis}.json`,
   });
 
+  let id: string | null = null;
+  try {
+    id = await bewaarExport(config.templatesDir, basis, template);
+  } catch (error) {
+    logger.warn(`Export van ${guild.id} niet opgeslagen: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
   await interaction.editReply({
-    content: 'Zet dit bestand in de templates-map om deze server elders te herhalen.',
+    content: id
+      ? `Opgeslagen als template **${id}** — hij staat nu in \`/setup list\` en in het dashboard. Het bestand zit er ook bij.`
+      : `Opslaan in \`${config.templatesDir}\` lukte niet. Zet dit bestand zelf in de templates-map, of importeer het in het dashboard.`,
     files: [file],
   });
 }

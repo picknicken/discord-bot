@@ -10,7 +10,7 @@ kanalen, permissie-overwrites en serverinstellingen — in een keer, reproduceer
 | `/setup list` | Toont alle beschikbare templates met aantallen rollen/kanalen |
 | `/setup preview template:<naam>` | Laat het volledige plan zien **zonder iets te wijzigen** |
 | `/setup apply template:<naam> bevestig:<servernaam>` | Voert het plan uit |
-| `/setup export` | Exporteert de huidige server als template-bestand (JSON-bijlage) |
+| `/setup export` | Slaat de huidige server op als template in de templates-map (en stuurt het JSON-bestand mee) |
 
 Daarnaast is er een tweede tak, voor OSRS-clans (via WiseOldMan):
 
