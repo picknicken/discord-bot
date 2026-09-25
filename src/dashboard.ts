@@ -6,6 +6,7 @@ import { authEnabled, createDashboard } from './dashboard/server.js';
 import { startAutomatischeSync } from './clan/synchroniseren.js';
 import { startBackupWacht } from './backupWacht.js';
 import { startGeplandeUitrol } from './gepland.js';
+import { startGeplandeAankondigingen } from './geplandeAankondiging.js';
 import { startDriftWacht } from './driftWacht.js';
 import { kiesIntents } from './util/intents.js';
 import { logger } from './util/logger.js';
@@ -97,6 +98,7 @@ client.once(Events.ClientReady, async (ready) => {
     backupsDir: config.backupsDir,
     historyDir: config.historyDir,
   });
+  startGeplandeAankondigingen(ready, { historyDir: config.historyDir });
 
   const server = createDashboard(ready, { applicationOwners: owners });
 

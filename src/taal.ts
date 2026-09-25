@@ -211,6 +211,34 @@ const TEKSTEN = {
   'rolmenu.waterbij': { nl: '{rollen} erbij', en: '{rollen} added' },
   'rolmenu.wateraf': { nl: '{rollen} eraf', en: '{rollen} removed' },
   'rolmenu.kiezen': { nl: 'Kies je rollen', en: 'Pick your roles' },
+  'rolmenu.cmd.geen.rechten': {
+    nl: 'Je mist het recht "Rollen beheren" om een rolmenu neer te zetten.',
+    en: 'You are missing the "Manage Roles" permission to post a role menu.',
+  },
+  'rolmenu.geenrollen': {
+    nl: 'Geef minstens één rol op.',
+    en: 'Provide at least one role.',
+  },
+  'rolmenu.teveelrollen': {
+    nl: 'Een rolmenu mag maximaal {aantal} rollen hebben.',
+    en: 'A role menu can have at most {aantal} roles.',
+  },
+  'rolmenu.rol.onbekend': {
+    nl: '"{naam}" is geen rol in deze server.',
+    en: '"{naam}" is not a role in this server.',
+  },
+  'rolmenu.rol.dubbel': {
+    nl: '**{rol}** staat er twee keer in.',
+    en: '**{rol}** is listed twice.',
+  },
+  'rolmenu.plaatsen.mislukt': {
+    nl: 'Het rolmenu plaatsen lukte niet: {fout}',
+    en: 'Could not post the role menu: {fout}',
+  },
+  'rolmenu.geplaatst': {
+    nl: 'Rolmenu met {aantal} rol(len) geplaatst in {kanaal}.',
+    en: 'Role menu with {aantal} role(s) posted in {kanaal}.',
+  },
 
   // --- binnenkomen in een server ---------------------------------------------
   'join.geenadmin.titel': {
@@ -324,6 +352,94 @@ const TEKSTEN = {
   'poll.mislukt': {
     nl: 'De poll aanmaken lukte niet: {fout}',
     en: 'Could not create the poll: {fout}',
+  },
+
+  // --- /embed ------------------------------------------------------------
+  'embed.geen.rechten': {
+    nl: 'Je mist het recht "Berichten beheren" om een embed te sturen.',
+    en: 'You are missing the "Manage Messages" permission to send an embed.',
+  },
+  'embed.leeg': {
+    nl: 'Geef een titel of een beschrijving mee; een lege embed heeft niets om te tonen.',
+    en: 'Provide a title or a description; an empty embed has nothing to show.',
+  },
+  'embed.kleur.ongeldig': {
+    nl: '"{kleur}" is geen geldige hexkleur. Gebruik zoiets als #5865F2.',
+    en: '"{kleur}" is not a valid hex color. Use something like #5865F2.',
+  },
+  'embed.url.ongeldig': {
+    nl: '"{url}" is geen geldige http(s)-link.',
+    en: '"{url}" is not a valid http(s) link.',
+  },
+  'embed.kanaal.ongeldig': {
+    nl: 'Kies een tekst- of aankondigingskanaal om de embed in te sturen.',
+    en: 'Pick a text or announcement channel to send the embed in.',
+  },
+  'embed.geen.kanaalrechten': {
+    nl: 'Ik mag niet praten in {kanaal}: geef me daar "Kanaal bekijken", "Berichten sturen" en "Links insluiten".',
+    en: 'I am not allowed to post in {kanaal}: grant me "View Channel", "Send Messages" and "Embed Links" there.',
+  },
+  'embed.mislukt': {
+    nl: 'De embed versturen lukte niet: {fout}',
+    en: 'Could not send the embed: {fout}',
+  },
+  'embed.gelukt': {
+    nl: 'Embed geplaatst in {kanaal}.',
+    en: 'Embed posted in {kanaal}.',
+  },
+  'embed.eenheid.ongeldig': {
+    nl: 'Onbekende eenheid. Kies minuten, uren of dagen.',
+    en: 'Unknown unit. Pick minutes, hours or days.',
+  },
+  'embed.teverweg': {
+    nl: 'Dat is te ver vooruit; het maximum is {dagen} dagen.',
+    en: 'That is too far ahead; the maximum is {dagen} days.',
+  },
+  'embed.gepland': {
+    nl: 'Staat klaar voor {tijd} in {kanaal}.',
+    en: 'Queued for {tijd} in {kanaal}.',
+  },
+
+  // --- /tag ----------------------------------------------------------------
+  'tag.geen.rechten': {
+    nl: 'Je mist het recht "Berichten beheren" om tags aan te passen.',
+    en: 'You are missing the "Manage Messages" permission to change tags.',
+  },
+  'tag.leeg': {
+    nl: 'Geef minstens tekst, een titel of een beschrijving mee; een lege tag heeft niets om te tonen.',
+    en: 'Provide at least text, a title or a description; an empty tag has nothing to show.',
+  },
+  'tag.naam.ongeldig': {
+    nl: '"{naam}" mag alleen kleine letters, cijfers en streepjes bevatten (max 32 tekens).',
+    en: '"{naam}" may only contain lowercase letters, numbers and hyphens (32 characters max).',
+  },
+  'tag.bestaatal': {
+    nl: 'Tag "{naam}" bestaat al. Gebruik `/tag bewerk` om hem te vervangen.',
+    en: 'Tag "{naam}" already exists. Use `/tag bewerk` to replace it.',
+  },
+  'tag.onbekend': {
+    nl: 'Tag "{naam}" bestaat niet.',
+    en: 'Tag "{naam}" does not exist.',
+  },
+  'tag.verwijderd': {
+    nl: 'Tag "{naam}" is verwijderd.',
+    en: 'Tag "{naam}" has been deleted.',
+  },
+  'tag.gemaakt': {
+    nl: 'Tag "{naam}" is aangemaakt.',
+    en: 'Tag "{naam}" has been created.',
+  },
+  'tag.bijgewerkt': {
+    nl: 'Tag "{naam}" is bijgewerkt.',
+    en: 'Tag "{naam}" has been updated.',
+  },
+  'tag.lijst': {
+    nl: 'Tags op deze server: {namen}',
+    en: 'Tags on this server: {namen}',
+  },
+  'tag.lijst.leeg': {
+    nl: 'Deze server heeft nog geen tags. Maak er een met `/tag maak`.',
+    en: 'This server has no tags yet. Create one with `/tag maak`.',
   },
 } as const satisfies Record<string, Record<Taal, string>>;
 

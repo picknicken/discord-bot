@@ -2,6 +2,9 @@ import { Events, MessageFlags, type AutocompleteInteraction, type ChatInputComma
 import * as setup from './commands/setup.js';
 import * as clan from './commands/clan.js';
 import * as poll from './commands/poll.js';
+import * as embed from './commands/embed.js';
+import * as rolmenuCommand from './commands/rolmenu.js';
+import * as tag from './commands/tag.js';
 import { config } from './config.js';
 import { zorgVoorCommandos, type CommandoJSON } from './commandos.js';
 import { KOPPEL_KNOP, KOPPEL_VENSTER, toonKoppelVenster, verwerkKoppelVenster } from './clan/knop.js';
@@ -16,14 +19,16 @@ import { logger } from './util/logger.js';
 /**
  * De commando's van deze bot: /setup richt een server in vanuit een template,
  * /clan hangt er de clanrangen uit OSRS aan, /poll plaatst een ingebouwde
- * Discord-poll. Ze staan hier naast elkaar zodat het registreren, het
- * afhandelen en het uitrollen naar Discord allemaal uit dezelfde lijst lezen.
+ * Discord-poll, /embed stuurt (of plant) een bericht als embed, /rolmenu zet
+ * los een rolmenu neer, /tag onthoudt eigen commando's per server. Ze staan
+ * hier naast elkaar zodat het registreren, het afhandelen en het uitrollen
+ * naar Discord allemaal uit dezelfde lijst lezen.
  */
 export const COMMANDS: Array<{
   data: { name: string; toJSON: () => unknown };
   execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
   autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
-}> = [setup, clan, poll];
+}> = [setup, clan, poll, embed, rolmenuCommand, tag];
 
 /**
  * Alles wat de bot in Discord zelf doet: de commando's en het welkom als hij aan

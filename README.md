@@ -24,11 +24,17 @@ Daarnaast is er een tweede tak, voor OSRS-clans (via WiseOldMan):
 | `/clan sync` | Beheer: werkt de clanrollen van iedereen bij |
 | `/clan knop` | Beheer: zet een knop neer waarmee leden hun naam koppelen |
 
-En een derde, los van de rest:
+En een paar losse commando's, buiten die twee takken om:
 
 | Commando | Wat het doet |
 | --- | --- |
 | `/poll vraag:<...> opties:<...> [duur] [meerkeuze]` | Plaatst een poll met Discord's eigen ingebouwde stemsysteem |
+| `/embed stuur [titel] [beschrijving] [kleur] [afbeelding] [thumbnail] [footer] [kanaal]` | Stuurt een bericht als embed, standaard in het huidige kanaal |
+| `/embed plan over:<...> eenheid:<...> [titel] [beschrijving] ...` | Zet dezelfde embed klaar om zichzelf later te plaatsen |
+| `/rolmenu titel:<...> rollen:<...> [beschrijving] [stijl] [kleur] [kanaal]` | Zet los een rolmenu neer, zonder daar een template voor te hoeven schrijven |
+| `/tag maak naam:<...> [tekst] [titel] [beschrijving] ...` | Legt een eigen commando voor deze server vast |
+| `/tag toon naam:<...>` | Plaatst die tag — met autocomplete op de naam |
+| `/tag bewerk` / `/tag verwijder` / `/tag lijst` | Een tag vervangen, weghalen, of alles op een rijtje |
 
 Hetzelfde kan lokaal via het dashboard (`npm run dashboard`), inclusief het bewerken van
 templates en het instellen van de clanrangen.
@@ -883,6 +889,86 @@ Geen aparte rol of instelling nodig: wie het commando in Discord ziet staan, mag
 Wil je dat beperken tot bijvoorbeeld moderators, dan stel je dat in bij Server-instellingen →
 Integraties → Setup Bot, zoals bij elk ander commando van een bot.
 
+## Embeds
+
+`/embed stuur titel:"Aankondiging" beschrijving:"Vanavond onderhoud" kleur:#5865F2` stuurt een
+opgemaakt bericht namens de bot — zoals `!embed` bij Dyno of MEE6, maar als los slash-commando
+in plaats van een builder met knoppen.
+
+- Vereist het recht **Berichten beheren**; dat staat ook als standaard op het commando zelf,
+  zodat het pas in de commandolijst verschijnt voor wie dat recht heeft.
+- **`titel`** en **`beschrijving`** zijn allebei optioneel, maar minstens één ervan moet
+  ingevuld zijn — een embed zonder inhoud heeft niets te tonen.
+- **`kleur`** is een hexkleur (`#5865F2` of `5865F2`) voor de streep links.
+- **`afbeelding`** en **`thumbnail`** zijn losse afbeeldings-URL's: groot onderin, klein
+  rechtsboven.
+- **`kanaal`** stuurt de embed ergens anders neer dan waar je het commando typt — handig om
+  hem in `#regels` of `#aankondigingen` te zetten zonder daar zelf te hoeven typen. De bot
+  controleert eerst of hij daar mag posten, en zegt anders welk recht ontbreekt.
+
+Het bericht komt los van de interactie te staan — geen "gebruikte /embed"-label eronder, precies
+zoals bij een bericht dat je zelf met de hand zou versturen. De bevestiging dat het gelukt is zie
+je alleen zelf.
+
+### Later plaatsen
+
+`/embed plan over:3 eenheid:uren titel:"Onderhoud vanavond"` zet dezelfde embed klaar in plaats
+van hem meteen te sturen — handig voor een aankondiging om drie uur 's nachts zonder dat daar
+iemand wakker voor hoeft te blijven. Dezelfde velden als `stuur`, plus:
+
+- **`over`** en **`eenheid`** (minuten, uren of dagen) samen bepalen wanneer het gebeurt, tot
+  maximaal 365 dagen vooruit.
+- De bevestiging toont het tijdstip in jouw eigen tijdzone (Discord rekent dat zelf om).
+- De lijst staat op schijf naast de geschiedenis (`HISTORY_DIR`), dus een herstart of een deploy
+  vergeet niets. Stond de bot uit op het afgesproken moment, dan gebeurt het alsnog zodra hij
+  weer online is.
+
+## Rolmenu's
+
+`/setup` kent rolmenu's al binnen een template, maar dat is voor een server die net één
+"kies je pingrol"-bericht wil evenveel werk als voor een server die zijn hele indeling opnieuw
+opbouwt. `/rolmenu` doet alleen dat ene bericht, meteen:
+
+```
+/rolmenu titel:"Kies je rol" rollen:"Gamer:🎮, Muziek:🎵:Muziek liefhebber, Kunst"
+```
+
+- **`rollen`** is één tekstveld, de rollen gescheiden door een komma: `Naam`, `Naam:emoji` of
+  `Naam:emoji:label`. Rollen zonder emoji of eigen label mag je gewoon met de naam alleen
+  opgeven. Maximaal 25, net als bij Discord zelf.
+- **`stijl`** is knoppen (standaard, tot 25 in vijf rijen) of een keuzemenu (één dropdown,
+  meerdere rollen tegelijk aan of uit).
+- Dezelfde controles als bij een rolmenu uit een template: een rol die de bot niet kan uitdelen
+  (hoort bij een bot, staat boven zijn eigen rol, of hij mist **Rollen beheren**) wordt geweigerd
+  vóórdat er iets geplaatst wordt, met precies welke rol en waarom.
+- Klikken werkt daarna identiek aan een rolmenu uit een template — dezelfde knoppen, dezelfde
+  code erachter.
+
+Vereist het recht **Rollen beheren**.
+
+## Tags: eigen commando's
+
+`/tag` is dit bots versie van de "custom commands" van Dyno en MEE6 — maar als slash-commando
+in plaats van een `!prefix` in de chat. Dat scheelt de Message Content Intent (niet elke server
+zet die aan) en het scheelt onthouden welk teken deze server als prefix gebruikt.
+
+| Commando | Wat het doet |
+| --- | --- |
+| `/tag maak naam:regels tekst:"Wees aardig tegen elkaar."` | Legt een nieuwe tag vast |
+| `/tag toon naam:regels` | Plaatst hem — iedereen mag dit, met autocomplete op de naam |
+| `/tag bewerk naam:regels ...` | Vervangt de inhoud van een bestaande tag |
+| `/tag verwijder naam:regels` | Haalt hem weg |
+| `/tag lijst` | Alle tags van deze server op een rijtje |
+
+Een tag is óf platte **`tekst`**, óf dezelfde embedvelden als `/embed` (`titel`, `beschrijving`,
+`kleur`, `afbeelding`, `thumbnail`, `footer`) — of allebei: de tekst komt dan boven de embed te
+staan. Een naam mag alleen kleine letters, cijfers en streepjes bevatten; hoofdletters en spaties
+worden vanzelf omgezet (`Server Regels` wordt `server-regels`).
+
+`maak`, `bewerk` en `verwijder` vereisen het recht **Berichten beheren**; `toon` en `lijst` staan
+open voor iedereen die het commando ziet. Opgeslagen als één JSON-bestand per server in
+`TAGS_DIR` (standaard `./tags`).
+
 ## MCP / Claude
 
 Deze bot heeft een tweede ingang naast de Discord-commando's, het dashboard en GitHub Actions:
@@ -1188,8 +1274,8 @@ HISTORY_DIR=./history
   `redirectUri` — dat is precies de tekst die in het portal moet staan.
 - `GUILD_IDS` leeg = geen beperking. Vul je er server-ids in (met komma's ertussen), dan mag
   de bot alleen daar iets.
-- `TEMPLATES_DIR`, `BACKUPS_DIR`, `HISTORY_DIR` en `CLAN_DIR` mag je weglaten zodra er een
-  volume hangt — zie hieronder.
+- `TEMPLATES_DIR`, `BACKUPS_DIR`, `HISTORY_DIR`, `CLAN_DIR` en `TAGS_DIR` mag je weglaten zodra
+  er een volume hangt — zie hieronder.
 
 #### Een volume, anders ben je alles kwijt bij elke deploy
 
@@ -1210,14 +1296,14 @@ service daarna en zet zelf `RAILWAY_VOLUME_MOUNT_PATH=/data` in de omgeving — 
 zelf aan te maken.
 
 Meer hoef je niet te doen: staat die variabele er, dan verhuizen templates, back-ups,
-geschiedenis en de clankoppelingen vanzelf mee naar `/data/templates`, `/data/backups`,
-`/data/history` en `/data/clan`. De
+geschiedenis, de clankoppelingen en de tags vanzelf mee naar `/data/templates`, `/data/backups`,
+`/data/history`, `/data/clan` en `/data/tags`. De
 meegeleverde templates worden bij de eerste start naar het lege volume gekopieerd — en daarna
 nooit meer, anders zou je eigen versie elke herstart overschreven worden.
 
-Had je `TEMPLATES_DIR`, `BACKUPS_DIR`, `HISTORY_DIR` of `CLAN_DIR` zelf ingevuld? Haal ze dan weg, anders
-winnen die van het volume. Heb je liever een ander pad: `DATA_DIR` doet hetzelfde op een host
-die geen Railway is.
+Had je `TEMPLATES_DIR`, `BACKUPS_DIR`, `HISTORY_DIR`, `CLAN_DIR` of `TAGS_DIR` zelf ingevuld? Haal
+ze dan weg, anders winnen die van het volume. Heb je liever een ander pad: `DATA_DIR` doet
+hetzelfde op een host die geen Railway is.
 
 ### Zonder computer: via GitHub Actions
 
