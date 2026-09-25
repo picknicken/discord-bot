@@ -303,6 +303,28 @@ const TEKSTEN = {
     nl: 'Er ging iets mis bij het uitvoeren van dit commando.',
     en: 'Something went wrong while running this command.',
   },
+
+  // --- /poll -------------------------------------------------------------
+  'poll.tewinig': {
+    nl: 'Een poll heeft minstens 2 opties nodig; dit zijn er {aantal}.',
+    en: 'A poll needs at least 2 options; this is {aantal}.',
+  },
+  'poll.teveel': {
+    nl: 'Een poll mag maximaal 10 opties hebben; dit zijn er {aantal}.',
+    en: 'A poll can have at most 10 options; this is {aantal}.',
+  },
+  'poll.telang': {
+    nl: 'Deze optie is {lengte} tekens, dat mag maximaal 55 zijn: "{optie}".',
+    en: 'This option is {lengte} characters, the maximum is 55: "{optie}".',
+  },
+  'poll.dubbel': {
+    nl: 'Deze optie staat er twee keer in: "{optie}".',
+    en: 'This option is listed twice: "{optie}".',
+  },
+  'poll.mislukt': {
+    nl: 'De poll aanmaken lukte niet: {fout}',
+    en: 'Could not create the poll: {fout}',
+  },
 } as const satisfies Record<string, Record<Taal, string>>;
 
 export type Sleutel = keyof typeof TEKSTEN;
