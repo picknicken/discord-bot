@@ -259,6 +259,12 @@ function paneelExtra() {
         'Alleen de rollen die je hierboven koppelt; andere rollen blijft de bot af.') +
       vink('clanAutomatisch', gegevens.instellingen.automatisch, 'Elk uur vanzelf bijwerken',
         'Rangen veranderen in het spel; zo hoeft niemand daarna een knop te zoeken.') +
+      vink('clanVerplicht', gegevens.instellingen.verplicht, 'Naamkoppeling verplicht maken',
+        'Een nieuw lid krijgt de rol hieronder en typt zijn naam in het welkomkanaal (dat werkt naast de ' +
+          'knop). Zodra dat lukt gaat die rol er weer af. Welke kanalen die rol wel en niet ziet stel je zelf ' +
+          'in bij Serverinstellingen -> Rollen, precies zoals bij elke andere rol.') +
+      '<label class="field" style="margin-left:26px"><span>Wachtkamerrol</span>' +
+      rolKiezer('wachtkamer', gegevens.instellingen.wachtkamerRol ?? '') + '</label>' +
       '<div class="row" style="margin-top:6px">' +
       '<button id="clanOpslaan" class="btn-primary">' + icon('save', 'sm') + 'Instellingen opslaan</button>' +
       '<span class="muted" style="font-size:11.5px">Slaat alle clans hierboven in één keer op.</span>' +
@@ -408,6 +414,8 @@ function uitScherm() {
     automatisch: el('clanAutomatisch').checked,
     welkom: el('clanWelkom').checked,
     welkomKanaal: el('clanWelkomKanaal')?.value || null,
+    verplicht: el('clanVerplicht').checked,
+    wachtkamerRol: el('rol-wachtkamer')?.value || null,
   };
 }
 

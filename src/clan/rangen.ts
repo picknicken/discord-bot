@@ -51,6 +51,15 @@ export const clanInstellingenSchema = z.object({
    * en anders het eerste kanaal waar de bot mag praten.
    */
   welkomKanaal: z.string().regex(/^[A-Za-z0-9_-]{1,32}$/).nullable().default(null),
+  /**
+   * Verplicht een nieuw lid om zijn OSRS-naam te koppelen voor hij de rest van
+   * de server ziet. De bot regelt alleen de rol erbij en eraf; welke kanalen
+   * die rol wel en niet mag zien stel je zelf in Discord in, net als bij elke
+   * andere rol. Zonder `wachtkamerRol` doet dit niets.
+   */
+  verplicht: z.boolean().default(false),
+  /** De rol die een nieuw lid krijgt tot hij zijn naam heeft gepost in het welkomkanaal. */
+  wachtkamerRol: rolId.nullable().default(null),
 });
 
 export type ClanInstellingen = z.infer<typeof clanInstellingenSchema>;
