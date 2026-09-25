@@ -17,6 +17,7 @@ import { applyPlan } from '../applier.js';
 import { exportGuildFresh } from '../exporter.js';
 import { recenteWijzigingen } from '../auditlog.js';
 import { beschrijfRollen, maakRol, RolFout, verwijderRol, wijzigRol, type RolWijziging } from '../rolBeheer.js';
+import { AvatarFout, bewaarAvatar, leesAvatar, pasIdentiteitToe, verwijderAvatar } from '../botIdentiteit.js';
 import { driftVanServer } from '../drift.js';
 import { opruimlijst } from '../opruimen.js';
 import { rolUit } from '../uitvoeren.js';
@@ -1283,6 +1284,74 @@ async function handle(
 
       await zetInstellingen(config.clanDir, id, instellingen);
       return send(response, 200, { naam, bestond: Boolean(bestaand), instellingen });
+    }
+  }
+
+  /**
+   * Eigen naam en plaatje van de bot, per server.
+   *
+   * Eén applicatie in meerdere servers die niets met elkaar te maken hebben —
+   * overal hetzelfde logo en dezelfde naam is dan een gemiste kans. Dit zet
+   * beide meteen door naar Discord; wat er nu al staat hoef je niet apart te
+   * verversen.
+   */
+  if (resource === 'identiteit' && id !== undefined) {
+    const nee = weigering(id);
+    if (nee) return send(response, 403, { error: nee });
+
+    const guild = client.guilds.cache.get(id);
+    if (!guild) return send(response, 404, { error: 'Server niet gevonden.' });
+
+    if (method === 'GET' && sub === 'avatar') {
+      const avatar = await leesAvatar(config.historyDir, id);
+      if (!avatar) return send(response, 404, { error: 'Geen eigen plaatje voor deze server.' });
+      response.writeHead(200, { 'content-type': avatar.mime, 'cache-control': 'no-store' });
+      response.end(avatar.buffer);
+      return;
+    }
+
+    if (method === 'GET' && sub === undefined) {
+      const instellingen = await instellingenVan(config.historyDir, id);
+      const avatar = await leesAvatar(config.historyDir, id);
+      return send(response, 200, {
+        naam: instellingen.botNaam,
+        standaardNaam: client.user.username,
+        heeftAvatar: avatar !== null,
+        standaardAvatarUrl: client.user.displayAvatarURL(),
+      });
+    }
+
+    if (method === 'PUT' && sub === undefined) {
+      if (config.demo) return send(response, 400, { error: 'In demo-modus wordt er niets naar Discord gestuurd.' });
+
+      const body = await readJson<{ naam?: string | null; avatarDataUrl?: string | null }>(request);
+
+      try {
+        if (body.avatarDataUrl === null) await verwijderAvatar(config.historyDir, id);
+        else if (typeof body.avatarDataUrl === 'string') await bewaarAvatar(config.historyDir, id, body.avatarDataUrl);
+      } catch (error) {
+        if (error instanceof AvatarFout) return send(response, 400, { error: error.message });
+        throw error;
+      }
+
+      const instellingen = await zetServerInstellingen(config.historyDir, id, {
+        ...(body.naam === null || typeof body.naam === 'string' ? { botNaam: body.naam } : {}),
+      });
+
+      const avatar = await leesAvatar(config.historyDir, id);
+      try {
+        await pasIdentiteitToe(guild, { naam: instellingen.botNaam, avatar });
+      } catch (error) {
+        return send(response, 400, { error: message(error) });
+      }
+
+      logger.info(`Dashboard zet eigen botidentiteit voor "${guild.name}": naam=${instellingen.botNaam ?? '(standaard)'}, avatar=${avatar ? 'eigen' : '(standaard)'}`);
+      return send(response, 200, {
+        naam: instellingen.botNaam,
+        standaardNaam: client.user.username,
+        heeftAvatar: avatar !== null,
+        standaardAvatarUrl: client.user.displayAvatarURL(),
+      });
     }
   }
 

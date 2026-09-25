@@ -18,9 +18,11 @@ import path from 'node:path';
 export interface ServerInstellingen {
   /** Meldt de bot in deze server dat hij afwijkt van de template? */
   driftMelden: boolean;
+  /** Eigen bijnaam voor de bot in deze server. Null = de standaardnaam van de bot. */
+  botNaam: string | null;
 }
 
-export const STANDAARD: ServerInstellingen = { driftMelden: true };
+export const STANDAARD: ServerInstellingen = { driftMelden: true, botNaam: null };
 
 const BESTAND = 'server-instellingen.json';
 
@@ -30,6 +32,7 @@ export function schoonInstellingen(waarde: unknown): ServerInstellingen {
 
   return {
     driftMelden: typeof ruw['driftMelden'] === 'boolean' ? ruw['driftMelden'] : STANDAARD.driftMelden,
+    botNaam: typeof ruw['botNaam'] === 'string' && ruw['botNaam'].trim() ? ruw['botNaam'].trim().slice(0, 32) : null,
   };
 }
 

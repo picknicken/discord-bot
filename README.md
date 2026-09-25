@@ -353,6 +353,21 @@ Een categorie dupliceren kan met de kopieerknop op de categorie zelf.
 Bij elke permissie staat in gewone woorden wat hij doet — in de rechten-matrix onder de naam,
 en als tooltip bij de vinkjes van een rol.
 
+### Botidentiteit — eigen naam en plaatje per server
+
+Onder **Servers** → een server openen staat het paneel **Botidentiteit**. Daar kun je de
+weergavenaam en het avatarplaatje van de bot voor *deze* server apart instellen, los van zijn
+naam en plaatje in de rest van Discord. Handig als dezelfde bot in meerdere clans of
+gemeenschappen zit die niets met elkaar te maken hebben.
+
+Een plaatje kiezen en op **Opslaan in Discord** drukken zet het meteen door — png, jpg, gif of
+webp, tot ongeveer 1 MB. **Standaardplaatje** haalt het eigen plaatje weer weg. Zonder eigen naam
+of plaatje verandert er niets: dat kost geen aanroep naar Discord, ook niet bij een herstart. Een
+eerder ingestelde naam of plaatje wordt na een herstart of nieuwe versie vanzelf opnieuw gezet.
+
+De bijnaam vraagt het recht "Eigen bijnaam wijzigen"; ontbreekt dat, dan lukt alleen het plaatje
+en staat de reden erbij.
+
 ### Rollen — rechtstreeks in de server
 
 Voor een kleine wijziging hoef je geen template te bewerken en uit te rollen. Open een server

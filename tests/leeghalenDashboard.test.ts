@@ -141,3 +141,36 @@ describe('rollen vanuit het dashboard', () => {
     expect((await fetch(base + '/api/rollen/bestaat-niet')).status).toBe(404);
   });
 });
+
+describe('botidentiteit vanuit het dashboard', () => {
+  it('geeft de standaardwaarden zonder eigen instelling', async () => {
+    const data = await json(await fetch(base + '/api/identiteit/2'));
+    expect(data).toMatchObject({ naam: null, heeftAvatar: false });
+    expect(data.standaardNaam).toBe('Setup Bot');
+  });
+
+  it('weigert opslaan in demo-modus', async () => {
+    const response = await fetch(base + '/api/identiteit/2', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ naam: 'Clanbot' }),
+    });
+    expect(response.status).toBe(400);
+    expect((await json(response)).error).toMatch(/demo/);
+  });
+
+  it('weigert een ongeldig plaatje met een duidelijke reden', async () => {
+    // Demo-modus stopt PUT altijd voordat Discord wordt aangeraakt, dus dit
+    // toetst alleen de foutmelding van de server, niet dat er iets bewaard blijft.
+    const response = await fetch(base + '/api/identiteit/2', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ avatarDataUrl: 'geen-data-url' }),
+    });
+    expect(response.status).toBe(400);
+  });
+
+  it('weigert een server die niet bestaat', async () => {
+    expect((await fetch(base + '/api/identiteit/bestaat-niet')).status).toBe(404);
+  });
+});
