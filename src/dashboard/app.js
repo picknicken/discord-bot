@@ -1145,6 +1145,46 @@ function renderServerDetail() {
   }
 }
 
+/**
+ * Een foto van een telefoon is al snel 5 tot 10 MB - veel te groot om als
+ * data-URL in een verzoek mee te sturen, en een avatar wordt toch nooit groter
+ * getoond dan een paar honderd pixels. Dus knippen we hem hier vierkant (zoals
+ * de cirkel waarin Discord hem toont) en verkleinen we hem, vóór hij ergens
+ * heen gestuurd wordt. Een gif laten we met rust: die kan bewegen, en dat gaat
+ * niet via een canvas zonder de animatie kwijt te raken.
+ */
+function verkleinAfbeelding(bestand, kant = 512) {
+  return new Promise((resolve, reject) => {
+    if (bestand.type === 'image/gif') {
+      const lezer = new FileReader();
+      lezer.onload = () => resolve(lezer.result);
+      lezer.onerror = () => reject(new Error('Dit bestand kon niet gelezen worden.'));
+      lezer.readAsDataURL(bestand);
+      return;
+    }
+
+    const url = URL.createObjectURL(bestand);
+    const img = new Image();
+
+    img.onload = () => {
+      const zijde = Math.min(img.width, img.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = kant;
+      canvas.height = kant;
+      canvas
+        .getContext('2d')
+        .drawImage(img, (img.width - zijde) / 2, (img.height - zijde) / 2, zijde, zijde, 0, 0, kant, kant);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Dit bestand kon niet als afbeelding gelezen worden.'));
+    };
+    img.src = url;
+  });
+}
+
 // --- botidentiteit per server ----------------------------------------------
 
 /**
@@ -1206,15 +1246,17 @@ function tekenIdentiteit(data) {
     if (naamNu) $('identiteitNaam').value = naamNu;
   };
 
-  $('identiteitBestand').onchange = (event) => {
+  $('identiteitBestand').onchange = async (event) => {
     const bestand = event.target.files?.[0];
+    event.target.value = ''; // anders vuurt hetzelfde bestand een tweede keer niet af
     if (!bestand) return;
-    const lezer = new FileReader();
-    lezer.onload = () => {
-      identiteitScherm.nieuwAvatar = lezer.result;
+
+    try {
+      identiteitScherm.nieuwAvatar = await verkleinAfbeelding(bestand);
       hertekenMetBehoudNaam();
-    };
-    lezer.readAsDataURL(bestand);
+    } catch (error) {
+      toast(error.message, 'bad');
+    }
   };
 
   const weg = $('identiteitAvatarWeg');

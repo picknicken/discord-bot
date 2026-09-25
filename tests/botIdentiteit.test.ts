@@ -40,7 +40,7 @@ describe('avatarbestanden bewaren', () => {
 
   it('weigert een te grote afbeelding', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'identiteit-'));
-    const groot = 'data:image/png;base64,' + Buffer.alloc(1_100_000, 1).toString('base64');
+    const groot = 'data:image/png;base64,' + Buffer.alloc(2_600_000, 1).toString('base64');
     await expect(bewaarAvatar(dir, 'g1', groot)).rejects.toThrow(/te groot/);
   });
 

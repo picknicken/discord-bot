@@ -17,10 +17,13 @@ import { logger } from './util/logger.js';
  */
 
 const MAP_NAAM = 'bot-avatars';
-// Ruim genoeg voor een logo, klein genoeg om ruim binnen de limiet van het
-// dashboard-verzoek te blijven (dat verzoek mag als geheel 2 MB zijn, en
-// base64 maakt een plaatje zelf al een derde groter).
-const MAX_BYTES = 1_000_000;
+// Het dashboard verkleint een gekozen foto al in de browser tot 512x512
+// voor hij hierheen gestuurd wordt; alleen een gif slaat die stap over, want
+// die kan bewegen en dat gaat niet door een canvas. Deze grens is dus vooral
+// een laatste rem, ruim onder de limiet van het hele dashboard-verzoek (dat
+// mag als geheel 4 MB zijn, en base64 maakt een plaatje zelf al een derde
+// groter).
+const MAX_BYTES = 2_500_000;
 
 const MIME_EXT: Record<string, string> = {
   'image/png': 'png',
