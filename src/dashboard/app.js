@@ -1090,6 +1090,10 @@ function renderServerDetail() {
     '<h2 class="grow">Back-ups</h2></div><div class="pbody">' +
     (backups.length ? backups.map(backupRij).join('') : '<p class="hint">Nog geen back-ups van deze server.</p>') +
     '</div></section></div>' +
+    '<section class="panel" style="margin-top:14px"><div class="phead">' + icon('shield') +
+    '<h2 class="grow">Rollen</h2>' +
+    '<button class="btn-sm" id="rolNieuw">' + icon('plus', 'sm') + 'Nieuwe rol</button></div>' +
+    '<div class="pbody" id="rollenLijst">' + busy('Rollen ophalen…') + '</div></section>' +
     '<section class="panel" style="margin-top:14px"><div class="phead">' + icon('history') +
     '<h2 class="grow">Wie heeft wat veranderd</h2></div>' +
     '<div class="pbody" id="wijzigingenLijst">' + busy('Auditlog lezen…') + '</div></section>' +
@@ -1106,6 +1110,7 @@ function renderServerDetail() {
     'Uit betekent: alleen hier te zien, hij zegt er niets meer over.</small></span></label>' +
     '</div></section>';
 
+  void laadRollen(guild.id);
   void laadWijzigingen(guild.id);
   void laadOpruimen(guild.id);
   void laadServerInstellingen(guild.id);
@@ -1133,6 +1138,206 @@ function renderServerDetail() {
 
   for (const knop of $('serverDetail').querySelectorAll('[data-doe]')) {
     knop.onclick = () => void doe[knop.dataset.doe]();
+  }
+}
+
+// --- rollen rechtstreeks in de server -------------------------------------
+
+/**
+ * Rollen van een server aanpassen zonder template. Eén rol tegelijk open; de
+ * wijziging gaat pas naar Discord bij Opslaan. Wat de bot niet mag aanraken
+ * staat er wel, met de reden erbij - anders lijkt de rol gewoon kwijt.
+ */
+const rolScherm = { guildId: null, rollen: [], open: null };
+
+async function laadRollen(guildId, open = null) {
+  const doel = $('rollenLijst');
+  if (!doel) return;
+  rolScherm.guildId = guildId;
+  rolScherm.open = open;
+
+  $('rolNieuw').onclick = () => void nieuweRol(guildId);
+
+  try {
+    const data = await api('/rollen/' + encodeURIComponent(guildId));
+    rolScherm.rollen = data.rollen;
+    tekenRollen();
+  } catch (error) {
+    doel.innerHTML = '<p class="hint">' + escape(error.message) + '</p>';
+  }
+}
+
+function tekenRollen() {
+  const doel = $('rollenLijst');
+  if (!doel) return;
+
+  const rij = (rol) =>
+    '<div class="backup rolrij" data-rol="' + escape(rol.id) + '" style="cursor:pointer">' +
+    '<span class="swatch" style="width:11px;height:11px;border-radius:50%;background:' +
+    escape(rol.color || '#99aab5') + '"></span>' +
+    '<span class="grow truncate"><strong>' + escape(rol.name) + '</strong>' +
+    '<div class="meta muted" style="font-size:11px">' + rol.permissions.length + ' recht' +
+    (rol.permissions.length === 1 ? '' : 'en') + (rol.hoist ? ' · apart getoond' : '') + '</div></span>' +
+    (rol.permissions.includes('Administrator') ? '<span class="badge warn">administrator</span>' : '') +
+    (rol.managed
+      ? '<span class="badge">integratie</span>'
+      : rol.vast
+        ? '<span class="badge warn" title="' + escape(rol.vast) + '">vast</span>'
+        : '') +
+    '</div>' +
+    (rolScherm.open === rol.id ? '<div class="rolbewerk" style="padding:10px 0 14px">' + rolFormulier(rol) + '</div>' : '');
+
+  doel.innerHTML =
+    '<p class="hint">Direct in Discord, zonder template. Daarna wijkt de server af van zijn template; ' +
+    'wil je het daar ook in, gebruik dan <em>Overnemen</em>.</p>' +
+    rolScherm.rollen.map(rij).join('');
+
+  for (const element of doel.querySelectorAll('[data-rol]')) {
+    element.onclick = () => {
+      rolScherm.open = rolScherm.open === element.dataset.rol ? null : element.dataset.rol;
+      tekenRollen();
+    };
+  }
+
+  const open = rolScherm.rollen.find((rol) => rol.id === rolScherm.open);
+  if (open) koppelFormulier(open);
+}
+
+function rolFormulier(rol) {
+  const uit = rol.vast ? ' disabled' : '';
+  const groepen = ['Algemeen', 'Tekst', 'Spraak', 'Overig']
+    .map((groep) => {
+      const items = state.permissions.filter((recht) => recht.group === groep);
+      if (items.length === 0) return '';
+      return (
+        '<details' + (groep === 'Algemeen' ? ' open' : '') + '><summary>' + groep + ' <span class="muted">(' +
+        items.filter((recht) => rol.permissions.includes(recht.name)).length + ')</span></summary><div class="perms">' +
+        items
+          .map(
+            (recht) =>
+              '<label class="check" title="' + escape(recht.uitleg || recht.label) + '">' +
+              '<input type="checkbox" data-rolrecht="' + escape(recht.name) + '"' +
+              (rol.permissions.includes(recht.name) ? ' checked' : '') + uit + '><span>' +
+              escape(recht.label) + '</span></label>',
+          )
+          .join('') +
+        '</div></details>'
+      );
+    })
+    .join('');
+
+  return (
+    (rol.vast ? '<div class="note warn" style="margin-bottom:10px">' + escape(rol.vast) + '</div>' : '') +
+    '<label class="field"><span>Naam</span><input type="text" id="rolNaam" value="' + escape(rol.name) + '"' +
+    (rol.everyone ? ' disabled' : uit) + '></label>' +
+    '<label class="field"><span>Kleur</span><input type="color" id="rolKleur" value="' +
+    escape(rol.color || '#99aab5') + '"' + uit + '></label>' +
+    '<div class="row">' +
+    '<label class="check"><input type="checkbox" id="rolHoist"' + (rol.hoist ? ' checked' : '') + uit +
+    '><span>Apart tonen in de ledenlijst</span></label>' +
+    '<label class="check"><input type="checkbox" id="rolPing"' + (rol.mentionable ? ' checked' : '') + uit +
+    '><span>Iedereen mag deze rol pingen</span></label></div>' +
+    groepen +
+    (rol.vast
+      ? ''
+      : '<div class="row" style="margin-top:10px">' +
+        '<button class="btn-primary" id="rolOpslaan">' + icon('save', 'sm') + 'Opslaan in Discord</button>' +
+        (rol.everyone
+          ? ''
+          : '<button class="btn-sm btn-danger" id="rolWeg">' + icon('trash', 'sm') + 'Verwijderen</button>') +
+        '</div>')
+  );
+}
+
+function koppelFormulier(rol) {
+  const opslaan = $('rolOpslaan');
+  if (!opslaan) return;
+
+  // Alleen versturen wat er echt anders is: een ongewijzigde kleur hoeft niet
+  // opnieuw naar Discord, en een rol zonder kleur blijft zo zonder kleur.
+  opslaan.onclick = async () => {
+    const rechten = [...document.querySelectorAll('[data-rolrecht]')]
+      .filter((vakje) => vakje.checked)
+      .map((vakje) => vakje.dataset.rolrecht);
+    const wijziging = {};
+    const naam = $('rolNaam').value.trim();
+    if (!rol.everyone && naam !== rol.name) wijziging.name = naam;
+    if ($('rolKleur').value !== (rol.color || '#99aab5')) wijziging.color = $('rolKleur').value;
+    if ($('rolHoist').checked !== rol.hoist) wijziging.hoist = $('rolHoist').checked;
+    if ($('rolPing').checked !== rol.mentionable) wijziging.mentionable = $('rolPing').checked;
+    if (rechten.slice().sort().join() !== rol.permissions.slice().sort().join()) wijziging.permissions = rechten;
+
+    if (Object.keys(wijziging).length === 0) return toast('Er is niets veranderd.', 'info');
+
+    if (wijziging.permissions?.includes('Administrator') && !rol.permissions.includes('Administrator')) {
+      const ok = await ask({
+        title: 'Administrator geven aan "' + rol.name + '"?',
+        body: 'Wie deze rol heeft mag dan alles in de server, en kanaalrechten gelden niet meer voor hem.',
+        confirmLabel: 'Toch geven',
+        danger: true,
+      });
+      if (!ok) return;
+    }
+
+    opslaan.disabled = true;
+    try {
+      await api('/rollen/' + encodeURIComponent(rolScherm.guildId) + '/' + encodeURIComponent(rol.id), {
+        method: 'PUT',
+        body: JSON.stringify(wijziging),
+      });
+      toast('"' + (wijziging.name || rol.name) + '" is bijgewerkt in Discord', 'ok');
+      await laadRollen(rolScherm.guildId, rol.id);
+      void laadDrift(true);
+    } catch (error) {
+      toast(error.message, 'bad', 6000);
+      opslaan.disabled = false;
+    }
+  };
+
+  const weg = $('rolWeg');
+  if (weg) {
+    weg.onclick = async () => {
+      const ok = await ask({
+        title: 'Rol "' + rol.name + '" verwijderen?',
+        body: 'Iedereen die deze rol heeft raakt hem kwijt. Dit is niet terug te draaien.',
+        confirmLabel: 'Verwijderen',
+        danger: true,
+        requireText: rol.name,
+      });
+      if (!ok) return;
+      try {
+        await api('/rollen/' + encodeURIComponent(rolScherm.guildId) + '/' + encodeURIComponent(rol.id), {
+          method: 'DELETE',
+        });
+        toast('"' + rol.name + '" is verwijderd', 'ok');
+        await laadRollen(rolScherm.guildId);
+        void laadDrift(true);
+      } catch (error) {
+        toast(error.message, 'bad', 6000);
+      }
+    };
+  }
+}
+
+async function nieuweRol(guildId) {
+  const naam = await ask({
+    title: 'Nieuwe rol',
+    body: 'Hij komt onderaan de lijst, zonder rechten. Daarna kun je hem hier aanpassen.',
+    confirmLabel: 'Aanmaken',
+    input: { placeholder: 'Naam van de rol' },
+  });
+  if (!naam || typeof naam !== 'string') return;
+
+  try {
+    const data = await api('/rollen/' + encodeURIComponent(guildId), {
+      method: 'POST',
+      body: JSON.stringify({ name: naam }),
+    });
+    toast('"' + data.rol.name + '" staat in Discord', 'ok');
+    await laadRollen(guildId, data.rol.id);
+    void laadDrift(true);
+  } catch (error) {
+    toast(error.message, 'bad', 6000);
   }
 }
 

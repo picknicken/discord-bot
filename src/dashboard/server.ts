@@ -16,6 +16,7 @@ import { missingPermissions, rolesAboveBot } from '../botPermissions.js';
 import { applyPlan } from '../applier.js';
 import { exportGuildFresh } from '../exporter.js';
 import { recenteWijzigingen } from '../auditlog.js';
+import { beschrijfRollen, maakRol, RolFout, verwijderRol, wijzigRol, type RolWijziging } from '../rolBeheer.js';
 import { driftVanServer } from '../drift.js';
 import { opruimlijst } from '../opruimen.js';
 import { rolUit } from '../uitvoeren.js';
@@ -1282,6 +1283,47 @@ async function handle(
 
       await zetInstellingen(config.clanDir, id, instellingen);
       return send(response, 200, { naam, bestond: Boolean(bestaand), instellingen });
+    }
+  }
+
+  /**
+   * Rollen van een server rechtstreeks aanpassen. Voor een kleine wijziging
+   * hoef je dan geen template te bewerken en uit te rollen - de server wijkt
+   * daarna wel af van zijn template, en dat is precies wat de driftcontrole zegt.
+   */
+  if (resource === 'rollen' && id !== undefined) {
+    const nee = weigering(id);
+    if (nee) return send(response, 403, { error: nee });
+
+    const guild = client.guilds.cache.get(id);
+    if (!guild) return send(response, 404, { error: 'Server niet gevonden.' });
+
+    if (method === 'GET' && sub === undefined) return send(response, 200, await beschrijfRollen(guild));
+
+    if (config.demo) {
+      return send(response, 400, { error: 'In demo-modus wordt er niets naar Discord gestuurd.' });
+    }
+
+    const door = wie(session) ?? 'dashboard';
+    try {
+      if (method === 'POST' && sub === undefined) {
+        const rol = await maakRol(guild, await readJson<RolWijziging>(request), door);
+        logger.info(`Dashboard maakt rol "${rol.name}" in ${guild.name} (door ${door})`);
+        return send(response, 200, { rol });
+      }
+      if (method === 'PUT' && sub !== undefined) {
+        const rol = await wijzigRol(guild, sub, await readJson<RolWijziging>(request), door);
+        logger.info(`Dashboard wijzigt rol "${rol.name}" in ${guild.name} (door ${door})`);
+        return send(response, 200, { rol });
+      }
+      if (method === 'DELETE' && sub !== undefined) {
+        const naam = await verwijderRol(guild, sub, door);
+        logger.info(`Dashboard verwijdert rol "${naam}" in ${guild.name} (door ${door})`);
+        return send(response, 200, { verwijderd: naam });
+      }
+    } catch (error) {
+      if (error instanceof RolFout) return send(response, error.status, { error: error.message });
+      throw error;
     }
   }
 
