@@ -107,12 +107,12 @@ export function waaromGeenBijnaam(guild: Guild): string | null {
  */
 export async function pasIdentiteitToe(
   guild: Guild,
-  wens: { naam: string | null; avatar: { buffer: Buffer } | null },
+  wens: { naam: string | null; avatar: { buffer: Buffer; mime: string } | null },
 ): Promise<void> {
   const me = guild.members.me;
   if (!me) return;
 
-  const velden: { nick?: string | null; avatar?: Buffer | null } = {};
+  const velden: { nick?: string | null; avatar?: string | null } = {};
 
   if ((me.nickname ?? null) !== wens.naam) {
     const nee = waaromGeenBijnaam(guild);
@@ -120,7 +120,12 @@ export async function pasIdentiteitToe(
     else velden.nick = wens.naam;
   }
 
-  if (wens.avatar) velden.avatar = wens.avatar.buffer;
+  // Zelf de data-URL opbouwen, met het juiste mimetype erin: geef je hier een
+  // kale Buffer, dan verzint discord.js zelf een contenttype - en doet dat met
+  // een fout die het al jaren heeft ("image/jpg" in plaats van "image/jpeg").
+  // Discord's eigen validatie op dit specifieke endpoint accepteert dat niet
+  // en weigert de hele aanvraag, ook het stuk dat wel klopte.
+  if (wens.avatar) velden.avatar = `data:${wens.avatar.mime};base64,${wens.avatar.buffer.toString('base64')}`;
   else if (me.avatar !== null) velden.avatar = null;
 
   if (Object.keys(velden).length === 0) return;
