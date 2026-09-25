@@ -24,11 +24,12 @@ Daarnaast is er een tweede tak, voor OSRS-clans (via WiseOldMan):
 | `/clan sync` | Beheer: werkt de clanrollen van iedereen bij |
 | `/clan knop` | Beheer: zet een knop neer waarmee leden hun naam koppelen |
 
-En een derde, los van de rest:
+En twee losse commando's, buiten die twee takken om:
 
 | Commando | Wat het doet |
 | --- | --- |
 | `/poll vraag:<...> opties:<...> [duur] [meerkeuze]` | Plaatst een poll met Discord's eigen ingebouwde stemsysteem |
+| `/embed [titel] [beschrijving] [kleur] [afbeelding] [thumbnail] [footer] [kanaal]` | Stuurt een bericht als embed, standaard in het huidige kanaal |
 
 Hetzelfde kan lokaal via het dashboard (`npm run dashboard`), inclusief het bewerken van
 templates en het instellen van de clanrangen.
@@ -882,6 +883,27 @@ deze bot regelt alleen het aanmaken.
 Geen aparte rol of instelling nodig: wie het commando in Discord ziet staan, mag het gebruiken.
 Wil je dat beperken tot bijvoorbeeld moderators, dan stel je dat in bij Server-instellingen →
 Integraties → Setup Bot, zoals bij elk ander commando van een bot.
+
+## Embeds
+
+`/embed titel:"Aankondiging" beschrijving:"Vanavond onderhoud" kleur:#5865F2` stuurt een
+opgemaakt bericht namens de bot — zoals `!embed` bij Dyno of MEE6, maar als los slash-commando
+in plaats van een builder met knoppen.
+
+- Vereist het recht **Berichten beheren**; dat staat ook als standaard op het commando zelf,
+  zodat het pas in de commandolijst verschijnt voor wie dat recht heeft.
+- **`titel`** en **`beschrijving`** zijn allebei optioneel, maar minstens één ervan moet
+  ingevuld zijn — een embed zonder inhoud heeft niets te tonen.
+- **`kleur`** is een hexkleur (`#5865F2` of `5865F2`) voor de streep links.
+- **`afbeelding`** en **`thumbnail`** zijn losse afbeeldings-URL's: groot onderin, klein
+  rechtsboven.
+- **`kanaal`** stuurt de embed ergens anders neer dan waar je het commando typt — handig om
+  hem in `#regels` of `#aankondigingen` te zetten zonder daar zelf te hoeven typen. De bot
+  controleert eerst of hij daar mag posten, en zegt anders welk recht ontbreekt.
+
+Het bericht komt los van de interactie te staan — geen "gebruikte /embed"-label eronder, precies
+zoals bij een bericht dat je zelf met de hand zou versturen. De bevestiging dat het gelukt is zie
+je alleen zelf.
 
 ## Wat er is blijven liggen
 

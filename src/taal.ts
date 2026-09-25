@@ -325,6 +325,40 @@ const TEKSTEN = {
     nl: 'De poll aanmaken lukte niet: {fout}',
     en: 'Could not create the poll: {fout}',
   },
+
+  // --- /embed ------------------------------------------------------------
+  'embed.geen.rechten': {
+    nl: 'Je mist het recht "Berichten beheren" om een embed te sturen.',
+    en: 'You are missing the "Manage Messages" permission to send an embed.',
+  },
+  'embed.leeg': {
+    nl: 'Geef een titel of een beschrijving mee; een lege embed heeft niets om te tonen.',
+    en: 'Provide a title or a description; an empty embed has nothing to show.',
+  },
+  'embed.kleur.ongeldig': {
+    nl: '"{kleur}" is geen geldige hexkleur. Gebruik zoiets als #5865F2.',
+    en: '"{kleur}" is not a valid hex color. Use something like #5865F2.',
+  },
+  'embed.url.ongeldig': {
+    nl: '"{url}" is geen geldige http(s)-link.',
+    en: '"{url}" is not a valid http(s) link.',
+  },
+  'embed.kanaal.ongeldig': {
+    nl: 'Kies een tekst- of aankondigingskanaal om de embed in te sturen.',
+    en: 'Pick a text or announcement channel to send the embed in.',
+  },
+  'embed.geen.kanaalrechten': {
+    nl: 'Ik mag niet praten in {kanaal}: geef me daar "Kanaal bekijken", "Berichten sturen" en "Links insluiten".',
+    en: 'I am not allowed to post in {kanaal}: grant me "View Channel", "Send Messages" and "Embed Links" there.',
+  },
+  'embed.mislukt': {
+    nl: 'De embed versturen lukte niet: {fout}',
+    en: 'Could not send the embed: {fout}',
+  },
+  'embed.gelukt': {
+    nl: 'Embed geplaatst in {kanaal}.',
+    en: 'Embed posted in {kanaal}.',
+  },
 } as const satisfies Record<string, Record<Taal, string>>;
 
 export type Sleutel = keyof typeof TEKSTEN;
