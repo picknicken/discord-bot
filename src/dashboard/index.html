@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Setup Bot — dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Inter+Tight:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
   /* ---------- tokens ---------- */
   /*
@@ -14,54 +17,61 @@
    */
   :root {
     color-scheme: dark;
-    --bg: #313338;          /* het midden, waar de inhoud staat */
-    --surface: #2b2d31;     /* panelen en de zijbalk */
-    --surface-2: #232428;
-    --surface-3: #1e1f22;   /* het diepste vlak, zoals de serverrail */
-    --border: #3f4147;
-    --border-strong: #4e5058;
-    --text: #f2f3f5;
-    --text-2: #dbdee1;
-    --muted: #949ba4;
+    --bg: #26272b;          /* het midden, waar de inhoud staat */
+    --surface: #2f3136;     /* panelen en de zijbalk */
+    --surface-2: #26282c;
+    --surface-3: #1c1d20;   /* het diepste vlak, zoals de serverrail */
+    --border: #3c3e44;
+    --border-strong: #4c4f57;
+    --text: #f3f4f6;
+    --text-2: #d7d9de;
+    --muted: #92959e;
     --accent: #5865f2;      /* blurple */
+    --accent-2: #9b6bff;    /* een tweede tint voor het verloop op knoppen en accenten */
     --accent-fg: #ffffff;
-    --accent-bg: rgba(88, 101, 242, .20);
+    --accent-bg: rgba(88, 101, 242, .18);
+    --accent-grad: linear-gradient(135deg, var(--accent), var(--accent-2));
     --ok: #3ba55d;
-    --ok-bg: rgba(59, 165, 93, .18);
+    --ok-bg: rgba(59, 165, 93, .16);
     --warn: #f0b232;
-    --warn-bg: rgba(240, 178, 50, .16);
+    --warn-bg: rgba(240, 178, 50, .15);
     --bad: #ed4245;
-    --bad-bg: rgba(237, 66, 69, .16);
-    --shadow-1: 0 1px 0 rgba(0, 0, 0, .2);
-    --shadow-2: 0 4px 16px -4px rgba(0, 0, 0, .5), 0 1px 3px rgba(0, 0, 0, .3);
-    --shadow-3: 0 24px 64px -12px rgba(0, 0, 0, .7);
-    --r-1: 4px; --r-2: 8px; --r-3: 12px;
+    --bad-bg: rgba(237, 66, 69, .15);
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, .18);
+    --shadow-2: 0 8px 24px -8px rgba(0, 0, 0, .55), 0 2px 6px rgba(0, 0, 0, .3);
+    --shadow-3: 0 28px 72px -16px rgba(0, 0, 0, .65);
+    --glow: 0 6px 20px -6px color-mix(in srgb, var(--accent) 55%, transparent);
+    --r-1: 7px; --r-2: 11px; --r-3: 16px;
     --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+    --display: "Inter Tight", var(--sans);
   }
 
   :root[data-theme="light"] {
     color-scheme: light;
-    --bg: #ffffff;
-    --surface: #f2f3f5;
-    --surface-2: #ebedef;
-    --surface-3: #e3e5e8;
-    --border: #e0e1e5;
-    --border-strong: #cdced3;
-    --text: #060607;
-    --text-2: #2e3338;
-    --muted: #5c5e66;
+    --bg: #f6f6f8;
+    --surface: #ffffff;
+    --surface-2: #f1f2f5;
+    --surface-3: #e7e8ec;
+    --border: #e2e3e8;
+    --border-strong: #ccced6;
+    --text: #16171b;
+    --text-2: #33353c;
+    --muted: #6a6d78;
     --accent: #5865f2;
+    --accent-2: #9b6bff;
     --accent-fg: #ffffff;
-    --accent-bg: rgba(88, 101, 242, .12);
-    --ok: #248046;
-    --ok-bg: rgba(36, 128, 70, .12);
+    --accent-bg: rgba(88, 101, 242, .10);
+    --ok: #1a8a4a;
+    --ok-bg: rgba(26, 138, 74, .10);
     --warn: #8a6100;
-    --warn-bg: rgba(240, 178, 50, .20);
+    --warn-bg: rgba(240, 178, 50, .18);
     --bad: #c93b3e;
-    --bad-bg: rgba(201, 59, 62, .11);
-    --shadow-1: 0 1px 2px rgba(6, 6, 7, .06);
-    --shadow-2: 0 4px 16px -4px rgba(6, 6, 7, .12), 0 1px 3px rgba(6, 6, 7, .06);
-    --shadow-3: 0 24px 64px -12px rgba(6, 6, 7, .28);
+    --bad-bg: rgba(201, 59, 62, .10);
+    --shadow-1: 0 1px 2px rgba(20, 21, 26, .05);
+    --shadow-2: 0 8px 24px -8px rgba(20, 21, 26, .12), 0 2px 6px rgba(20, 21, 26, .06);
+    --shadow-3: 0 28px 72px -16px rgba(20, 21, 26, .22);
+    --glow: 0 6px 20px -6px color-mix(in srgb, var(--accent) 30%, transparent);
   }
 
   * { box-sizing: border-box; }
@@ -70,15 +80,22 @@
   html, body { height: 100%; }
   body {
     margin: 0; background: var(--bg); color: var(--text);
-    font: 13.5px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, system-ui, sans-serif;
-    -webkit-font-smoothing: antialiased;
+    font: 13.5px/1.55 var(--sans);
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
   }
-  h1, h2, h3, h4 { margin: 0; font-weight: 600; }
+  h1, h2, h3, h4 { margin: 0; font-weight: 700; font-family: var(--display); letter-spacing: -.015em; }
   p { margin: 0 0 8px; }
   .muted { color: var(--muted); }
   .grow { flex: 1; min-width: 0; }
   .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mono { font-family: var(--mono); font-size: 12px; }
+
+  /* Een dunne, opgeruimde scrollbar past beter bij de rest dan het systeemstandaard. */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; border: 2px solid var(--bg); background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: padding-box; }
+  * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 
   /* ---------- icons ---------- */
   .icon { width: 15px; height: 15px; flex: none; stroke: currentColor; fill: none;
@@ -89,69 +106,88 @@
   /* ---------- header ---------- */
   header {
     position: sticky; top: 0; z-index: 20;
-    display: flex; align-items: center; gap: 12px; padding: 0 18px; height: 56px;
-    background: color-mix(in srgb, var(--surface) 88%, transparent);
-    backdrop-filter: saturate(1.6) blur(8px);
+    display: flex; align-items: center; gap: 14px; padding: 0 20px; height: 62px;
+    background: color-mix(in srgb, var(--surface) 90%, transparent);
+    backdrop-filter: saturate(1.6) blur(10px);
     border-bottom: 1px solid var(--border);
   }
-  header .avatar { width: 30px; height: 30px; border-radius: 8px; box-shadow: var(--shadow-1); }
-  header h1 { font-size: 14px; letter-spacing: -.01em; }
+  header .avatar {
+    width: 34px; height: 34px; border-radius: 10px; box-shadow: var(--shadow-1);
+    outline: 1px solid var(--border); outline-offset: -1px;
+  }
+  header h1 { font-size: 14.5px; letter-spacing: -.015em; }
   header .sub { font-size: 11.5px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
   .dot-live { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 18%, transparent); }
 
   /* ---------- layout ---------- */
   /* Links de vaste navigatie, rechts precies een scherm. Alles tegelijk tonen
      was overzichtelijk voor wie het gebouwd heeft, niet voor wie het gebruikt. */
-  .app { display: grid; grid-template-columns: 216px minmax(0, 1fr); align-items: start; }
+  .app { display: grid; grid-template-columns: 224px minmax(0, 1fr); align-items: start; }
 
   .sidebar {
-    position: sticky; top: 56px; height: calc(100vh - 56px);
+    position: sticky; top: 62px; height: calc(100vh - 62px);
     display: flex; flex-direction: column; gap: 2px;
-    padding: 12px 10px; border-right: 1px solid var(--border); background: var(--surface);
+    padding: 14px 12px; border-right: 1px solid var(--border); background: var(--surface);
   }
   .sidebar button {
-    display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px;
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 9px;
     background: none; border: 0; box-shadow: none; color: var(--muted);
-    font-size: 13px; text-align: left; border-radius: var(--r-2);
+    font-size: 13px; font-weight: 500; text-align: left; border-radius: var(--r-2);
+    position: relative; transition: background .12s, color .12s;
+  }
+  .sidebar button .icon {
+    padding: 5px; margin: -5px; border-radius: var(--r-1);
+    transition: background .12s, color .12s;
   }
   .sidebar button:hover { background: var(--surface-2); color: var(--text); }
-  .sidebar button[aria-current="true"] { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+  .sidebar button[aria-current="true"] { color: var(--text); font-weight: 600; }
+  .sidebar button[aria-current="true"] .icon { background: var(--accent-grad); color: #fff; box-shadow: var(--glow); }
+  /* Een accentbalkje links van het actieve item, zoals in de bekende dashboards. */
+  .sidebar button[aria-current="true"]::before {
+    content: ""; position: absolute; left: -12px; top: 50%; translate: 0 -50%;
+    width: 3px; height: 18px; border-radius: 0 3px 3px 0; background: var(--accent-grad);
+  }
   .sidebar .telling {
     margin-left: auto; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums;
+    background: var(--surface-3); padding: 1px 6px; border-radius: 99px;
   }
+  .sidebar button[aria-current="true"] .telling { background: var(--accent-bg); color: var(--accent); }
   .sidebar .kop {
-    font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
-    padding: 12px 10px 4px;
+    font-size: 10px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted);
+    font-weight: 700; padding: 14px 9px 5px;
   }
   .sidefoot { margin-top: auto; }
 
-  .content { padding: 14px 18px 40px; min-width: 0; }
+  .content { padding: 18px 22px 40px; min-width: 0; }
   .view { display: none; }
-  .view.actief { display: block; }
+  .view.actief { display: block; animation: fadein .15s ease-out; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(2px); } }
   /* Templates: lijst links, editor rechts — die twee horen bij elkaar. */
   .view.tweeluik.actief { display: grid; gap: 14px; grid-template-columns: 248px minmax(0, 1fr); align-items: start; }
 
-  .viewkop { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; }
-  .viewkop h2 { font-size: 16px; letter-spacing: -.01em; }
-  .viewkop p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+  .viewkop { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; }
+  .viewkop h2 { font-size: 19px; letter-spacing: -.02em; }
+  .viewkop p { margin: 3px 0 0; font-size: 12.5px; color: var(--muted); }
 
-  .stats { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 16px; }
+  .stats { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 18px; }
   .stat {
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-2);
-    padding: 12px 14px; box-shadow: var(--shadow-1);
+    padding: 14px 16px; box-shadow: var(--shadow-1); transition: transform .14s, box-shadow .14s, border-color .14s;
   }
-  .stat .cijfer { font-size: 22px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-  .stat .label { font-size: 11.5px; color: var(--muted); }
+  .stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); border-color: var(--border-strong); }
+  .stat .cijfer { font-size: 25px; font-weight: 800; font-family: var(--display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .stat .label { font-size: 11.5px; color: var(--muted); font-weight: 500; }
 
   .kaarten { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
   .servercard {
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-2);
-    padding: 13px 14px; box-shadow: var(--shadow-1);
+    padding: 14px 16px; box-shadow: var(--shadow-1); transition: transform .14s, box-shadow .14s, border-color .14s;
   }
+  .servercard:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); border-color: var(--border-strong); }
   .servercard .naam {
-    display: flex; align-items: center; gap: 8px; font-weight: 600;
-    background: none; border: 0; padding: 0; color: inherit; font-size: inherit;
-    font-family: inherit; cursor: pointer; text-align: left; width: 100%;
+    display: flex; align-items: center; gap: 8px; font-weight: 700; font-family: var(--display);
+    background: none; border: 0; padding: 0; color: inherit; font-size: 14px;
+    cursor: pointer; text-align: left; width: 100%;
   }
   .servercard .naam:hover { color: var(--accent); }
 
@@ -196,17 +232,18 @@
     border-radius: var(--r-3); box-shadow: var(--shadow-1); overflow: hidden;
   }
   .panel > header, .phead {
-    display: flex; align-items: center; gap: 8px; padding: 11px 14px;
+    display: flex; align-items: center; gap: 9px; padding: 13px 16px;
     border-bottom: 1px solid var(--border); background: none; position: static; height: auto; backdrop-filter: none;
   }
-  .phead h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
-  .pbody { padding: 12px 14px; }
+  .phead .icon { color: var(--accent); }
+  .phead h2 { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; }
+  .pbody { padding: 14px 16px; }
 
   /* ---------- controls ---------- */
   button, select, input[type="text"], input[type="number"], textarea {
     font: inherit; color: var(--text); background: var(--surface);
-    border: 1px solid var(--border-strong); border-radius: var(--r-1); padding: 6px 10px;
-    transition: border-color .12s, background .12s, box-shadow .12s;
+    border: 1px solid var(--border-strong); border-radius: var(--r-1); padding: 6px 11px;
+    transition: border-color .12s, background .12s, box-shadow .12s, transform .12s;
   }
   input, select, textarea { width: auto; }
   input:hover, select:hover, textarea:hover { border-color: var(--muted); }
@@ -216,20 +253,21 @@
   }
   button {
     cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
-    font-weight: 500; white-space: nowrap; box-shadow: var(--shadow-1);
+    font-weight: 600; white-space: nowrap; box-shadow: var(--shadow-1);
   }
   button:hover:not(:disabled) { background: var(--surface-2); border-color: var(--muted); }
   button:active:not(:disabled) { transform: translateY(.5px); }
   button:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
   .btn-primary {
-    background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600;
+    background: var(--accent-grad); border-color: transparent; color: var(--accent-fg); font-weight: 700;
+    box-shadow: var(--glow);
   }
-  .btn-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, #000); border-color: transparent; }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.08); border-color: transparent; box-shadow: var(--glow), var(--shadow-2); transform: translateY(-1px); }
   .btn-danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 35%, var(--border-strong)); }
   .btn-danger:hover:not(:disabled) { background: var(--bad-bg); border-color: var(--bad); }
   .btn-ghost { border-color: transparent; background: none; box-shadow: none; color: var(--text-2); }
   .btn-ghost:hover:not(:disabled) { background: var(--surface-2); border-color: transparent; }
-  .btn-sm { padding: 3px 7px; font-size: 12px; }
+  .btn-sm { padding: 4px 9px; font-size: 12px; }
   .btn-icon { padding: 4px; border-color: transparent; background: none; box-shadow: none; color: var(--muted); }
   .btn-icon:hover:not(:disabled) { background: var(--surface-3); color: var(--text); border-color: transparent; }
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -243,10 +281,11 @@
   .tabs { display: flex; gap: 2px; padding: 8px 10px 0; border-bottom: 1px solid var(--border); }
   .tabs button {
     border: 0; background: none; box-shadow: none; color: var(--muted); border-radius: var(--r-1) var(--r-1) 0 0;
-    padding: 7px 12px; position: relative; bottom: -1px; border-bottom: 2px solid transparent; font-weight: 500;
+    padding: 7px 12px; position: relative; bottom: -1px; border-bottom: 2px solid transparent; font-weight: 600;
+    transition: color .12s, border-color .12s;
   }
   .tabs button:hover { background: var(--surface-2); color: var(--text); }
-  .tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); background: none; font-weight: 600; }
+  .tabs button[aria-selected="true"] { color: var(--accent); border-image: var(--accent-grad) 1; border-bottom-color: var(--accent); background: none; font-weight: 700; }
 
   /* ---------- lists ---------- */
   .item {
@@ -262,8 +301,8 @@
   .item[aria-selected="true"] .icon { color: var(--accent); }
 
   .badge {
-    display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 99px;
-    font-size: 11px; font-weight: 600; background: var(--surface-3); color: var(--text-2);
+    display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px;
+    font-size: 11px; font-weight: 700; background: var(--surface-3); color: var(--text-2);
   }
   /* Een badge die je kunt aanklikken hoort dat ook te laten zien. */
   button.badge { border: 0; cursor: pointer; font-family: inherit; }
@@ -447,7 +486,7 @@
   .voorbeeld { grid-column: 1 / -1; }
   @media (min-width: 1500px) {
     .editor { grid-template-columns: minmax(0, 236px) minmax(0, 1fr) 272px; }
-    .voorbeeld { grid-column: auto; position: sticky; top: 70px; }
+    .voorbeeld { grid-column: auto; position: sticky; top: 78px; }
   }
   .vbkop {
     display: flex; align-items: center; gap: 8px; margin-bottom: 7px;
@@ -549,7 +588,7 @@
     padding: 6px 11px; font-size: 12.5px; border-radius: 999px;
     background: var(--surface-2); border-color: transparent; box-shadow: none;
   }
-  .rolpil.aan { background: var(--accent); border-color: transparent; color: #fff; }
+  .rolpil.aan { background: var(--accent-grad); border-color: transparent; color: #fff; }
   .rechtrij {
     display: flex; align-items: center; gap: 10px; padding: 9px 2px;
     border-top: 1px solid var(--border);
@@ -684,22 +723,22 @@
   @keyframes slide { from { opacity: 0; transform: translateX(10px); } }
 
   /* inloggen */
-  .who { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-2); }
-  .who img { width: 22px; height: 22px; border-radius: 50%; }
+  .who { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-2); font-weight: 500; }
+  .who img { width: 24px; height: 24px; border-radius: 50%; outline: 1px solid var(--border); outline-offset: -1px; }
   .gate {
     position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
     background: var(--bg); padding: 20px;
   }
   .gatecard {
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-3);
-    box-shadow: var(--shadow-2); padding: 30px 28px; max-width: 360px; text-align: center;
+    box-shadow: var(--shadow-3); padding: 34px 30px; max-width: 360px; text-align: center;
   }
-  .gatecard h2 { font-size: 17px; margin-bottom: 6px; }
+  .gatecard h2 { font-size: 19px; margin-bottom: 6px; }
   .gatecard p { font-size: 13px; }
-  .gateavatar { width: 56px; height: 56px; border-radius: 16px; margin-bottom: 14px; }
+  .gateavatar { width: 60px; height: 60px; border-radius: 18px; margin-bottom: 16px; box-shadow: var(--glow); }
   .gatebtn {
-    display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; padding: 9px 16px;
-    border-radius: var(--r-1); text-decoration: none; font-weight: 600; font-size: 13.5px;
+    display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; padding: 10px 18px;
+    border-radius: var(--r-1); text-decoration: none; font-weight: 700; font-size: 13.5px;
   }
   .joinrow {
     display: flex; gap: 9px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border);
@@ -726,8 +765,8 @@
   }
   .wizard button.klaar { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, var(--border)); }
   .wizard button.klaar .bol { background: var(--ok-bg); color: var(--ok); }
-  .wizard button.nu { color: var(--text); border-color: var(--accent); font-weight: 600; }
-  .wizard button.nu .bol { background: var(--accent); color: var(--accent-fg); }
+  .wizard button.nu { color: var(--text); border-color: var(--accent); font-weight: 700; box-shadow: var(--glow); }
+  .wizard button.nu .bol { background: var(--accent-grad); color: var(--accent-fg); }
 
   /*
    * Navigatiebalk onderin, zodra de zijbalk wegvalt. Die grens (1180px) staat

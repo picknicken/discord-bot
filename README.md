@@ -241,9 +241,10 @@ je hem op loslaat. Bedoeld om een server **helemaal in te richten voordat je uit
 ### Discord-donker
 
 Het dashboard staat standaard donker, in de kleuren van Discord zelf: blurple voor knoppen,
-`#313338` voor het midden, `#2b2d31` voor de panelen. Je bouwt hier een Discord-server en ziet
-hem daarna in Discord terug — dan hoort dit scherm daar niet los van te staan. Licht blijft
-bestaan: één klik op de knop rechtsboven, en die keuze onthoudt hij.
+aangevuld met een paarse tint in het verloop op primaire knoppen en het actieve item in de
+zijbalk — dezelfde soort polish als bekende bot-dashboards (Dyno, MEE6). Je bouwt hier een
+Discord-server en ziet hem daarna in Discord terug — dan hoort dit scherm daar niet los van te
+staan. Licht blijft bestaan: één klik op de knop rechtsboven, en die keuze onthoudt hij.
 
 ### Structuur — klikken in plaats van JSON
 
