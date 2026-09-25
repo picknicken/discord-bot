@@ -1645,12 +1645,17 @@ const slug = (value: string) =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 50);
 
+// 4 MB: ruim genoeg voor een avatar als data-URL (die na base64 een derde
+// groter is dan het bestand zelf) plus wat JSON eromheen, en nog altijd een
+// harde grens tegen een verzoek dat linea recht het geheugen in loopt.
+const MAX_VERZOEK = 4_000_000;
+
 async function readJson<T>(request: IncomingMessage): Promise<T> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request) {
     size += (chunk as Buffer).length;
-    if (size > 2_000_000) throw new Error('Verzoek te groot');
+    if (size > MAX_VERZOEK) throw new Error(`Verzoek te groot (meer dan ${MAX_VERZOEK / 1_000_000} MB).`);
     chunks.push(chunk as Buffer);
   }
   const raw = Buffer.concat(chunks).toString('utf8');
