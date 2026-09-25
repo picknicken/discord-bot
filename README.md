@@ -353,6 +353,21 @@ Een categorie dupliceren kan met de kopieerknop op de categorie zelf.
 Bij elke permissie staat in gewone woorden wat hij doet — in de rechten-matrix onder de naam,
 en als tooltip bij de vinkjes van een rol.
 
+### Rollen — rechtstreeks in de server
+
+Voor een kleine wijziging hoef je geen template te bewerken en uit te rollen. Open een server
+onder **Servers** en klik in het paneel **Rollen** op een rol: naam, kleur, apart tonen,
+pingbaar en alle rechten zijn daar aan te passen. **Opslaan in Discord** stuurt alleen wat je
+veranderd hebt, met jouw naam als reden in het auditlog. Een rol aanmaken en verwijderen kan
+daar ook.
+
+De bot zegt vooraf wat hij niet mag, in plaats van een foutmelding na het opslaan: rollen van
+bots en integraties, rollen boven (of gelijk aan) zijn eigen rol, en rechten die hij zelf niet
+heeft. Zo'n rol staat er met **vast** en de reden erbij.
+
+Daarna wijkt de server af van zijn template, en de driftcontrole zegt dat ook. Wil je de
+wijziging in de template hebben, gebruik dan **Overnemen**.
+
 ### JSON — de vluchtweg
 
 Dezelfde template als tekst, altijd in sync met de editor. Opslaan gaat door dezelfde

@@ -117,3 +117,27 @@ describe('leeghalen vanuit het dashboard', () => {
     expect(data.note).toMatch(/niets te verwijderen/);
   });
 });
+
+describe('rollen vanuit het dashboard', () => {
+  it('laat de rollen van een server zien, met wat vastzit', async () => {
+    const data = await json(await fetch(base + '/api/rollen/2'));
+    const namen = data.rollen.map((rol: Json) => rol.name);
+
+    expect(namen).toContain('Lid');
+    expect(data.rollen.find((rol: Json) => rol.name === 'Een andere bot').vast).toMatch(/integratie/);
+  });
+
+  it('stuurt in demo-modus niets naar Discord', async () => {
+    const response = await fetch(base + '/api/rollen/2/r1', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Leden' }),
+    });
+    expect(response.status).toBe(400);
+    expect((await json(response)).error).toMatch(/demo/);
+  });
+
+  it('weigert een server die niet bestaat', async () => {
+    expect((await fetch(base + '/api/rollen/bestaat-niet')).status).toBe(404);
+  });
+});
