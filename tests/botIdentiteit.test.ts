@@ -81,9 +81,23 @@ describe('identiteit toepassen in Discord', () => {
   it('zet geen bijnaam zonder het recht, maar wel het plaatje', async () => {
     const { guild, editMe } = nepServer(0n, 'Oude naam');
     const buffer = Buffer.from('plaatje');
-    await pasIdentiteitToe(guild, { naam: 'Nieuwe naam', avatar: { buffer } });
+    await pasIdentiteitToe(guild, { naam: 'Nieuwe naam', avatar: { buffer, mime: 'image/png' } });
 
-    expect(editMe).toHaveBeenCalledWith({ avatar: buffer, reason: expect.any(String) });
+    expect(editMe).toHaveBeenCalledWith({
+      avatar: `data:image/png;base64,${buffer.toString('base64')}`,
+      reason: expect.any(String),
+    });
+  });
+
+  it('bouwt de data-URL zelf op met het juiste mimetype (jpeg, niet het "jpg" van discord.js)', async () => {
+    const { guild, editMe } = nepServer(PermissionFlagsBits.ChangeNickname, 'Naam');
+    const buffer = Buffer.from('een jpeg-plaatje');
+    await pasIdentiteitToe(guild, { naam: 'Naam', avatar: { buffer, mime: 'image/jpeg' } });
+
+    expect(editMe).toHaveBeenCalledWith({
+      avatar: `data:image/jpeg;base64,${buffer.toString('base64')}`,
+      reason: expect.any(String),
+    });
   });
 
   it('haalt het eigen plaatje weg als er geen gewenst plaatje meer is', async () => {

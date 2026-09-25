@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { readFile, unlink, writeFile } from 'node:fs/promises';
+import { readFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -18,6 +18,7 @@ import { exportGuildFresh } from '../exporter.js';
 import { recenteWijzigingen } from '../auditlog.js';
 import { beschrijfRollen, maakRol, RolFout, verwijderRol, wijzigRol, type RolWijziging } from '../rolBeheer.js';
 import { AvatarFout, bewaarAvatar, leesAvatar, pasIdentiteitToe, verwijderAvatar } from '../botIdentiteit.js';
+import { handleMcpRequest } from '../mcp/http.js';
 import { driftVanServer } from '../drift.js';
 import { opruimlijst } from '../opruimen.js';
 import { rolUit } from '../uitvoeren.js';
@@ -26,6 +27,7 @@ import { templateCode, uitDiscordTemplate } from '../importeren.js';
 import { describeActions, planRegels, planSetup, summarizePlan } from '../planner.js';
 import { snapshotGuildFresh } from '../snapshot.js';
 import { listTemplateIds, loadTemplateMet, templateUitJson } from '../templates.js';
+import { erft, templatePath, werkTemplateBij, writeRuw, writeTemplate } from '../templateBeheer.js';
 import { COMMANDS } from '../bot.js';
 import { instellingenVan, zetServerInstellingen } from '../serverInstellingen.js';
 import {
@@ -130,6 +132,17 @@ async function handle(
   // --- Inloggen ------------------------------------------------------------
   if (segments[0] === 'auth') {
     return handleAuth(segments[1], url, request, response, sessions, applicationOwners, session);
+  }
+
+  /**
+   * MCP: een aparte ingang voor Claude, met zijn eigen Bearer-authenticatie in
+   * plaats van de cookie-sessie hierboven. Geen dashboard-authenticatie, geen
+   * dashboard-route eronder — `handleMcpRequest` regelt zijn eigen sloten en
+   * gaat daarna direct naar de bestaande kernfuncties, dezelfde die `/setup`
+   * en dit dashboard ook gebruiken.
+   */
+  if (segments[0] === 'mcp' && segments.length === 1) {
+    return handleMcpRequest(client, request, response);
   }
 
   if (method === 'GET' && segments.length === 0) return sendHtml(response);
@@ -459,10 +472,10 @@ async function handle(
       const naam = slug(body.id ?? bron.name) || 'geimporteerd';
       const template = uitDiscordTemplate(bron.serializedGuild, bron.name);
 
-      const bestaat = await readFile(templatePath(naam), 'utf8').catch(() => null);
+      const bestaat = await readFile(templatePath(config.templatesDir, naam), 'utf8').catch(() => null);
       if (bestaat) return send(response, 409, { error: `Er is al een template "${naam}".` });
 
-      await writeTemplate(naam, template);
+      await writeTemplate(config.templatesDir, naam, template);
       logger.info(`Dashboard importeerde discord.new/${code} als "${naam}"`);
       return send(response, 200, { id: naam, json: JSON.stringify(template, null, 2) });
     } catch (error) {
@@ -491,8 +504,8 @@ async function handle(
       if (typeof body.json === 'string' && body.json.trim() !== '') {
         try {
           const template = await templateUitJson(config.templatesDir, body.json);
-          if (erft(body.json)) await writeRuw(newId, body.json);
-          else await writeTemplate(newId, template);
+          if (erft(body.json)) await writeRuw(config.templatesDir, newId, body.json);
+          else await writeTemplate(config.templatesDir, newId, template);
 
           return send(response, 200, { id: newId, json: body.json, template });
         } catch (error) {
@@ -507,7 +520,7 @@ async function handle(
           return send(response, 400, { error: `Template "${body.from}" bestaat niet.` });
         }
         const json = `${JSON.stringify({ basis: body.from, name: newId }, null, 2)}\n`;
-        await writeRuw(newId, json);
+        await writeRuw(config.templatesDir, newId, json);
         return send(response, 200, { id: newId, json });
       }
 
@@ -530,7 +543,7 @@ async function handle(
             negeer: [],
           };
 
-      await writeTemplate(newId, source);
+      await writeTemplate(config.templatesDir, newId, source);
       return send(response, 200, { id: newId, json: JSON.stringify(source, null, 2) });
     }
   }
@@ -548,7 +561,7 @@ async function handle(
     }
 
     if (method === 'GET' && sub === undefined) {
-      const json = await readFile(templatePath(id), 'utf8');
+      const json = await readFile(templatePath(config.templatesDir, id), 'utf8');
       // `json` is wat er in het bestand staat, `template` wat het wordt: bij een
       // template met een basis zijn dat twee verschillende dingen.
       const template = await templateUitJson(config.templatesDir, json);
@@ -558,13 +571,10 @@ async function handle(
     if (method === 'PUT') {
       const body = await readJson<{ json?: string }>(request);
       try {
-        const json = body.json ?? '';
-        const template = await templateUitJson(config.templatesDir, json);
-        // Eerst de oude inhoud bewaren, dan pas overschrijven.
-        const previous = await readFile(templatePath(id), 'utf8').catch(() => null);
-        if (previous) await recordVersion(config.historyDir, id, previous, wie(session));
-        if (erft(json)) await writeRuw(id, json);
-        else await writeTemplate(id, template);
+        // Eerst de oude inhoud bewaren, dan pas overschrijven — dezelfde functie
+        // die MCP ook gebruikt, zodat een template hier maar op één manier
+        // verandert, ongeacht wie erom vraagt.
+        const { template } = await werkTemplateBij(config.templatesDir, config.historyDir, id, body.json ?? '', wie(session));
         return send(response, 200, { id, template, saved: true });
       } catch (error) {
         return send(response, 400, { error: message(error) });
@@ -581,7 +591,7 @@ async function handle(
         });
       }
 
-      await unlink(templatePath(id));
+      await unlink(templatePath(config.templatesDir, id));
       return send(response, 200, { deleted: id });
     }
   }
@@ -607,7 +617,7 @@ async function handle(
     const guild = client.guilds.cache.get(body.guildId);
     if (!guild) return send(response, 404, { error: 'Server niet gevonden.' });
 
-    const huidigJson = await readFile(templatePath(id), 'utf8').catch(() => null);
+    const huidigJson = await readFile(templatePath(config.templatesDir, id), 'utf8').catch(() => null);
     if (huidigJson === null) return send(response, 404, { error: 'Template niet gevonden.' });
 
     try {
@@ -680,8 +690,8 @@ async function handle(
 
       // De oude versie bewaren, zodat dit met één klik terug te draaien is.
       await recordVersion(config.historyDir, id, huidigJson, wie(session));
-      if (basisId !== null) await writeRuw(id, bestand);
-      else await writeTemplate(id, nieuw);
+      if (basisId !== null) await writeRuw(config.templatesDir, id, bestand);
+      else await writeTemplate(config.templatesDir, id, nieuw);
 
       logger.info(`Dashboard neemt "${guild.name}" over in template "${id}" (${summarizeDiff(verschil)})`);
       return send(response, 200, {
@@ -704,10 +714,10 @@ async function handle(
     const contents = await readVersion(config.historyDir, id, body.stamp);
     const template = await templateUitJson(config.templatesDir, contents);
 
-    const current = await readFile(templatePath(id), 'utf8').catch(() => null);
+    const current = await readFile(templatePath(config.templatesDir, id), 'utf8').catch(() => null);
     if (current) await recordVersion(config.historyDir, id, current, wie(session));
-    if (erft(contents)) await writeRuw(id, contents);
-    else await writeTemplate(id, template);
+    if (erft(contents)) await writeRuw(config.templatesDir, id, contents);
+    else await writeTemplate(config.templatesDir, id, template);
 
     return send(response, 200, {
       id,
@@ -1506,7 +1516,7 @@ async function describeVersions(id: string) {
   const versions = (await listVersions(config.historyDir, id)).slice(0, 25);
   if (versions.length === 0) return [];
 
-  const huidig = await readFile(templatePath(id), 'utf8').catch(() => null);
+  const huidig = await readFile(templatePath(config.templatesDir, id), 'utf8').catch(() => null);
   const beschreven = [];
 
   for (const [index, version] of versions.entries()) {
@@ -1562,7 +1572,7 @@ async function describeTemplates() {
   for (const id of ids) {
     try {
       const { template } = await loadTemplateMet(config.templatesDir, id, {}, { losjes: true });
-      const ruw = await readFile(templatePath(id), 'utf8').catch(() => null);
+      const ruw = await readFile(templatePath(config.templatesDir, id), 'utf8').catch(() => null);
       described.push({
         id,
         basis: ruw === null ? null : basisVan(JSON.parse(ruw)),
@@ -1600,7 +1610,7 @@ async function bouwenHierop(id: string): Promise<string[]> {
 
   for (const andere of ids) {
     if (andere === id) continue;
-    const json = await readFile(templatePath(andere), 'utf8').catch(() => null);
+    const json = await readFile(templatePath(config.templatesDir, andere), 'utf8').catch(() => null);
     if (json === null) continue;
     try {
       if (basisVan(JSON.parse(json)) === id) kinderen.push(andere);
@@ -1612,31 +1622,6 @@ async function bouwenHierop(id: string): Promise<string[]> {
   return kinderen;
 }
 
-function templatePath(id: string): string {
-  if (!/^[\w-]+$/.test(id)) throw new Error(`Ongeldige template-naam: "${id}"`);
-  return path.join(config.templatesDir, `${id}.json`);
-}
-
-async function writeTemplate(id: string, template: ServerTemplate): Promise<void> {
-  await writeFile(templatePath(id), `${JSON.stringify(template, null, 2)}\n`, 'utf8');
-}
-
-/**
- * Bouwt een template op een andere voort, dan slaan we op wat er getypt is en
- * niet wat eruit komt. Het samengevoegde resultaat wegschrijven zou de basis
- * stilletjes uit het bestand halen, en dan is precies het punt van overerven weg.
- */
-async function writeRuw(id: string, json: string): Promise<void> {
-  await writeFile(templatePath(id), json.endsWith('\n') ? json : `${json}\n`, 'utf8');
-}
-
-function erft(json: string): boolean {
-  try {
-    return basisVan(JSON.parse(json)) !== null;
-  } catch {
-    return false;
-  }
-}
 
 const slug = (value: string) =>
   value

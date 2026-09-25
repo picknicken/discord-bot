@@ -99,4 +99,29 @@ export const config = {
    * Vooral voor GitHub Actions: daar is het server-id een invoerveld.
    */
   toegestaneServers: leesToegestaneServers(process.env.GUILD_IDS),
+
+  // --- MCP (Claude als externe koppeling) -----------------------------------
+  /**
+   * Staat MCP uberhaupt aan? Standaard uit: een bot die draait mag niet in één
+   * keer ook een externe koppeling naar Claude openzetten zonder dat iemand
+   * dat expliciet aanzet.
+   */
+  mcpEnabled: (schoon(process.env.MCP_ENABLED) || 'false').toLowerCase() === 'true',
+  /**
+   * Welke servers Claude via MCP mag zien en aanraken. Met opzet een eigen
+   * instelling, los van GUILD_IDS: daar betekent leeg "geen beperking", en dat
+   * zou hier betekenen dat een vergeten configuratie in één klap elke server
+   * voor Claude openzet. Hier betekent leeg dus het omgekeerde: geen enkele
+   * server, tot er expliciet één is ingevuld. Dezelfde komma-gescheiden
+   * schrijfwijze als GUILD_IDS, in Railway of .env aan te passen zonder dat er
+   * ergens in code gezocht hoeft te worden.
+   */
+  mcpAllowedGuilds: leesToegestaneServers(process.env.MCP_ALLOWED_GUILD_IDS),
+  /**
+   * Het geheim dat een MCP-verzoek moet meesturen (`Authorization: Bearer
+   * <dit>`). Zonder dit geheim - ook als MCP_ENABLED aanstaat - blijft de
+   * /mcp-ingang dicht: een endpoint dat naar buiten toe openstaat zonder eigen
+   * wachtwoord is geen instelling die per ongeluk goed hoort te gaan.
+   */
+  mcpAuthToken: schoon(process.env.MCP_AUTH_TOKEN),
 };

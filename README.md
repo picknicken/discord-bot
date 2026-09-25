@@ -969,6 +969,126 @@ worden vanzelf omgezet (`Server Regels` wordt `server-regels`).
 open voor iedereen die het commando ziet. Opgeslagen als één JSON-bestand per server in
 `TAGS_DIR` (standaard `./tags`).
 
+## MCP / Claude
+
+Deze bot heeft een tweede ingang naast de Discord-commando's, het dashboard en GitHub Actions:
+een **MCP-server**, waarmee Claude (via een remote custom connector) dezelfde dingen kan opvragen
+en doen als het dashboard — zonder een tweede planner, een tweede permissiesysteem of een tweede
+allowlist te zijn. Elke MCP-tool roept dezelfde kernfuncties aan als `/setup` en het dashboard
+(`planSetup`, `applyPlan`, `rolBeheer.ts`, enzovoort); MCP zelf voegt alleen de HTTP-laag, de
+authenticatie en de guild-allowlist toe.
+
+```
+Claude → HTTPS /mcp → MCP-authenticatie (Bearer-token) → guild-allowlist → bestaande kernfuncties → Discord
+```
+
+### Standaard uit
+
+**MCP staat standaard uit** (`MCP_ENABLED=false`). Een bot die al draait mag niet in één klap ook
+een externe koppeling naar Claude openzetten zonder dat iemand dat expliciet aanzet.
+
+### Aanzetten
+
+Nodig in `.env` (lokaal) of bij Railway → Variables (live):
+
+```bash
+MCP_ENABLED=true
+MCP_AUTH_TOKEN=een-lang-willekeurig-geheim
+MCP_ALLOWED_GUILD_IDS=111111111111111111,222222222222222222
+```
+
+- **`MCP_AUTH_TOKEN`** bewijst dat de aanroeper hoort te mogen praten met deze MCP-server. Zet
+  hem in Claude als custom connector neer als `Authorization: Bearer <dit geheim>`. Zonder dit
+  geheim blijft `/mcp` dicht (404), ook met `MCP_ENABLED=true`.
+- **`MCP_ALLOWED_GUILD_IDS`** bepaalt vervolgens *welke* Discord-servers Claude via MCP mag zien
+  en aanraken — dit is een aparte, eigen instelling naast `GUILD_IDS`. **Zet het aan met `MCP_ENABLED=false`, en zet daarna pas de allowlist in.**
+
+### Server-ids aanpassen: eenvoudig, geen code
+
+`MCP_ALLOWED_GUILD_IDS` is met opzet net zo'n platte, komma-gescheiden lijst als `GUILD_IDS` —
+geen server-ids in TypeScript, geen bestand om op te zoeken:
+
+1. Open `.env` (lokaal) of Railway → je service → **Variables** (live).
+2. Zoek `MCP_ALLOWED_GUILD_IDS`.
+3. Zet er de Discord-server-id's in, gescheiden door komma's. Leeg laten = geen enkele server.
+4. Herstart de bot (lokaal: opnieuw opstarten; op Railway: een variabele opslaan herstart de
+   service vanzelf).
+
+```bash
+MCP_ALLOWED_GUILD_IDS=                                            # geen enkele server voor MCP
+MCP_ALLOWED_GUILD_IDS=111111111111111111                          # precies één server
+MCP_ALLOWED_GUILD_IDS=111111111111111111,222222222222222222       # meerdere servers
+```
+
+**Let op, dit werkt hier bewust andersom dan `GUILD_IDS`.** Bij `GUILD_IDS` betekent leeg "geen
+beperking" — prima voor wie dit lokaal op zijn eigen computer draait. Bij `MCP_ALLOWED_GUILD_IDS`
+zou datzelfde gedrag een vergeten configuratie in één klap élke server voor Claude openzetten.
+Daarom betekent leeg hier het omgekeerde: **geen enkele server**, tot je er expliciet één instelt.
+Dit is een server-side instelling; Claude kan hem via geen enkele tool lezen, aanpassen of
+uitschakelen.
+
+### Beschikbare tools
+
+**Alleen lezen** (kunnen nooit iets aan Discord of aan een template veranderen):
+
+| Tool | Wat hij teruggeeft |
+| --- | --- |
+| `list_allowed_servers` | Alleen de servers die op de allowlist staan én waar de bot echt in zit |
+| `get_server` | Naam, ledenaantal, aantal rollen/kanalen van één toegestane server |
+| `list_channels` | Categorieën en kanalen van die server |
+| `list_roles` / `get_role` | Rollen, met per rol of de bot hem kan beheren en waarom niet |
+| `get_permissions` | Rechten van een rol, optioneel effectief in één specifiek kanaal |
+| `list_templates` / `get_template` | Dezelfde template-loader als het dashboard |
+| `compare_server` | Legt een server naast een template (dezelfde `compare()` als het dashboard) |
+| `get_drift` | Hoeveel een server afwijkt van de laatst écht uitgerolde template |
+| `get_recent_changes` | Recente wijzigingen uit het Discord-auditlog |
+
+**Schrijvend, direct** (geen Discord-mutatie, wel gevalideerd en gelogd):
+
+| Tool | Wat hij doet |
+| --- | --- |
+| `update_template` | Slaat een nieuwe versie van een template op — dezelfde validatie en versiegeschiedenis als het dashboard |
+| `create_role` / `update_role` / `delete_role` | Rollen beheren via `src/rolBeheer.ts` — dezelfde hiërarchie- en rechtencontroles als het dashboard, dus nooit een rol boven de bot of een integratie |
+
+**Schrijvend naar een server, met verplichte bevestiging:**
+
+| Tool | Wat hij doet |
+| --- | --- |
+| `preview_template` | Bouwt hetzelfde plan als `/setup preview`. Voert niets uit. Geeft een `confirmation_token` terug |
+| `apply_template` | Voert een template écht uit — momentopname, aanpassen, loggen, dezelfde stappen als `/setup apply` — maar alleen met een geldig `confirmation_token` van een recente `preview_template` |
+
+Er is bewust **geen** tool om een hele server leeg te halen, kanalen te prunen, of de allowlist
+zelf aan te passen — dat blijft voorbehouden aan het dashboard en aan jou.
+
+### Confirmatie: waarom `apply_template` een token vraagt
+
+Claude kan geen `bevestig: <exacte servernaam>` typen zoals `/setup apply` in Discord vraagt.
+In plaats daarvan geeft `preview_template` een `confirmation_token` terug die:
+
+- **maar tien minuten geldig is**;
+- **maar één keer te gebruiken is** (ook een geweigerde poging verbruikt hem al);
+- **vastzit aan precies deze server, deze template én dit plan** — verandert de template
+  tussendoor, dan verandert de hash van het plan mee en wordt de oude confirmatie geweigerd met
+  de vraag om een nieuwe preview.
+
+Zo kan Claude nooit per ongeluk (of expres) een verouderd plan laten uitvoeren.
+
+### Deployment
+
+MCP draait in **hetzelfde Railway-proces** als het dashboard, op hetzelfde adres, onder `/mcp` —
+er is geen aparte service en geen ander startcommando nodig. `MCP_ENABLED=false` (de standaard)
+betekent dat die route gewoon 404 teruggeeft; er draait geen los proces om weer uit te zetten.
+
+### Veilig uitschakelen
+
+```bash
+MCP_ENABLED=false
+```
+
+is voldoende en is de standaard. Wil je hem tijdelijk dichtzetten zonder de allowlist kwijt te
+raken, dan is dit de enige instelling die je hoeft aan te passen — `MCP_ALLOWED_GUILD_IDS` mag
+gewoon blijven staan.
+
 ## Wat er is blijven liggen
 
 Een server groeit dicht: kanalen waar al een half jaar niets gebeurt, rollen die niemand meer

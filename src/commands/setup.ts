@@ -10,14 +10,10 @@ import {
 } from 'discord.js';
 import { config } from '../config.js';
 import { missingPermissions } from '../botPermissions.js';
-import { applyPlan } from '../applier.js';
 import { exportGuildFresh } from '../exporter.js';
-import { describeActions, planSetup, summarizePlan } from '../planner.js';
-import { snapshotGuildFresh } from '../snapshot.js';
-import { bewaarExport, exportId, listTemplateIds, loadAllTemplates, loadTemplateMet } from '../templates.js';
-import { maakHaalbaar } from '../haalbaar.js';
-import { backupGuild } from '../backup.js';
-import { logSetup } from '../setupLog.js';
+import { describeActions, summarizePlan } from '../planner.js';
+import { bewaarExport, exportId, listTemplateIds, loadAllTemplates } from '../templates.js';
+import { maakSetupPlan, voerSetupUit } from '../setupPlan.js';
 import { leesWaarden } from '../variabelen.js';
 import { serverToegestaan } from '../toegestaan.js';
 import { logger } from '../util/logger.js';
@@ -202,23 +198,11 @@ async function handleList(interaction: ChatInputCommandInteraction): Promise<voi
  * elkaar heen, waardoor via Discord nog de oude fouten terugkwamen.
  */
 async function maakPlan(interaction: ChatInputCommandInteraction, guild: Guild, id: string) {
-  const geladen = await loadTemplateMet(
-    config.templatesDir,
-    id,
-    leesWaarden([interaction.options.getString('variabelen') ?? '']),
-  );
-
-  const plan = planSetup(await snapshotGuildFresh(guild, geladen.template), geladen.template, {
+  return maakSetupPlan(guild, config.templatesDir, id, {
     prune: interaction.options.getBoolean('prune') ?? false,
     update: interaction.options.getBoolean('update') ?? true,
+    variabelen: leesWaarden([interaction.options.getString('variabelen') ?? '']),
   });
-
-  const me = await guild.members.fetchMe();
-  const haalbaar = maakHaalbaar(plan, me.permissions, {
-    alCommunity: guild.features.includes('COMMUNITY'),
-  });
-
-  return { ...geladen, plan: haalbaar.plan, aanpassingen: haalbaar.aanpassingen };
 }
 
 async function handlePreview(interaction: ChatInputCommandInteraction, guild: Guild): Promise<void> {
@@ -293,30 +277,23 @@ async function handleApply(interaction: ChatInputCommandInteraction, guild: Guil
     await interaction.editReply(`Bezig met ${plan.actions.length} acties… (${summarizePlan(plan)})`);
     logger.info(`Template "${id}" toepassen op ${guild.name} (${guild.id}) door ${interaction.user.tag}`);
 
-    // Eerst een momentopname, net als het dashboard en de commandoregel.
-    const backupFile = await backupGuild(guild, config.backupsDir, id).catch(() => null);
-    const result = await applyPlan(guild, template, plan);
-    const letop = [...result.errors, ...aanpassingen];
-
-    await logSetup(config.historyDir, {
-      at: new Date().toISOString(),
-      guildId: guild.id,
-      guildName: guild.name,
-      template: id,
-      door: interaction.user.tag,
-      mode: 'apply',
-      onderdelen: [],
-      applied: result.applied,
-      failed: result.failed,
-      backup: backupFile,
-      notes: letop,
-    });
+    // Momentopname, aanpassen, loggen: dezelfde volgorde als het dashboard en MCP.
+    const { applied, failed, backupFile, letop } = await voerSetupUit(
+      guild,
+      config.backupsDir,
+      config.historyDir,
+      id,
+      template,
+      plan,
+      aanpassingen,
+      interaction.user.tag,
+    );
 
     const embed = new EmbedBuilder()
-      .setTitle(result.failed === 0 ? 'Setup afgerond' : 'Setup afgerond met fouten')
-      .setColor(result.failed === 0 ? 0x57f287 : 0xed4245)
+      .setTitle(failed === 0 ? 'Setup afgerond' : 'Setup afgerond met fouten')
+      .setColor(failed === 0 ? 0x57f287 : 0xed4245)
       .setDescription(
-        `${result.applied} acties gelukt, ${result.failed} mislukt.` +
+        `${applied} acties gelukt, ${failed} mislukt.` +
           (backupFile ? '\nEr is vooraf een momentopname bewaard.' : ''),
       );
 
