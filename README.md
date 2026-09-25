@@ -24,6 +24,12 @@ Daarnaast is er een tweede tak, voor OSRS-clans (via WiseOldMan):
 | `/clan sync` | Beheer: werkt de clanrollen van iedereen bij |
 | `/clan knop` | Beheer: zet een knop neer waarmee leden hun naam koppelen |
 
+En een derde, los van de rest:
+
+| Commando | Wat het doet |
+| --- | --- |
+| `/poll vraag:<...> opties:<...> [duur] [meerkeuze]` | Plaatst een poll met Discord's eigen ingebouwde stemsysteem |
+
 Hetzelfde kan lokaal via het dashboard (`npm run dashboard`), inclusief het bewerken van
 templates en het instellen van de clanrangen.
 
@@ -858,6 +864,24 @@ uitdeelt. Voor het gelijktrekken van bijnamen komt daar **Bijnamen beheren** bij
 van de server kan door niemand hernoemd worden, ook niet door een bot met alle rechten; zijn
 rollen lukken wel. Er is geen privileged intent nodig: de bot haalt alleen de leden op die
 gekoppeld zijn, op id.
+
+## Polls
+
+`/poll vraag:"Pizza of pasta?" opties:"Pizza, Pasta"` plaatst een poll met Discord's eigen
+ingebouwde stemsysteem — hetzelfde als je met de "+"-knop bij een bericht zou maken, alleen in
+één regel. Stemmen tellen, de resultatenbalk en het sluiten na de gekozen duur doet Discord zelf;
+deze bot regelt alleen het aanmaken.
+
+- **`opties`** is één tekstveld, de keuzes gescheiden door een komma: `Ja, Nee, Misschien`.
+  Minstens 2, hooguit 10, en elke keuze is maximaal 55 tekens — dat zijn Discord's eigen grenzen
+  voor een poll, dus dat wordt vooraf gecontroleerd in plaats van er halverwege achter te komen.
+- **`duur`** is in hele uren, standaard 24, met een maximum van 32 dagen (768 uur) — ook een
+  grens van Discord zelf.
+- **`meerkeuze`** staat standaard uit: dan mag iemand maar één ding kiezen.
+
+Geen aparte rol of instelling nodig: wie het commando in Discord ziet staan, mag het gebruiken.
+Wil je dat beperken tot bijvoorbeeld moderators, dan stel je dat in bij Server-instellingen →
+Integraties → Setup Bot, zoals bij elk ander commando van een bot.
 
 ## Wat er is blijven liggen
 

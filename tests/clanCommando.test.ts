@@ -127,7 +127,7 @@ async function kiesClan() {
 describe('/clan', () => {
   it('staat naast /setup geregistreerd', () => {
     expect(data.name).toBe('clan');
-    expect(COMMANDS.map((command) => command.data.name).sort()).toEqual(['clan', 'setup']);
+    expect(COMMANDS.map((command) => command.data.name).sort()).toEqual(['clan', 'poll', 'setup']);
   });
 
   it('weigert een server die niet op de lijst staat', async () => {
