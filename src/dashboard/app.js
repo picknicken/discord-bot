@@ -1090,6 +1090,9 @@ function renderServerDetail() {
     '<h2 class="grow">Back-ups</h2></div><div class="pbody">' +
     (backups.length ? backups.map(backupRij).join('') : '<p class="hint">Nog geen back-ups van deze server.</p>') +
     '</div></section></div>' +
+    '<section class="panel" style="margin-top:14px"><div class="phead">' + icon('crown') +
+    '<h2 class="grow">Botidentiteit</h2></div>' +
+    '<div class="pbody" id="identiteitBlok">' + busy('Ophalen…') + '</div></section>' +
     '<section class="panel" style="margin-top:14px"><div class="phead">' + icon('shield') +
     '<h2 class="grow">Rollen</h2>' +
     '<button class="btn-sm" id="rolNieuw">' + icon('plus', 'sm') + 'Nieuwe rol</button></div>' +
@@ -1110,6 +1113,7 @@ function renderServerDetail() {
     'Uit betekent: alleen hier te zien, hij zegt er niets meer over.</small></span></label>' +
     '</div></section>';
 
+  void laadIdentiteit(guild.id);
   void laadRollen(guild.id);
   void laadWijzigingen(guild.id);
   void laadOpruimen(guild.id);
@@ -1139,6 +1143,107 @@ function renderServerDetail() {
   for (const knop of $('serverDetail').querySelectorAll('[data-doe]')) {
     knop.onclick = () => void doe[knop.dataset.doe]();
   }
+}
+
+// --- botidentiteit per server ----------------------------------------------
+
+/**
+ * Eigen naam en plaatje van de bot voor deze ene server, los van zijn
+ * wereldwijde profiel. Wat er nu al staat wordt meteen naar Discord gestuurd -
+ * geen aparte "uitrollen" nodig, dit is geen template-onderdeel.
+ */
+const identiteitScherm = { guildId: null, nieuwAvatar: undefined };
+
+async function laadIdentiteit(guildId) {
+  const doel = $('identiteitBlok');
+  if (!doel) return;
+  identiteitScherm.guildId = guildId;
+  identiteitScherm.nieuwAvatar = undefined;
+
+  try {
+    const data = await api('/identiteit/' + encodeURIComponent(guildId));
+    tekenIdentiteit(data);
+  } catch (error) {
+    doel.innerHTML = '<p class="hint">' + escape(error.message) + '</p>';
+  }
+}
+
+function tekenIdentiteit(data) {
+  const doel = $('identiteitBlok');
+  if (!doel) return;
+
+  const avatarSrc =
+    identiteitScherm.nieuwAvatar !== undefined
+      ? identiteitScherm.nieuwAvatar || data.standaardAvatarUrl
+      : data.heeftAvatar
+        ? '/api/identiteit/' + encodeURIComponent(identiteitScherm.guildId) + '/avatar?t=' + Date.now()
+        : data.standaardAvatarUrl;
+
+  doel.innerHTML =
+    '<p class="hint">Eigen naam en plaatje voor de bot in deze server, los van zijn profiel elders.</p>' +
+    '<div class="row" style="align-items:center;gap:14px;margin-bottom:12px">' +
+    '<img src="' + escape(avatarSrc) + '" alt="" width="64" height="64" style="border-radius:50%;object-fit:cover">' +
+    '<div class="row">' +
+    '<label class="btn-sm" style="cursor:pointer">' + icon('folder', 'sm') + 'Ander plaatje' +
+    '<input type="file" id="identiteitBestand" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label>' +
+    (data.heeftAvatar || identiteitScherm.nieuwAvatar
+      ? '<button class="btn-sm" id="identiteitAvatarWeg">' + icon('trash', 'sm') + 'Standaardplaatje</button>'
+      : '') +
+    '</div></div>' +
+    '<label class="field"><span>Naam in deze server</span>' +
+    '<input type="text" id="identiteitNaam" maxlength="32" placeholder="' + escape(data.standaardNaam) + '" value="' +
+    escape(data.naam || '') + '"></label>' +
+    '<div class="row">' +
+    '<button class="btn-primary" id="identiteitOpslaan">' + icon('save', 'sm') + 'Opslaan in Discord</button>' +
+    '</div>';
+
+  // Opnieuw tekenen na het kiezen van een plaatje bouwt het hele paneel
+  // opnieuw op; zonder dit zou een net getypte naam daarbij verdwijnen, want
+  // die staat alleen in het veld en nog niet in `data`.
+  const hertekenMetBehoudNaam = () => {
+    const naamNu = $('identiteitNaam')?.value;
+    tekenIdentiteit(data);
+    if (naamNu) $('identiteitNaam').value = naamNu;
+  };
+
+  $('identiteitBestand').onchange = (event) => {
+    const bestand = event.target.files?.[0];
+    if (!bestand) return;
+    const lezer = new FileReader();
+    lezer.onload = () => {
+      identiteitScherm.nieuwAvatar = lezer.result;
+      hertekenMetBehoudNaam();
+    };
+    lezer.readAsDataURL(bestand);
+  };
+
+  const weg = $('identiteitAvatarWeg');
+  if (weg) {
+    weg.onclick = () => {
+      identiteitScherm.nieuwAvatar = null;
+      hertekenMetBehoudNaam();
+    };
+  }
+
+  $('identiteitOpslaan').onclick = async () => {
+    const naam = $('identiteitNaam').value.trim();
+    const wijziging = { naam: naam || null };
+    if (identiteitScherm.nieuwAvatar !== undefined) wijziging.avatarDataUrl = identiteitScherm.nieuwAvatar;
+
+    $('identiteitOpslaan').disabled = true;
+    try {
+      const nieuw = await api('/identiteit/' + encodeURIComponent(identiteitScherm.guildId), {
+        method: 'PUT',
+        body: JSON.stringify(wijziging),
+      });
+      toast('Botidentiteit voor deze server is bijgewerkt', 'ok');
+      identiteitScherm.nieuwAvatar = undefined;
+      tekenIdentiteit(nieuw);
+    } catch (error) {
+      toast(error.message, 'bad', 6000);
+      $('identiteitOpslaan').disabled = false;
+    }
+  };
 }
 
 // --- rollen rechtstreeks in de server -------------------------------------

@@ -8,6 +8,7 @@ import { ROLMENU_KIES, ROLMENU_KNOP } from './rolmenu.js';
 import { kiesInRolmenu, klikRolmenu } from './rolmenuKlik.js';
 import { handleGuildCreate } from './events/guildCreate.js';
 import { handleGuildMemberAdd } from './events/guildMemberAdd.js';
+import { synchroniseerIdentiteiten } from './botIdentiteit.js';
 import { logger } from './util/logger.js';
 
 /**
@@ -37,6 +38,12 @@ export function koppelBot(client: Client): void {
   client.once(Events.ClientReady, async (ready) => {
     if (!config.commandosAanmelden) return;
     await zorgVoorCommandos(ready, COMMANDS.map((command) => command.data.toJSON() as CommandoJSON));
+  });
+
+  // Een server met een eigen naam of plaatje voor de bot: dat moet ook na een
+  // herstart weer kloppen, niet alleen op het moment dat iemand het instelt.
+  client.once(Events.ClientReady, async (ready) => {
+    await synchroniseerIdentiteiten(ready, config.historyDir);
   });
 
   client.on(Events.GuildCreate, async (guild) => {
