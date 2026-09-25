@@ -90,6 +90,13 @@ const TEKSTEN = {
       'and the moment you join it counts automatically.',
   },
   'knop.voet': { nl: 'Alleen jij ziet het antwoord.', en: 'Only you will see the reply.' },
+  'knop.verplicht.naam': { nl: 'Verplicht om verder te kunnen', en: 'Required to unlock the rest' },
+  'knop.verplicht.tekst': {
+    nl: 'Typ je naam ook gewoon hier in dit kanaal — dat werkt net zo goed als de knop. Zodra je naam ' +
+      'gekoppeld is, zie je de rest van de server.',
+    en: 'You can also just type your name here in this channel — that works just as well as the button. ' +
+      'Once your name is linked, you will see the rest of the server.',
+  },
   'venster.veld': { nl: 'Je naam in Old School RuneScape', en: 'Your Old School RuneScape name' },
   'venster.voorbeeld': { nl: 'bijvoorbeeld: Sparc Mac', en: 'for example: Sparc Mac' },
 

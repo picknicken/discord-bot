@@ -59,6 +59,12 @@ export function koppelBericht(dossier: ClanDossier, welkom = false, taal: Taal =
     .setDescription(t(taal, 'knop.uitleg', { clans: namen }))
     .setFooter({ text: t(taal, 'knop.voet') });
 
+  // Alleen relevant als deze server het ook echt afdwingt: zonder wachtkamerrol
+  // is typen in dit kanaal niets bijzonders, en zou dit veld verwarren.
+  if (welkom && dossier.instellingen.verplicht && dossier.instellingen.wachtkamerRol) {
+    embed.addFields({ name: t(taal, 'knop.verplicht.naam'), value: t(taal, 'knop.verplicht.tekst') });
+  }
+
   return { embeds: [embed], components: [koppelKnopRij(taal)] };
 }
 

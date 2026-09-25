@@ -21,6 +21,18 @@ export async function handleGuildMemberAdd(member: GuildMember): Promise<void> {
   // Al gekoppeld? Dan is hij hier eerder geweest en hoeft hij niets te doen.
   if (dossier.koppelingen[member.id]) return;
 
+  // Verplichte naamkoppeling: de wachtkamerrol regelt zelf, via zijn eigen
+  // kanaalrechten, wat een nieuw lid nog niet ziet. De bot hoeft alleen die
+  // rol erop en er weer af te halen; welke kanalen dat precies zijn stelt de
+  // server zelf in, net als bij elke andere rol.
+  if (dossier.instellingen.verplicht && dossier.instellingen.wachtkamerRol) {
+    try {
+      await member.roles.add(dossier.instellingen.wachtkamerRol, 'Verplichte naamkoppeling: nog niet gekoppeld');
+    } catch (error) {
+      logger.warn(`Wachtkamerrol niet gezet voor ${member.user.username} in "${member.guild.name}"`, error);
+    }
+  }
+
   // Dit bericht blijft in een kanaal staan, dus de taal van de server telt -
   // niet die van het lid dat toevallig net binnenkomt.
   const bericht = koppelBericht(dossier, true, kiesTaal(member.guild.preferredLocale));

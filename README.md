@@ -785,6 +785,26 @@ het lid voor het laatst gezien is, en wie er niet meer in de server zit. Handmat
 daar ook, voor een lid dat het zelf niet lukt. Eén OSRS-naam kan maar aan één Discord-account
 vastzitten; de tweede poging wordt geweigerd in plaats van stilletjes overgenomen.
 
+### Naamkoppeling verplicht maken
+
+Standaard is koppelen vrijwillig: wie de knop negeert, ziet gewoon de rest van de server. Wil je
+dat niemand verder komt zonder zijn OSRS-naam op te geven, zet dan in het dashboard onder
+**Clan → Verder nog** de schakelaar **Naamkoppeling verplicht maken** aan en kies een
+**wachtkamerrol**.
+
+Zo werkt het:
+
+1. Een nieuw lid krijgt bij binnenkomst die wachtkamerrol.
+2. Welke kanalen die rol wel en niet ziet stel je zelf in bij **Serverinstellingen → Rollen**,
+   precies zoals bij elke andere rol — de bot regelt geen kanaalrechten, alleen de rol zelf.
+3. Zijn OSRS-naam typen in het welkomkanaal werkt net zo goed als de knop; geen `/clan koppel`
+   of venstertje nodig. Zodra dat lukt gaat de wachtkamerrol er automatisch weer af.
+
+Dit vraagt, naast de Server Members Intent hierboven, ook de **Message Content Intent**:
+**Developer Portal → jouw applicatie → Bot → Privileged Gateway Intents → Message Content
+Intent**. Staat die uit, dan start de bot gewoon en blijft alleen de knop over — typen in het
+kanaal doet dan niets, in plaats van dat het stilletjes wordt genegeerd; je ziet het in het log.
+
 ### Wat de bot niet aanraakt
 
 - **Alleen de rollen die hier zijn ingesteld.** De clanrollen en de gastrol, en verder niets.

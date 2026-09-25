@@ -183,10 +183,12 @@ describe('wie binnenkomt', () => {
       permissionsFor: () => ({ has: () => true }),
     };
 
+    const rollenErbij: string[] = [];
     const member = {
       id: opties.id ?? '111111111',
       user: { username: 'tessa', bot: opties.bot ?? false },
       send: async (bericht: Record<string, unknown>) => void verstuurd.push({ dm: true, ...bericht }),
+      roles: { add: async (rol: string) => void rollenErbij.push(rol) },
       guild: {
         id: GUILD_ID,
         name: 'Clanserver',
@@ -196,7 +198,7 @@ describe('wie binnenkomt', () => {
       },
     };
 
-    return { verstuurd, member: member as unknown as GuildMember };
+    return { verstuurd, rollenErbij, member: member as unknown as GuildMember };
   }
 
   it('stuurt het welkomstbericht met de knop erin', async () => {
@@ -252,5 +254,21 @@ describe('wie binnenkomt', () => {
 
     await kiesClan({ welkom: false });
     expect(await welkomAan(clanDir, GUILD_ID)).toBeNull();
+  });
+
+  it('geeft de wachtkamerrol bij een verplichte naamkoppeling', async () => {
+    await kiesClan({ verplicht: true, wachtkamerRol: 'wacht-1' });
+    const { member, rollenErbij } = stubLid();
+
+    await handleGuildMemberAdd(member);
+    expect(rollenErbij).toEqual(['wacht-1']);
+  });
+
+  it('geeft geen wachtkamerrol zonder dat verplicht aan staat', async () => {
+    await kiesClan({ wachtkamerRol: 'wacht-1' });
+    const { member, rollenErbij } = stubLid();
+
+    await handleGuildMemberAdd(member);
+    expect(rollenErbij).toEqual([]);
   });
 });

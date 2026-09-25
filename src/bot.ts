@@ -8,6 +8,7 @@ import { ROLMENU_KIES, ROLMENU_KNOP } from './rolmenu.js';
 import { kiesInRolmenu, klikRolmenu } from './rolmenuKlik.js';
 import { handleGuildCreate } from './events/guildCreate.js';
 import { handleGuildMemberAdd } from './events/guildMemberAdd.js';
+import { verwerkNaamBericht } from './clan/verificatie.js';
 import { synchroniseerIdentiteiten } from './botIdentiteit.js';
 import { logger } from './util/logger.js';
 
@@ -62,6 +63,17 @@ export function koppelBot(client: Client): void {
       await handleGuildMemberAdd(member);
     } catch (error) {
       logger.error(`Welkom voor ${member.user.username} in "${member.guild.name}" mislukt`, error);
+    }
+  });
+
+  // Verplichte naamkoppeling: een bericht in het welkomkanaal telt ook als
+  // koppelpoging, naast de knop. Op elke server die dit niet aanzet doet dit
+  // niets — de eerste regel van verwerkNaamBericht stopt dan meteen.
+  client.on(Events.MessageCreate, async (message) => {
+    try {
+      await verwerkNaamBericht(message, config.clanDir);
+    } catch (error) {
+      logger.error(`Naam verwerken in de wachtkamer mislukt voor ${message.author.id}`, error);
     }
   });
 

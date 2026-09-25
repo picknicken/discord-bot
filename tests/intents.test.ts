@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { ApplicationFlagsBitField } from 'discord.js';
-import { ledenIntentAan } from '../src/util/intents.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ApplicationFlagsBitField, GatewayIntentBits } from 'discord.js';
+import { berichtIntentAan, kiesIntents, ledenIntentAan } from '../src/util/intents.js';
 
 /**
  * Vraag je de Server Members Intent aan terwijl hij in het Developer Portal
@@ -35,5 +35,39 @@ describe('mag de bot leden zien?', () => {
     }) as unknown as typeof fetch;
 
     expect(await ledenIntentAan('token', stuk)).toBe(false);
+  });
+});
+
+describe('mag de bot berichten lezen?', () => {
+  it('ja met de schakelaar aan', async () => {
+    const flags = ApplicationFlagsBitField.Flags.GatewayMessageContentLimited;
+    expect(await berichtIntentAan('token', antwoord({ flags: Number(flags) }))).toBe(true);
+  });
+
+  it('nee met de schakelaar uit', async () => {
+    expect(await berichtIntentAan('token', antwoord({ flags: 0 }))).toBe(false);
+  });
+});
+
+describe('welke intents de bot aanvraagt', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('vraagt beide privileged intents met allebei de schakelaars aan', async () => {
+    const flags =
+      Number(ApplicationFlagsBitField.Flags.GatewayGuildMembers) |
+      Number(ApplicationFlagsBitField.Flags.GatewayMessageContent);
+    vi.stubGlobal('fetch', antwoord({ flags }));
+
+    const intents = await kiesIntents('token');
+    expect(intents).toEqual(
+      expect.arrayContaining([GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMembers, GatewayIntentBits.MessageContent]),
+    );
+  });
+
+  it('laat allebei weg met allebei de schakelaars uit, en start toch', async () => {
+    vi.stubGlobal('fetch', antwoord({ flags: 0 }));
+
+    const intents = await kiesIntents('token');
+    expect(intents).toEqual([GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]);
   });
 });
