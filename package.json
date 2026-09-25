@@ -22,12 +22,14 @@
     "dashboard:dev": "tsx watch src/demo.ts",
     "build:demo": "tsx scripts/build-demo.ts",
     "copy:assets": "node scripts/copy-assets.mjs",
+    "gamedata:convert": "node scripts/gamedata-xml-to-json.mjs",
     "apply": "tsx src/apply-once.ts",
     "reset": "tsx src/reset-once.ts"
   },
   "dependencies": {
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.5",
+    "xml2js": "^0.6.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {
