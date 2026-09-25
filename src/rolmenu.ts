@@ -84,7 +84,7 @@ export const optieLabel = (label: string | undefined, rolNaam: string): string =
  * dit pas gebeurt nadat de rollen bestaan.
  */
 export function bouwRolmenu(
-  menu: RoleMenuSpec,
+  menu: Pick<RoleMenuSpec, 'title' | 'description' | 'color' | 'style'>,
   opties: readonly RolmenuOptie[],
   taal: Taal = 'nl',
 ): BaseMessageOptions {

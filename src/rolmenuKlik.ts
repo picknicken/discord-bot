@@ -59,7 +59,7 @@ async function meld(
   await interaction.reply({ content: tekst, flags: MessageFlags.Ephemeral }).catch(() => undefined);
 }
 
-function overMij(member: GuildMember | null) {
+export function overMij(member: GuildMember | null) {
   return member
     ? { hoogstePositie: member.roles.highest.position, magRollenBeheren: member.permissions.has(PermissionFlagsBits.ManageRoles) }
     : null;

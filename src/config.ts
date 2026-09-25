@@ -76,6 +76,8 @@ export const config = {
   historyDir: schoon(process.env.HISTORY_DIR) || opVolume('history') || './history',
   /** Clankoppelingen en rangrollen, per server één bestand. */
   clanDir: schoon(process.env.CLAN_DIR) || opVolume('clan') || './clan',
+  /** Eigen commando's (`/tag`), per server één bestand. */
+  tagsDir: schoon(process.env.TAGS_DIR) || opVolume('tags') || './tags',
   /** Hoe vaak de clanrangen vanzelf worden bijgewerkt, in minuten. 0 = nooit. */
   clanSyncMinuten: Math.max(0, Number(schoon(process.env.CLAN_SYNC_MINUTEN) || 60)),
   /** Hoe vaak de bot zelf kijkt of een server is afgedwaald. 0 is uit. */
